@@ -305,7 +305,7 @@ export function createInitialGameState(options?: InitialGameOptions): GameState 
       prng: prng.getState(),
       log: [
         {
-          timestamp: Date.now(),
+          timestamp: 0,
           message: `Game initialized in First Game mode with ${playerCount} players.`,
         },
       ],
@@ -384,7 +384,7 @@ export function createInitialGameState(options?: InitialGameOptions): GameState 
       prng: prng.getState(),
       log: [
         {
-          timestamp: Date.now(),
+          timestamp: 0,
           message: `Game initialized in Standard Variable Draft mode with ${playerCount} players.`,
         },
       ],

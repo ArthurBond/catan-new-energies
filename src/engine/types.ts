@@ -187,7 +187,7 @@ export type PendingDecision =
   | { id: string; type: 'DISCARD_ON_SEVEN'; playerId: PlayerId; cardsToDiscard: number }
   | { id: string; type: 'MOVE_INSPECTOR'; playerId: PlayerId }
   | { id: string; type: 'STEAL_TARGET'; playerId: PlayerId; targetNodeIds: NodeId[] }
-  | { id: string; type: 'DOMESTIC_TRADE_RESPONSE'; offeringPlayerId: PlayerId; targetPlayerId: PlayerId; offer: unknown; demand: unknown };
+  | { id: string; type: 'DOMESTIC_TRADE_RESPONSE'; playerId: PlayerId; offeringPlayerId: PlayerId; targetPlayerId: PlayerId; offer: unknown; demand: unknown };
 
 export type GameAction =
   // Setup Draft Actions
