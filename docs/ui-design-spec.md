@@ -28,11 +28,29 @@ This specification analyzes `UI-design-style.png` (an overhead photograph of the
     - **Right & Bottom Rim (Brown Rocky Islands)**: Four barren brown islands at roughly `3 o'clock` (3 slots), `4:30` (4 slots), and two islands around `5:30–6:30` (3 slots and 4 slots), several holding drawn brown event discs.
   - **Harbors on the Sea**: Ratio labels (`3:1` and `2:1` with resource icons) printed directly on the blue sea water outside the coastal intersections.
 - **Surrounding Tabletop Zones in the Photo**:
-  - **Player Boards**: Three player boards are visible in the photo—top-left (Yellow/Orange, partially cropped), bottom-left (Blue), and bottom-right (Pink)—while the Purple player's pieces are on the map and VP track. Each visible board shows:
-    - Top row of hexagonal prism **Towns** and larger **Cities** sitting on `+` pollution cloud slots, with loose **Road** sticks nearby.
-    - Bottom-left industrial section with brown circular **Fossil Fuel Power Plant** tokens.
-    - Bottom-center **Warehouse tile** (`<= 10` visible) above 5 yellow lightning-bolt **Energy** spaces.
-    - Bottom-right wind-turbine section with green circular **Renewable Power Plant** tokens stacked on green event discs.
+  - **Player Boards**: Three player boards are visible in `UI-design-style.png`—top-left (Yellow/Orange, partially cropped), bottom-left (Blue), and bottom-right (Pink)—and a dedicated high-resolution close-up is provided in `player-mat-reference.png` (showing the Pink Player Mat in full detail):
+    - **Top Bar (Towns & Cities Reserve)**:
+      - **Top-Left**: `5` Town slots in a row (`4` holding pink wooden Towns with a single circular power-plant cutout, `1` uncovered slot revealing a grey `+` pollution cloud icon) flanked on the far left by the vertical Town cost column (`1 Lumber`, `1 Brick`, `1 Food`, `1 Natural Fiber`).
+      - **Top-Right**: `4` City slots in a row (`3` holding pink wooden Cities with 3 circular power-plant cutouts around their perimeter, `1` uncovered slot revealing **two stacked `+` pollution cloud icons**) flanked on the far right by the vertical City cost column (`2 Food`, `3 Steel`).
+    - **Upper-Middle Landscape & Cost Illustrations**:
+      - **Upper-Left**: Development Card illustration (sunrise over lake) with its 3 resource cost icons (`1 Food`, `1 Natural Fiber`, `1 Steel`).
+      - **Center**: Wide twilight highway overpass / bridge illustration with the Road cost icons (`1 Lumber`, `1 Brick`) at its top-left corner.
+    - **Bottom-Left Zone (Fossil Fuel Power Plants)**:
+      - Industrial factory with two tall striped smokestacks emitting white smoke plumes.
+      - `6` circular slots arranged in `2 rows x 3 columns` holding dark-brown wooden Fossil Fuel Power Plant cylinders (with yellow lightning bolts). Uncovered slots reveal a `+` pollution cloud icon.
+      - Far bottom-left corner shows the cost badge: `1 Science` (single lightbulb icon).
+    - **Bottom-Center Zone (Warehouse Tile, Energy Actions & 5-Bolt Energy Bar)**:
+      - **Warehouse Tile Slot** (middle-left): Square tile showing `2 Energy` lightning bolts + flip-tile arrow icon (`Cost: 2 Energy`; flips to `<= 10` hand limit when built).
+      - **Energy Action Reference Icons** (middle-right, along the power line pylons):
+        1. `2 Energy` bolts $\rightarrow$ Take `1` Resource/Science card from supply.
+        2. `1 Energy` bolt $\rightarrow$ Remove `1` grey cog Hazard token.
+        3. `1 Energy` bolt $\rightarrow$ Demolish `1` black/brown Fossil Fuel Power Plant (`x1` per turn badge).
+      - **5-Slot Energy Storage Bar**: Yellow rectangular strip with `5` recessed white lightning-bolt silhouettes (`max 5 Energy`).
+      - **Bottom-Center Limit Badge**: `[Brown Plant] (x1) [Green Plant]` reminder that at most `1` Power Plant (Fossil OR Renewable) may be built per turn.
+    - **Bottom-Right Zone (Renewable Power Plants & Green Event Discs)**:
+      - Lush green hills with tall white wind turbines extending up the right side of the board.
+      - `9` circular slots arranged in `2 columns of 3` (left/middle) + `1 column of 4` (rightmost column, with the 9th slot at the top-right) holding face-down **Green Event Discs** topped by dark-green wooden **Renewable Power Plant** cylinders (with yellow lightning bolts). Removing a plant + disc reveals a green `-` footprint icon.
+      - Far bottom-right corner shows the cost badge: `3 Science` (three stacked lightbulb icons).
   - **Left Margin**: *Cleanest Environment* card, two face-up played *Clean Up* cards and one *Road Construction* card, a pile of grey cog-shaped **Hazard tokens**, a cluster of yellow 3D lightning-bolt **Energy tokens**, and a cream pipped die (the second green pipped die rests near `11 o'clock` by the VP island).
   - **Right Margin**: Five fanned face-up **Resource card** piles (Lumber, Brick, Natural Fiber, Food, Steel), one face-up **Science card** pile (dark green with white lightbulb), a face-down **Development card** stack (sunrise-over-lake back), and the off-white cloth **Event Disc Bag** with drawstring.
   - **Natural Tabletop Jitter**: Card piles and loose tokens sit at slight organic angles ($\pm 2^\circ\text{–}6^\circ$) with soft shadows, giving the scene an authentic "friends around a real table" feel.

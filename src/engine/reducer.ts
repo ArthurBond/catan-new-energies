@@ -6,6 +6,28 @@
  */
 
 import { isActionEqual, legalActions } from './actions';
+import {
+  applyBuildCity,
+  applyBuildPowerPlant,
+  applyBuildRoad,
+  applyBuildTown,
+  applyBuildWarehouse,
+} from './build';
+import {
+  applyBuyDevCard,
+  applyPlayDevCard,
+  applyRevealVpCards,
+  canPlayDevCard,
+  canRevealVpCards,
+} from './dev-cards';
+import {
+  applyOfferTrade,
+  applySpendEnergy,
+  applyTradeHarbor,
+  applyTradeResponse,
+  applyTradeSupply,
+  canOfferTrade,
+} from './energy-trades';
 import { applyEventDecision } from './event-resolvers';
 import { checkPostDecisionEventPhase, stepEventDraw } from './events';
 import { clampGF, computePlayerLF, computeTrueTotalLF } from './footprint';
@@ -21,6 +43,7 @@ import {
 } from './production';
 import { TERRAIN_RESOURCE_MAP } from './setup';
 import { GameAction, GameState, HexId, PendingDecision, PlayerId, ResourceType } from './types';
+import { checkOwnTurnVictory } from './victory';
 
 export class IllegalActionError extends Error {
   constructor(message: string) {
@@ -32,7 +55,23 @@ export class IllegalActionError extends Error {
 export function applyAction(state: GameState, action: GameAction): GameState {
   // 1. Verify action is legal
   const available = legalActions(state, action.playerId);
-  const isLegal = available.some((a) => isActionEqual(a, action));
+  let isLegal = available.some((a) => isActionEqual(a, action));
+
+  if (!isLegal && action.type === 'OFFER_TRADE') {
+    isLegal = canOfferTrade(
+      state,
+      action.playerId,
+      action.targetPlayerId,
+      action.give,
+      action.want
+    ).canOffer;
+  }
+  if (!isLegal && action.type === 'PLAY_DEV_CARD') {
+    isLegal = canPlayDevCard(state, action.playerId, action.cardId, action.params).canPlay;
+  }
+  if (!isLegal && action.type === 'REVEAL_VP_CARDS') {
+    isLegal = canRevealVpCards(state, action.playerId, action.cardIds).canReveal;
+  }
 
   if (!isLegal) {
     throw new IllegalActionError(
@@ -184,6 +223,14 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       break;
     }
 
+    case 'PRE_EVENT_PASS': {
+      next.log.push({
+        timestamp: next.log.length,
+        message: `${next.players[action.playerId]!.name} passed pre-event development card window.`,
+      });
+      break;
+    }
+
     case 'DRAW_EVENT_DISC': {
       stepEventDraw(next);
       break;
@@ -317,7 +364,77 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         executeStealCard(next, action.playerId, resp.targetPlayerId);
         next.pendingDecisions.shift();
         next.phase = 'ActionPhase';
+      } else if (head.type === 'DOMESTIC_TRADE_RESPONSE') {
+        const resp = action.response as { accept: boolean };
+        applyTradeResponse(next, head.id, resp.accept);
       }
+      break;
+    }
+
+    case 'BUILD_ROAD': {
+      applyBuildRoad(next, action.playerId, action.edgeId);
+      break;
+    }
+
+    case 'BUILD_TOWN': {
+      applyBuildTown(next, action.playerId, action.nodeId);
+      checkOwnTurnVictory(next);
+      break;
+    }
+
+    case 'BUILD_CITY': {
+      applyBuildCity(next, action.playerId, action.nodeId);
+      checkOwnTurnVictory(next);
+      break;
+    }
+
+    case 'BUILD_FOSSIL_PLANT': {
+      applyBuildPowerPlant(next, action.playerId, action.nodeId, action.hexId, 'fossil');
+      break;
+    }
+
+    case 'BUILD_RENEWABLE_PLANT': {
+      applyBuildPowerPlant(next, action.playerId, action.nodeId, action.hexId, 'renewable');
+      break;
+    }
+
+    case 'BUILD_WAREHOUSE': {
+      applyBuildWarehouse(next, action.playerId);
+      break;
+    }
+
+    case 'BUY_DEV_CARD': {
+      applyBuyDevCard(next, action.playerId);
+      break;
+    }
+
+    case 'PLAY_DEV_CARD': {
+      applyPlayDevCard(next, action.playerId, action.cardId, action.params);
+      break;
+    }
+
+    case 'REVEAL_VP_CARDS': {
+      applyRevealVpCards(next, action.playerId, action.cardIds);
+      break;
+    }
+
+    case 'SPEND_ENERGY': {
+      applySpendEnergy(next, action.playerId, action.usage, action.params);
+      break;
+    }
+
+    case 'TRADE_SUPPLY': {
+      applyTradeSupply(next, action.playerId, action.give, action.receive);
+      break;
+    }
+
+    case 'TRADE_HARBOR': {
+      applyTradeHarbor(next, action.playerId, action.harborId, action.give, action.receive);
+      break;
+    }
+
+    case 'OFFER_TRADE': {
+      applyOfferTrade(next, action.playerId, action.targetPlayerId, action.give, action.want);
       break;
     }
 

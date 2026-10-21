@@ -85,11 +85,21 @@ const FIRST_GAME_PLACEMENTS: Record<PlayerId, FirstGamePlacement> = {
 export function createInitialSupply(): GlobalSupplyState {
   // Construct 25 development cards
   const devDeck: string[] = [];
-  for (let i = 0; i < DEV_CARD_COUNTS.cleanup; i++) devDeck.push('cleanup');
-  for (let i = 0; i < DEV_CARD_COUNTS.roadConstruction; i++) devDeck.push('roadConstruction');
-  for (let i = 0; i < DEV_CARD_COUNTS.highYield; i++) devDeck.push('highYield');
-  for (let i = 0; i < DEV_CARD_COUNTS.researchGrant; i++) devDeck.push('researchGrant');
-  for (let i = 0; i < DEV_CARD_COUNTS.victoryPoint; i++) devDeck.push('victoryPoint');
+  for (let i = 1; i <= DEV_CARD_COUNTS.cleanup; i++) {
+    devDeck.push(`dev_cleanup_${String(i).padStart(2, '0')}`);
+  }
+  for (let i = 1; i <= DEV_CARD_COUNTS.roadConstruction; i++) {
+    devDeck.push(`dev_roadConstruction_${String(i).padStart(2, '0')}`);
+  }
+  for (let i = 1; i <= DEV_CARD_COUNTS.highYield; i++) {
+    devDeck.push(`dev_highYield_${String(i).padStart(2, '0')}`);
+  }
+  for (let i = 1; i <= DEV_CARD_COUNTS.researchGrant; i++) {
+    devDeck.push(`dev_researchGrant_${String(i).padStart(2, '0')}`);
+  }
+  for (let i = 1; i <= DEV_CARD_COUNTS.victoryPoint; i++) {
+    devDeck.push(`dev_victoryPoint_${String(i).padStart(2, '0')}`);
+  }
 
   return {
     resources: {
