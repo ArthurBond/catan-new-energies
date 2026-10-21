@@ -6,7 +6,51 @@
  */
 
 import { getEmptyIncidentEdges, getNodesSatisfyingDistanceRule } from './board';
-import { GameAction, GameState, PlayerId } from './types';
+import { GameAction, GameState, PlayerId, PlayerState, ResourceType } from './types';
+
+function generateDiscardChoices(
+  player: PlayerState,
+  cardsToDiscard: number
+): Partial<Record<ResourceType | 'science', number>>[] {
+  const cards: (ResourceType | 'science')[] = [];
+  const resourceTypes = ['lumber', 'brick', 'natural_fiber', 'food', 'steel'] as const;
+  for (const r of resourceTypes) {
+    for (let i = 0; i < player.resources[r]; i++) cards.push(r);
+  }
+  for (let i = 0; i < player.science; i++) cards.push('science');
+
+  if (cards.length < cardsToDiscard) return [];
+
+  const results: Partial<Record<ResourceType | 'science', number>>[] = [];
+  const seen = new Set<string>();
+
+  function backtrack(
+    startIdx: number,
+    current: Partial<Record<ResourceType | 'science', number>>,
+    count: number
+  ) {
+    if (count === cardsToDiscard) {
+      const key = JSON.stringify(current);
+      if (!seen.has(key)) {
+        seen.add(key);
+        results.push({ ...current });
+      }
+      return;
+    }
+    if (results.length >= 50) return;
+
+    for (let i = startIdx; i < cards.length; i++) {
+      const card = cards[i]!;
+      current[card] = (current[card] || 0) + 1;
+      backtrack(i + 1, current, count + 1);
+      current[card] = current[card]! - 1;
+      if (current[card] === 0) delete current[card];
+    }
+  }
+
+  backtrack(0, {}, 0);
+  return results;
+}
 
 export function isActionEqual(a: GameAction, b: GameAction): boolean {
   if (a.type !== b.type || a.playerId !== b.playerId) return false;
@@ -221,6 +265,35 @@ export function legalActions(state: GameState, playerId: PlayerId): GameAction[]
       });
 
       return actions;
+    }
+
+    if (head.type === 'DISCARD_ON_SEVEN') {
+      const choices = generateDiscardChoices(state.players[playerId]!, head.cardsToDiscard);
+      return choices.map((cards) => ({
+        type: 'RESOLVE_PENDING_DECISION',
+        playerId,
+        decisionId: head.id,
+        response: { cards },
+      }));
+    }
+
+    if (head.type === 'MOVE_INSPECTOR') {
+      const legalHexes = state.board.hexes.filter((h) => !h.hasHazard && !h.hasInspector);
+      return legalHexes.map((h) => ({
+        type: 'RESOLVE_PENDING_DECISION',
+        playerId,
+        decisionId: head.id,
+        response: { hexId: h.id },
+      }));
+    }
+
+    if (head.type === 'STEAL_TARGET') {
+      return head.candidatePlayerIds.map((victimId) => ({
+        type: 'RESOLVE_PENDING_DECISION',
+        playerId,
+        decisionId: head.id,
+        response: { targetPlayerId: victimId },
+      }));
     }
 
     return [];

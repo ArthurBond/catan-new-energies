@@ -108,6 +108,38 @@ function assertComponentConservation(state: GameState): void {
   });
 }
 
+function resolvePendingDecisionsForStreamParity(state: GameState): GameState {
+  while (state.pendingDecisions.length > 0) {
+    const head = state.pendingDecisions[0]!;
+    if (head.type === 'MOVE_INSPECTOR') {
+      const safeHex =
+        state.board.hexes.find(
+          (h) =>
+            !h.hasHazard &&
+            !h.hasInspector &&
+            !state.board.intersections.some(
+              (n) => n.adjacentHexIds.includes(h.id) && n.building && n.building.playerId !== head.playerId
+            )
+        ) || state.board.hexes.find((h) => !h.hasHazard && !h.hasInspector)!;
+
+      state = applyAction(state, {
+        type: 'RESOLVE_PENDING_DECISION',
+        playerId: head.playerId,
+        decisionId: head.id,
+        response: { hexId: safeHex.id },
+      });
+    } else {
+      const actions = legalActions(state, head.playerId);
+      if (actions.length > 0) {
+        state = applyAction(state, actions[0]!);
+      } else {
+        break;
+      }
+    }
+  }
+  return state;
+}
+
 describe('Challenger 2 Empirical Verification: Milestone 1 Iteration 2', () => {
   describe('CHALLENGE 1: Mulberry32PRNG Reconstruction & Double-Stepping Remediation', () => {
     it('eliminates double-stepping: reconstructed generator matches uninterrupted generator bit-for-bit', () => {
@@ -221,6 +253,7 @@ describe('Challenger 2 Empirical Verification: Milestone 1 Iteration 2', () => {
         state = JSON.parse(JSON.stringify(state));
 
         // 3. End Turn
+        state = resolvePendingDecisionsForStreamParity(state);
         state = applyAction(state, { type: 'END_TURN', playerId: activePid });
       }
 
@@ -259,6 +292,7 @@ describe('Challenger 2 Empirical Verification: Milestone 1 Iteration 2', () => {
         expect(actualDice).toEqual(expectedDice);
         expect(state.prng).toEqual(refPrng.getState());
 
+        state = resolvePendingDecisionsForStreamParity(state);
         state = applyAction(state, { type: 'END_TURN', playerId: activePid });
       }
 
@@ -308,6 +342,7 @@ describe('Challenger 2 Empirical Verification: Milestone 1 Iteration 2', () => {
         expect(actualDice).toEqual(expectedDice);
         expect(state.prng).toEqual(refPrng.getState());
 
+        state = resolvePendingDecisionsForStreamParity(state);
         state = applyAction(state, { type: 'END_TURN', playerId: activePid });
       }
     });
@@ -588,6 +623,7 @@ describe('Challenger 2 Empirical Verification: Milestone 1 Iteration 2', () => {
         expect(actualDice).toEqual(expectedDice);
         expect(state.prng).toEqual(refPrng.getState());
 
+        state = resolvePendingDecisionsForStreamParity(state);
         state = applyAction(state, { type: 'END_TURN', playerId: pid });
       }
 

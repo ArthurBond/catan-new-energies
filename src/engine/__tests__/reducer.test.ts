@@ -257,6 +257,36 @@ describe('Action Reducer & Determinism — RED-01', () => {
         expect(state.prng.calls).toBe(refPrng.getState().calls);
         expect(state.prng).toEqual(refPrng.getState());
 
+        // Resolve any pending decisions (e.g. roll of 7 inspector placement) without consuming extra PRNG
+        while (state.pendingDecisions.length > 0) {
+          const head = state.pendingDecisions[0]!;
+          if (head.type === 'MOVE_INSPECTOR') {
+            // Pick a hex with no opponent buildings to avoid PRNG-consuming steal
+            const safeHex = state.board.hexes.find(
+              (h) =>
+                !h.hasHazard &&
+                !h.hasInspector &&
+                !state.board.intersections.some(
+                  (n) => n.adjacentHexIds.includes(h.id) && n.building && n.building.playerId !== head.playerId
+                )
+            ) || state.board.hexes.find((h) => !h.hasHazard && !h.hasInspector)!;
+
+            state = applyAction(state, {
+              type: 'RESOLVE_PENDING_DECISION',
+              playerId: head.playerId,
+              decisionId: head.id,
+              response: { hexId: safeHex.id },
+            });
+          } else {
+            const actions = legalActions(state, head.playerId);
+            if (actions.length > 0) {
+              state = applyAction(state, actions[0]!);
+            } else {
+              break;
+            }
+          }
+        }
+
         // 3. End Turn
         state = applyAction(state, { type: 'END_TURN', playerId: activePid });
       }

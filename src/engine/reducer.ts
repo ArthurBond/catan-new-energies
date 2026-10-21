@@ -10,8 +10,17 @@ import { applyEventDecision } from './event-resolvers';
 import { checkPostDecisionEventPhase, stepEventDraw } from './events';
 import { clampGF, computePlayerLF, computeTrueTotalLF } from './footprint';
 import { Mulberry32PRNG } from './prng';
+import {
+  applyProductionPayouts,
+  autoClearHazards,
+  evaluateProduction,
+  executeStealCard,
+  getEligibleStealVictims,
+  promptMoveInspector,
+  queueDiscardsOnSeven,
+} from './production';
 import { TERRAIN_RESOURCE_MAP } from './setup';
-import { GameAction, GameState, PendingDecision } from './types';
+import { GameAction, GameState, HexId, PendingDecision, PlayerId, ResourceType } from './types';
 
 export class IllegalActionError extends Error {
   constructor(message: string) {
@@ -184,12 +193,33 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       const prng = Mulberry32PRNG.fromState(next.prng);
       const dice = prng.rollDice();
       next.prng = prng.getState();
+      next.lastDiceRoll = dice;
+      const sum = dice[0] + dice[1];
 
       next.log.push({
         timestamp: next.log.length,
-        message: `${next.players[action.playerId]!.name} rolled ${dice[0] + dice[1]} (${dice[0]}, ${dice[1]}).`,
+        message: `${next.players[action.playerId]!.name} rolled ${sum} (${dice[0]}, ${dice[1]}).`,
       });
-      next.phase = 'ActionPhase';
+
+      if (sum !== 7) {
+        const prod = evaluateProduction(
+          next.board,
+          next.players,
+          next.supply,
+          dice,
+          action.playerId,
+          next.playerOrder
+        );
+        applyProductionPayouts(next, prod);
+        autoClearHazards(next.board, sum, next.supply);
+        next.phase = 'ActionPhase';
+      } else {
+        // Roll of 7
+        queueDiscardsOnSeven(next);
+        if (next.pendingDecisions.length === 0) {
+          promptMoveInspector(next);
+        }
+      }
       break;
     }
 
@@ -207,6 +237,86 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         applyEventDecision(next, head, action.response);
         next.pendingDecisions.shift();
         checkPostDecisionEventPhase(next);
+      } else if (head.type === 'DISCARD_ON_SEVEN') {
+        const resp = action.response as {
+          cards: Partial<Record<ResourceType | 'science', number>>;
+        };
+        const player = next.players[action.playerId]!;
+        let totalCount = 0;
+        const resList = ['lumber', 'brick', 'natural_fiber', 'food', 'steel'] as const;
+
+        for (const r of resList) {
+          const count = resp.cards[r] || 0;
+          if (count > player.resources[r]) {
+            throw new IllegalActionError(`Cannot discard more ${r} than held in hand`);
+          }
+          player.resources[r] -= count;
+          next.supply.resources[r] += count;
+          totalCount += count;
+        }
+
+        const scienceCount = resp.cards.science || 0;
+        if (scienceCount > player.science) {
+          throw new IllegalActionError('Cannot discard more science than held in hand');
+        }
+        player.science -= scienceCount;
+        next.supply.science += scienceCount;
+        totalCount += scienceCount;
+
+        if (totalCount !== head.cardsToDiscard) {
+          throw new IllegalActionError(
+            `Must discard exactly ${head.cardsToDiscard} cards, got ${totalCount}`
+          );
+        }
+
+        next.log.push({
+          timestamp: next.log.length,
+          message: `${player.name} discarded ${totalCount} cards on roll of 7.`,
+        });
+
+        next.pendingDecisions.shift();
+        if (next.pendingDecisions.length === 0) {
+          promptMoveInspector(next);
+        }
+      } else if (head.type === 'MOVE_INSPECTOR') {
+        const resp = action.response as { hexId: HexId };
+        const hex = next.board.hexes[resp.hexId];
+        if (!hex || hex.hasHazard || hex.hasInspector) {
+          throw new IllegalActionError('Cannot move Inspector to a hazarded or current hex');
+        }
+
+        const oldHex = next.board.hexes.find((h) => h.hasInspector);
+        if (oldHex) oldHex.hasInspector = false;
+        hex.hasInspector = true;
+
+        next.log.push({
+          timestamp: next.log.length,
+          message: `${next.players[action.playerId]!.name} moved the Inspector to hex ${hex.id} (${hex.terrain} #${hex.numberDisc}).`,
+        });
+
+        next.pendingDecisions.shift();
+
+        const victims = getEligibleStealVictims(next, resp.hexId);
+        if (victims.length === 0) {
+          next.phase = 'ActionPhase';
+        } else {
+          next.pendingDecisions.push({
+            id: `steal-${next.currentTurn}`,
+            type: 'STEAL_TARGET',
+            playerId: action.playerId,
+            candidatePlayerIds: victims,
+            hexId: resp.hexId,
+          });
+        }
+      } else if (head.type === 'STEAL_TARGET') {
+        const resp = action.response as { targetPlayerId: PlayerId };
+        if (!head.candidatePlayerIds.includes(resp.targetPlayerId)) {
+          throw new IllegalActionError('Invalid victim selected for steal');
+        }
+
+        executeStealCard(next, action.playerId, resp.targetPlayerId);
+        next.pendingDecisions.shift();
+        next.phase = 'ActionPhase';
       }
       break;
     }
