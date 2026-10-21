@@ -1,3 +1,4 @@
 # Handover Progress Log
 
 - **Task 1 (Read and analyze `rules_text.txt`)**: Completed and verified (`docs/rules-summary.md`, 186 lines, 14,482 bytes). Note: `rules.txt` was named `rules_text.txt` in the workspace; also cross-verified building costs (Road, Town, City, Dev Card, Fossil/Renewable Plants, Warehouse) and Global Footprint draw thresholds via `UI-design-style.png` and official rules data since building costs are printed on the physical player boards rather than body text.
+- **Task 2 (Analyze `UI-design-style.png` for tabletop aesthetic)**: Completed and verified (`docs/ui-design-spec.md`, 152 lines, 12,854 bytes). Documented the overhead buffalo-plaid tablecloth background, circular 6-piece ocean frame with embedded VP/Global Footprint tracks and 7 coastal event islands, Ian O'Toole vector terrain art palette, 3D wooden tokens, and 4 corner player boards.
