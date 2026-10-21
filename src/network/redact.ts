@@ -8,9 +8,15 @@
  * - Development deck order in supply (only length is visible).
  * - Event bag order (only length is visible).
  * - PRNG state (seed and calls are hidden).
+ * - Tracks `hiddenResourcesCount` (total resource + science cards in hand) and optionally
+ *   masks opponent resource/science breakdown when `hideOpponentResources` is enabled.
  */
 
 import { GameState, PlayerId, PlayerState } from '../engine/types';
+
+export interface RedactOptions {
+  hideOpponentResources?: boolean;
+}
 
 export interface RedactedPlayerState extends Omit<PlayerState, 'devCards' | 'hiddenGreenDiscs'> {
   devCards: {
@@ -20,6 +26,7 @@ export interface RedactedPlayerState extends Omit<PlayerState, 'devCards' | 'hid
   };
   hiddenGreenDiscsCount: number;
   hiddenGreenDiscs?: string[];
+  hiddenResourcesCount: number;
 }
 
 export interface RedactedGameState
@@ -34,7 +41,22 @@ export interface RedactedGameState
   prng?: undefined;
 }
 
-export function redactForPlayer(state: GameState, viewerId: PlayerId): RedactedGameState {
+function computeTotalHandCards(p: PlayerState): number {
+  return (
+    p.resources.lumber +
+    p.resources.brick +
+    p.resources.natural_fiber +
+    p.resources.food +
+    p.resources.steel +
+    p.science
+  );
+}
+
+export function redactForPlayer(
+  state: GameState,
+  viewerId: PlayerId,
+  options?: RedactOptions
+): RedactedGameState {
   const cloned: GameState = structuredClone(state);
 
   const redactedPlayers: Record<PlayerId, RedactedPlayerState> = {
@@ -46,6 +68,8 @@ export function redactForPlayer(state: GameState, viewerId: PlayerId): RedactedG
 
   for (const pid of cloned.playerOrder) {
     const p = cloned.players[pid]!;
+    const totalHandCards = computeTotalHandCards(p);
+
     if (pid === viewerId) {
       redactedPlayers[pid] = {
         ...p,
@@ -56,16 +80,31 @@ export function redactForPlayer(state: GameState, viewerId: PlayerId): RedactedG
         },
         hiddenGreenDiscsCount: p.hiddenGreenDiscs.length,
         hiddenGreenDiscs: [...p.hiddenGreenDiscs],
+        hiddenResourcesCount: totalHandCards,
       };
     } else {
       const { hiddenGreenDiscs, ...rest } = p;
+      const maskedResources = options?.hideOpponentResources
+        ? {
+            lumber: 0,
+            brick: 0,
+            natural_fiber: 0,
+            food: 0,
+            steel: 0,
+          }
+        : rest.resources;
+      const maskedScience = options?.hideOpponentResources ? 0 : rest.science;
+
       redactedPlayers[pid] = {
         ...rest,
+        resources: maskedResources,
+        science: maskedScience,
         devCards: {
           unplayedCount: p.devCards.unplayed.length,
           played: [...p.devCards.played],
         },
         hiddenGreenDiscsCount: hiddenGreenDiscs.length,
+        hiddenResourcesCount: totalHandCards,
       };
     }
   }
