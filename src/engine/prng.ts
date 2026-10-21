@@ -12,16 +12,17 @@ export class Mulberry32PRNG {
 
   constructor(initialSeed: number, calls: number = 0) {
     this.state = initialSeed >>> 0;
-    this.calls = 0;
-    // Fast-forward state to match calls count if reconstructing
-    for (let i = 0; i < calls; i++) {
-      this.step();
-    }
+    this.calls = calls;
+  }
+
+  public static fromState(state: PRNGState): Mulberry32PRNG {
+    return new Mulberry32PRNG(state.seed, state.calls);
   }
 
   private step(): number {
     this.calls++;
-    let t = (this.state += 0x6d2b79f5) >>> 0;
+    this.state = (this.state + 0x6d2b79f5) >>> 0;
+    let t = this.state;
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;

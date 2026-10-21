@@ -7,10 +7,10 @@
  */
 
 import {
-  BOARD_CONSTANTS,
   BROWN_EVENT_DISC_COUNTS,
   DEV_CARD_COUNTS,
   GREEN_EVENT_DISC_COUNTS,
+  PLAYER_PIECE_RESERVES,
   TOTAL_ENERGY_TOKENS,
   TOTAL_HAZARD_TOKENS,
   TOTAL_RESOURCES_PER_TYPE,
@@ -185,11 +185,11 @@ export function createInitialPlayer(id: PlayerId, name: string): PlayerState {
     roadsBuilt: 0,
     fossilPlantsBuilt: 0,
     renewablePlantsBuilt: 0,
-    townsInReserve: BOARD_CONSTANTS.maxPlantsOnTown === 1 ? 5 : 5,
-    citiesInReserve: 4,
-    roadsInReserve: 12,
-    fossilPlantsInReserve: 6,
-    renewablePlantsInReserve: 9,
+    townsInReserve: PLAYER_PIECE_RESERVES.towns,
+    citiesInReserve: PLAYER_PIECE_RESERVES.cities,
+    roadsInReserve: PLAYER_PIECE_RESERVES.roads,
+    fossilPlantsInReserve: PLAYER_PIECE_RESERVES.fossilPlants,
+    renewablePlantsInReserve: PLAYER_PIECE_RESERVES.renewablePlants,
   };
 }
 

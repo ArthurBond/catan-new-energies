@@ -7,6 +7,7 @@
 | **Task 1.2: Hex Grid, 54 Nodes, 72 Paths, Cutouts & Harbors (`src/engine/types.ts`, `src/engine/board.ts`)** | **done** | Pointy-top axial grid (3-4-5-4-3 layout), canonical (u, v) discrete integer lattice with 54 intersections and 72 path edges, 114 cutout slots for power plants with Town (1) and City (3 distinct hexes) rules, 2-path distance validator, and 9 coastal harbors (4 generic 3:1, 5 specialized 2:1). (`board.test.ts`, `TOP-01`, `TOP-02`, 17 passed). |
 | **Task 1.3: Game State, Setup Modes & Footprint Calculator (`src/engine/footprint.ts`, `src/engine/setup.ts`, `src/engine/prng.ts`)** | **done** | First Game fixed setup (omitting Blue in 3P, starting GF 12 in 4P and 9 in 3P), Standard variable snake draft (random hexes, A–R spiral number discs skipping Desert, 2-round draft queue), starting hands, component conservation (95 resource cards, 20 science cards, 20 energy, 10 hazards), Event Bag initialization (43 brown discs, 36/27 green discs dealt under renewable plant sockets), LF computation, and endpoint-clamped GF tracking (0..28 in 4P, 0..21 in 3P). (`setup.test.ts`, `SET-01`..`SET-04`, `GF-01`, `GF-02`, 10 passed). |
 | **Task 1.4: Pure Deterministic Action Reducer, Pending Decisions & PRNG (`src/engine/actions.ts`, `src/engine/reducer.ts`)** | **done** | Pure `applyAction(state, action)` reducer with zero side effects, `legalActions(state, playerId)` generator, explicit `pendingDecisions` queue for 2-round snake draft and interrupts, deterministic PRNG roll integration, `IllegalActionError` validation, and JSON round-trip serialization. (`reducer.test.ts`, `RED-01`, 6 passed). |
+| **Milestone 1 Remediation: O(1) PRNG State Restoration & Multi-Turn Stream Parity (`src/engine/prng.ts`, `src/engine/setup.ts`, `src/engine/reducer.ts`, `src/engine/__tests__/reducer.test.ts`)** | **done** | Eliminated constructor fast-forward loop and unmasked float accumulation; added static `fromState` factory; cleaned up dead ternary in `setup.ts` via `PLAYER_PIECE_RESERVES`; wired `fromState` into `ROLL_DICE`; added 12+ turn stream parity test and component conservation assertions. (`reducer.test.ts`, 8 passed; 42 total). |
 
 ---
 
@@ -49,16 +50,16 @@ Exited with code 0.
  RUN  v3.0.7 C:/Users/Jen/Documents/Strata/Workspace/catan-new-energies-argon
 
  ✓ src/engine/__tests__/config.test.ts (7 tests) 3ms
- ✓ src/engine/__tests__/board.test.ts (17 tests) 12ms
- ✓ src/engine/__tests__/setup.test.ts (10 tests) 7ms
- ✓ src/engine/__tests__/reducer.test.ts (6 tests) 29ms
+ ✓ src/engine/__tests__/board.test.ts (17 tests) 11ms
+ ✓ src/engine/__tests__/setup.test.ts (10 tests) 8ms
+ ✓ src/engine/__tests__/reducer.test.ts (8 tests) 49ms
 
  Test Files  4 passed (4)
-      Tests  40 passed (40)
-   Start at  14:33:39
-   Duration  850ms (transform 652ms, setup 0ms, collect 744ms, tests 51ms, environment 1.11s, prepare 381ms)
+      Tests  42 passed (42)
+   Start at  15:12:47
+   Duration  798ms (transform 507ms, setup 0ms, collect 713ms, tests 71ms, environment 1.09s, prepare 382ms)
 ```
-Exited with code 0 (40 tests passed, 100% success rate).
+Exited with code 0 (42 tests passed, 100% success rate).
 
 ---
 
@@ -70,6 +71,7 @@ Exited with code 0 (40 tests passed, 100% success rate).
   - `9a8c4fb` — `feat(board): implement 19 axial hexes, 54 nodes, 72 edges, cutouts, and 9 harbors (TOP-01, TOP-02)`
   - `5feddd4` — `feat(setup): implement First Game & Standard Game setup, LF/GF tracking, and event bag (SET-01..SET-04, GF-01, GF-02)`
   - `994628d` — `feat(reducer): implement pure applyAction reducer, pending decisions, and legalActions (RED-01)`
+  - `fix(engine): O(1) PRNG state restoration and multi-turn stream parity` (Milestone 1 Remediation)
 
 ---
 
@@ -84,7 +86,7 @@ Exited with code 0 (40 tests passed, 100% success rate).
 | **SET-04** | `src/engine/setup.ts`: Event Bag starts with 43 brown discs, 0 green discs. 36 green discs in 4P, 27 in 3P (9 removed) dealt 9 per player under renewable plant sockets. | `src/engine/__tests__/setup.test.ts`: Brown bag distribution, dealt green discs per player. |
 | **GF-01** | `src/engine/footprint.ts`: Local Footprint formula: `LF = 1*Town + 2*City + 1*Fossil - 1*Renewable`. | `src/engine/__tests__/setup.test.ts`: LF math and deltas on builds/upgrades/demolitions. |
 | **GF-02** | `src/engine/footprint.ts`: Global Footprint endpoint clamping: `0..28` (4P) / `0..21` (3P) with `trueTotalLF` tracking and draw band lookups. | `src/engine/__tests__/setup.test.ts`: Clamping upper/lower endpoints, 4 draw bands. |
-| **RED-01** | `src/engine/actions.ts`, `src/engine/reducer.ts`: Pure functional state reducer `applyAction`, `legalActions` generator, JSON round-trip equality, deterministic replay, `IllegalActionError`. | `src/engine/__tests__/reducer.test.ts`: JSON serialization, multi-turn deterministic replay, illegal action rejection, PRNG calls tracking. |
+| **RED-01 / PRNG-01** | `src/engine/actions.ts`, `src/engine/reducer.ts`, `src/engine/prng.ts`: Pure functional state reducer `applyAction`, `legalActions` generator, JSON round-trip equality, deterministic replay, `IllegalActionError`, and O(1) `Mulberry32PRNG.fromState` state restoration. | `src/engine/__tests__/reducer.test.ts`: JSON serialization, multi-turn deterministic replay with 100% component conservation (95 resources, 20 science, pieces), illegal action rejection, PRNG calls tracking, and 12+ turn bit-for-bit stream parity against continuous reference generator. |
 
 ---
 

@@ -186,7 +186,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
     }
 
     case 'ROLL_DICE': {
-      const prng = new Mulberry32PRNG(next.prng.seed, next.prng.calls);
+      const prng = Mulberry32PRNG.fromState(next.prng);
       const dice = prng.rollDice();
       next.prng = prng.getState();
 
