@@ -310,6 +310,23 @@ export function createInitialGameState(options?: InitialGameOptions): GameState 
         },
       ],
       winner: null,
+      lastDiceRoll: null,
+      turnStats: {
+        powerPlantsBuiltThisTurn: 0,
+        fossilPlantsDemolishedThisTurn: 0,
+        devCardsBoughtThisTurn: [],
+        devCardsPlayedThisTurn: 0,
+      },
+      specialAwards: {
+        longestRoad: { holder: null, length: 0 },
+        cleanestEnvironment: { holder: null, cleanupCount: 0 },
+      },
+      eventDiscsDrawnThisTurn: 0,
+      discardedDevCards: [],
+      devCardsBoughtThisTurn: [],
+      devCardPlayedThisTurn: false,
+      cleanestEnvironmentHolder: null,
+      longestRoadHolder: null,
     };
   } else {
     // Standard Variable Snake Draft Setup
@@ -389,6 +406,23 @@ export function createInitialGameState(options?: InitialGameOptions): GameState 
         },
       ],
       winner: null,
+      lastDiceRoll: null,
+      turnStats: {
+        powerPlantsBuiltThisTurn: 0,
+        fossilPlantsDemolishedThisTurn: 0,
+        devCardsBoughtThisTurn: [],
+        devCardsPlayedThisTurn: 0,
+      },
+      specialAwards: {
+        longestRoad: { holder: null, length: 0 },
+        cleanestEnvironment: { holder: null, cleanupCount: 0 },
+      },
+      eventDiscsDrawnThisTurn: 0,
+      discardedDevCards: [],
+      devCardsBoughtThisTurn: [],
+      devCardPlayedThisTurn: false,
+      cleanestEnvironmentHolder: null,
+      longestRoadHolder: null,
     };
   }
 }

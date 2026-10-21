@@ -43,8 +43,16 @@ export function isActionEqual(a: GameAction, b: GameAction): boolean {
       return b.type === a.type && b.harborId === a.harborId && b.receive === a.receive;
     case 'OFFER_TRADE':
       return b.type === a.type && b.targetPlayerId === a.targetPlayerId;
+    case 'REVEAL_VP_CARDS':
+      return b.type === a.type && a.cardIds.length === b.cardIds.length && a.cardIds.every((id, idx) => id === b.cardIds[idx]);
     case 'RESOLVE_PENDING_DECISION':
-      return b.type === a.type && b.decisionId === a.decisionId;
+      return (
+        b.type === a.type &&
+        b.decisionId === a.decisionId &&
+        JSON.stringify(a.response) === JSON.stringify(b.response)
+      );
+    default:
+      return false;
   }
 }
 
@@ -73,6 +81,146 @@ export function legalActions(state: GameState, playerId: PlayerId): GameAction[]
         playerId,
         edgeId,
       }));
+    }
+
+    if (head.type === 'EVENT_HAZARD_CHOICE') {
+      const eligibleNodes: number[] = [];
+      if (head.targetType === 'CityFirst') {
+        const unhazardedCities = state.board.intersections.filter(
+          (n) => n.building?.playerId === playerId && n.building.type === 'city' && !n.hasHazard
+        );
+        if (unhazardedCities.length > 0) {
+          eligibleNodes.push(...unhazardedCities.map((n) => n.id));
+        } else {
+          const unhazardedTowns = state.board.intersections.filter(
+            (n) => n.building?.playerId === playerId && n.building.type === 'town' && !n.hasHazard
+          );
+          eligibleNodes.push(...unhazardedTowns.map((n) => n.id));
+        }
+      } else {
+        const unhazarded = state.board.intersections.filter(
+          (n) => n.building?.playerId === playerId && !n.hasHazard
+        );
+        eligibleNodes.push(...unhazarded.map((n) => n.id));
+      }
+
+      return eligibleNodes.map((nodeId) => ({
+        type: 'RESOLVE_PENDING_DECISION',
+        playerId,
+        decisionId: head.id,
+        response: { nodeId },
+      }));
+    }
+
+    if (head.type === 'EVENT_CARD_CHOICE') {
+      const actions: GameAction[] = [];
+      const resourceTypes = ['lumber', 'brick', 'natural_fiber', 'food', 'steel'] as const;
+
+      if (head.event === 'ClimateConferenceReward' || head.event === 'SustainableProduction') {
+        for (const res of resourceTypes) {
+          if (state.supply.resources[res] > 0) {
+            actions.push({
+              type: 'RESOLVE_PENDING_DECISION',
+              playerId,
+              decisionId: head.id,
+              response: { cardType: res },
+            });
+          }
+        }
+        if (state.supply.science > 0) {
+          actions.push({
+            type: 'RESOLVE_PENDING_DECISION',
+            playerId,
+            decisionId: head.id,
+            response: { cardType: 'science' },
+          });
+        }
+        if (head.isOptional) {
+          actions.push({
+            type: 'RESOLVE_PENDING_DECISION',
+            playerId,
+            decisionId: head.id,
+            response: { pass: true },
+          });
+        }
+      } else if (head.event === 'ClimateConferencePenalty') {
+        const p = state.players[playerId]!;
+        for (const res of resourceTypes) {
+          if (p.resources[res] > 0) {
+            actions.push({
+              type: 'RESOLVE_PENDING_DECISION',
+              playerId,
+              decisionId: head.id,
+              response: { cardType: res },
+            });
+          }
+        }
+        if (p.science > 0) {
+          actions.push({
+            type: 'RESOLVE_PENDING_DECISION',
+            playerId,
+            decisionId: head.id,
+            response: { cardType: 'science' },
+          });
+        }
+      } else if (head.event === 'GovernmentFunding') {
+        if (state.supply.devDeck.length > 0) {
+          actions.push({
+            type: 'RESOLVE_PENDING_DECISION',
+            playerId,
+            decisionId: head.id,
+            response: { take: true },
+          });
+        }
+        if (head.isOptional) {
+          actions.push({
+            type: 'RESOLVE_PENDING_DECISION',
+            playerId,
+            decisionId: head.id,
+            response: { pass: true },
+          });
+        }
+      }
+
+      return actions;
+    }
+
+    if (head.type === 'EVENT_PRODUCTION_INCREASE') {
+      const actions: GameAction[] = [];
+      const player = state.players[playerId]!;
+
+      if (player.fossilPlantsInReserve > 0) {
+        for (const node of state.board.intersections) {
+          if (node.building?.playerId !== playerId) continue;
+          const isTown = node.building.type === 'town';
+          const isCity = node.building.type === 'city';
+
+          if (isTown && node.powerPlants.length >= 1) continue;
+          if (isCity && node.powerPlants.length >= 3) continue;
+
+          for (const hexId of node.adjacentHexIds) {
+            const hex = state.board.hexes[hexId]!;
+            if (hex.terrain === 'desert' || hex.numberDisc === null) continue;
+            if (node.powerPlants.some((p) => p.hexId === hexId)) continue;
+
+            actions.push({
+              type: 'RESOLVE_PENDING_DECISION',
+              playerId,
+              decisionId: head.id,
+              response: { build: true, nodeId: node.id, hexId: hex.id },
+            });
+          }
+        }
+      }
+
+      actions.push({
+        type: 'RESOLVE_PENDING_DECISION',
+        playerId,
+        decisionId: head.id,
+        response: { pass: true },
+      });
+
+      return actions;
     }
 
     return [];

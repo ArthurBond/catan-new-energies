@@ -6,6 +6,8 @@
  */
 
 import { isActionEqual, legalActions } from './actions';
+import { applyEventDecision } from './event-resolvers';
+import { checkPostDecisionEventPhase, stepEventDraw } from './events';
 import { clampGF, computePlayerLF, computeTrueTotalLF } from './footprint';
 import { Mulberry32PRNG } from './prng';
 import { TERRAIN_RESOURCE_MAP } from './setup';
@@ -174,14 +176,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
     }
 
     case 'DRAW_EVENT_DISC': {
-      if (next.eventBag.length > 0) {
-        const disc = next.eventBag.shift()!;
-        next.log.push({
-          timestamp: next.log.length,
-          message: `${next.players[action.playerId]!.name} drew ${disc} event disc.`,
-        });
-      }
-      next.phase = 'ProductionPhase';
+      stepEventDraw(next);
       break;
     }
 
@@ -198,6 +193,24 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       break;
     }
 
+    case 'RESOLVE_PENDING_DECISION': {
+      const head = next.pendingDecisions[0];
+      if (!head || head.id !== action.decisionId || head.playerId !== action.playerId) {
+        throw new IllegalActionError(`Mismatched pending decision ${action.decisionId}`);
+      }
+
+      if (
+        head.type === 'EVENT_HAZARD_CHOICE' ||
+        head.type === 'EVENT_CARD_CHOICE' ||
+        head.type === 'EVENT_PRODUCTION_INCREASE'
+      ) {
+        applyEventDecision(next, head, action.response);
+        next.pendingDecisions.shift();
+        checkPostDecisionEventPhase(next);
+      }
+      break;
+    }
+
     case 'END_TURN': {
       const currIdx = next.playerOrder.indexOf(action.playerId);
       const nextIdx = (currIdx + 1) % next.playerCount;
@@ -206,6 +219,17 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         next.currentTurn++;
       }
       next.phase = 'EventPhase';
+      next.lockedDrawCount = null;
+      next.eventDiscsDrawnThisTurn = 0;
+      next.lastDiceRoll = null;
+      next.turnStats = {
+        powerPlantsBuiltThisTurn: 0,
+        fossilPlantsDemolishedThisTurn: 0,
+        devCardsBoughtThisTurn: [],
+        devCardsPlayedThisTurn: 0,
+      };
+      next.devCardsBoughtThisTurn = [];
+      next.devCardPlayedThisTurn = false;
       next.log.push({
         timestamp: next.log.length,
         message: `${next.players[action.playerId]!.name} ended their turn.`,

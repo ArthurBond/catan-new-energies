@@ -173,6 +173,49 @@ export interface GameEventLog {
   data?: unknown;
 }
 
+export interface TurnStats {
+  powerPlantsBuiltThisTurn: number;
+  fossilPlantsDemolishedThisTurn: number;
+  devCardsBoughtThisTurn: string[];
+  devCardsPlayedThisTurn: number;
+}
+
+export interface SpecialAwardsState {
+  longestRoad: {
+    holder: PlayerId | null;
+    length: number;
+  };
+  cleanestEnvironment: {
+    holder: PlayerId | null;
+    cleanupCount: number;
+  };
+}
+
+export type DevelopmentCardType =
+  | 'cleanup'
+  | 'roadConstruction'
+  | 'highYield'
+  | 'researchGrant'
+  | 'victoryPoint';
+
+export type CleanupOption =
+  | {
+      type: 'INSPECTOR_MOVE_STEAL';
+      newHexId: HexId;
+      targetPlayerId?: PlayerId;
+    }
+  | {
+      type: 'REMOVE_HAZARD_STEAL';
+      hazardTarget: { kind: 'hex'; id: HexId } | { kind: 'node'; id: NodeId };
+      targetPlayerId?: PlayerId;
+    };
+
+export type DevCardPlayParams =
+  | { cardType: 'cleanup'; option: CleanupOption }
+  | { cardType: 'roadConstruction'; edge1: EdgeId; edge2?: EdgeId }
+  | { cardType: 'highYield'; hexIds: HexId[] }
+  | { cardType: 'researchGrant'; cards: [ResourceType | 'science', ResourceType | 'science'] };
+
 // ============================================================================
 // Actions & Decisions
 // ============================================================================
@@ -186,8 +229,16 @@ export type PendingDecision =
   | { id: string; type: 'EVENT_PRODUCTION_INCREASE'; playerId: PlayerId; isOptional: true }
   | { id: string; type: 'DISCARD_ON_SEVEN'; playerId: PlayerId; cardsToDiscard: number }
   | { id: string; type: 'MOVE_INSPECTOR'; playerId: PlayerId }
-  | { id: string; type: 'STEAL_TARGET'; playerId: PlayerId; targetNodeIds: NodeId[] }
-  | { id: string; type: 'DOMESTIC_TRADE_RESPONSE'; playerId: PlayerId; offeringPlayerId: PlayerId; targetPlayerId: PlayerId; offer: unknown; demand: unknown };
+  | { id: string; type: 'STEAL_TARGET'; playerId: PlayerId; candidatePlayerIds: PlayerId[]; hexId: HexId }
+  | {
+      id: string;
+      type: 'DOMESTIC_TRADE_RESPONSE';
+      playerId: PlayerId;
+      offeringPlayerId: PlayerId;
+      targetPlayerId: PlayerId;
+      give: Partial<Record<ResourceType | 'science' | 'energy', number>>;
+      want: Partial<Record<ResourceType | 'science' | 'energy', number>>;
+    };
 
 export type GameAction =
   // Setup Draft Actions
@@ -209,11 +260,21 @@ export type GameAction =
   | { type: 'BUILD_RENEWABLE_PLANT'; playerId: PlayerId; nodeId: NodeId; hexId: HexId }
   | { type: 'BUILD_WAREHOUSE'; playerId: PlayerId }
   | { type: 'BUY_DEV_CARD'; playerId: PlayerId }
-  | { type: 'PLAY_DEV_CARD'; playerId: PlayerId; cardId: string; params?: unknown }
+  | { type: 'PLAY_DEV_CARD'; playerId: PlayerId; cardId: string; params?: DevCardPlayParams | unknown }
+  | { type: 'REVEAL_VP_CARDS'; playerId: PlayerId; cardIds: string[] }
 
   // Energy & Trading Actions
-  | { type: 'SPEND_ENERGY'; playerId: PlayerId; usage: 'BUY_CARD' | 'CLEAN_HAZARD' | 'DEMOLISH_PLANT'; params?: unknown }
-  | { type: 'TRADE_SUPPLY'; playerId: PlayerId; give: Partial<Record<ResourceType | 'science', number>>; receive: ResourceType | 'science' }
+  | {
+      type: 'SPEND_ENERGY';
+      playerId: PlayerId;
+      usage: 'BUY_CARD' | 'CLEAN_HAZARD' | 'DEMOLISH_PLANT';
+      params?: {
+        cardType?: ResourceType | 'science';
+        hazardTarget?: { kind: 'hex'; id: HexId } | { kind: 'node'; id: NodeId };
+        plantTarget?: { nodeId: NodeId; hexId: HexId };
+      };
+    }
+  | { type: 'TRADE_SUPPLY'; playerId: PlayerId; give: Partial<Record<ResourceType | 'science' | 'energy', number>>; receive: ResourceType | 'science' }
   | { type: 'TRADE_HARBOR'; playerId: PlayerId; harborId: HarborId; give: Partial<Record<ResourceType, number>>; receive: ResourceType | 'science' }
   | { type: 'OFFER_TRADE'; playerId: PlayerId; targetPlayerId?: PlayerId; give: Partial<Record<ResourceType | 'science' | 'energy', number>>; want: Partial<Record<ResourceType | 'science' | 'energy', number>> }
 
@@ -242,5 +303,17 @@ export interface GameState {
   pendingDecisions: PendingDecision[];
   prng: PRNGState;
   log: GameEventLog[];
-  winner: PlayerId | 'collapse' | null;
+  winner: PlayerId | 'collapse' | PlayerId[] | null;
+
+  // Milestone 2 fields
+  lastDiceRoll: [number, number] | null;
+  turnStats: TurnStats;
+  specialAwards: SpecialAwardsState;
+  eventDiscsDrawnThisTurn: number;
+  discardedDevCards: string[];
+  devCardsBoughtThisTurn: string[];
+  devCardPlayedThisTurn: boolean;
+  cleanestEnvironmentHolder: PlayerId | null;
+  longestRoadHolder: PlayerId | null;
 }
+
