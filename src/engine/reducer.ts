@@ -84,6 +84,73 @@ export function applyAction(state: GameState, action: GameAction): GameState {
 
   // 3. Process action
   switch (action.type) {
+    case 'SETUP_ROLL_DICE': {
+      const prng = new Mulberry32PRNG(next.prng.seed, next.prng.calls);
+      const [die1, die2] = prng.rollDice();
+      next.prng = prng.getState();
+
+      if (!next.setupRolls) next.setupRolls = {};
+      next.setupRolls[action.playerId] = [die1, die2];
+      next.lastDiceRoll = [die1, die2];
+
+      const player = next.players[action.playerId]!;
+      const rollSum = die1 + die2;
+
+      // Find who still needs to roll in this round of setup roll
+      const remaining = next.playerOrder.filter((pid) => !next.setupRolls![pid]);
+
+      if (remaining.length > 0) {
+        next.activePlayerId = remaining[0]!;
+        next.log.push({
+          timestamp: next.log.length,
+          message: `${player.name} rolled ${rollSum} (${die1} + ${die2}) for setup turn order.`,
+        });
+      } else {
+        // All players have rolled; evaluate highest roll
+        const scores = next.playerOrder.map((pid) => ({
+          pid,
+          sum: next.setupRolls![pid]![0] + next.setupRolls![pid]![1],
+        }));
+        const maxSum = Math.max(...scores.map((s) => s.sum));
+        const winners = scores.filter((s) => s.sum === maxSum).map((s) => s.pid);
+
+        if (winners.length === 1) {
+          const winnerId = winners[0]!;
+          next.setupRollWinner = winnerId;
+
+          // Reorder playerOrder starting with winner and proceeding clockwise
+          const winnerIdx = next.playerOrder.indexOf(winnerId);
+          next.playerOrder = [
+            ...next.playerOrder.slice(winnerIdx),
+            ...next.playerOrder.slice(0, winnerIdx),
+          ];
+
+          next.phase = 'SetupDraft';
+          next.activePlayerId = winnerId;
+          next.pendingDecisions = [
+            { id: 'setup-0', type: 'SETUP_PLACE_SETTLEMENT', playerId: winnerId, round: 1 },
+          ];
+
+          next.log.push({
+            timestamp: next.log.length,
+            message: `${player.name} rolled ${rollSum} (${die1} + ${die2}). ${next.players[winnerId]!.name} rolled highest (${maxSum}) and goes first! Round 1: Place first Town & Road.`,
+          });
+        } else {
+          // Tie between multiple players; clear rolls only for tied players
+          for (const pid of winners) {
+            delete next.setupRolls![pid];
+          }
+          next.activePlayerId = winners[0]!;
+          const tiedNames = winners.map((pid) => next.players[pid]!.name).join(' and ');
+          next.log.push({
+            timestamp: next.log.length,
+            message: `${player.name} rolled ${rollSum} (${die1} + ${die2}). Tie between ${tiedNames} (${maxSum})! Tied players reroll.`,
+          });
+        }
+      }
+      break;
+    }
+
     case 'SETUP_BUILD_TOWN': {
       const node = next.board.intersections[action.nodeId]!;
       node.building = { playerId: action.playerId, type: 'town' };

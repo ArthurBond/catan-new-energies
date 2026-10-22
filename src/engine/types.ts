@@ -139,6 +139,7 @@ export interface PlayerState {
 }
 
 export type GamePhase =
+  | 'SetupRoll'
   | 'SetupDraft'
   | 'EventPhase'
   | 'ProductionPhase'
@@ -242,6 +243,7 @@ export type PendingDecision =
 
 export type GameAction =
   // Setup Draft Actions
+  | { type: 'SETUP_ROLL_DICE'; playerId: PlayerId }
   | { type: 'SETUP_BUILD_TOWN'; playerId: PlayerId; nodeId: NodeId }
   | { type: 'SETUP_BUILD_ROAD'; playerId: PlayerId; edgeId: EdgeId }
   | { type: 'SETUP_BUILD_CITY'; playerId: PlayerId; nodeId: NodeId }
@@ -304,6 +306,10 @@ export interface GameState {
   prng: PRNGState;
   log: GameEventLog[];
   winner: PlayerId | 'collapse' | PlayerId[] | null;
+
+  // Setup Roll state
+  setupRolls?: Partial<Record<PlayerId, [number, number]>>;
+  setupRollWinner?: PlayerId | null;
 
   // Milestone 2 fields
   lastDiceRoll: [number, number] | null;

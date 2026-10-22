@@ -168,18 +168,6 @@ export function SeaFrameSvg({
     vpSlotPlayers.get(clampedVp)!.push(pid);
   }
 
-  // Global Footprint track geometry constants (1–2 o'clock coastal chart matching BGG board)
-  const gfBaseX = 612;
-  const gfBaseY = 122;
-  const gfAngleDeg = 40;
-  const gfRad = (gfAngleDeg * Math.PI) / 180;
-  const cosA = Math.cos(gfRad);
-  const sinA = Math.sin(gfRad);
-  // Inward perpendicular vector (pointing down-left toward the island)
-  const perpX = -sinA;
-  const perpY = cosA;
-  const gfStep = 12.6;
-
   return (
     <g className="sea-frame-layer" data-testid="sea-frame">
       <defs>
@@ -318,11 +306,11 @@ export function SeaFrameSvg({
       <g data-testid="ocean-whales" aria-label={`Ocean whales (${playerCount}-player game indicator pod)`}>
         {/* Official Rulebook Global Footprint Whale Pod (3 whales in 3P, 4 whales in 4P) */}
         <g data-testid="gf-whale-pod">
-          <OceanWhaleSvg cx={568} cy={136} scale={0.95} rotate={24} showSpout={true} />
-          <OceanWhaleSvg cx={604} cy={165} scale={0.85} rotate={32} showSpout={false} />
-          <OceanWhaleSvg cx={778} cy={292} scale={0.92} rotate={42} showSpout={true} />
+          <OceanWhaleSvg cx={576} cy={168} scale={0.92} rotate={26} showSpout={true} />
+          <OceanWhaleSvg cx={612} cy={200} scale={0.82} rotate={34} showSpout={false} />
+          <OceanWhaleSvg cx={768} cy={308} scale={0.88} rotate={44} showSpout={true} />
           {playerCount === 4 && (
-            <OceanWhaleSvg cx={742} cy={268} scale={0.78} rotate={36} showSpout={false} />
+            <OceanWhaleSvg cx={732} cy={280} scale={0.76} rotate={38} showSpout={false} />
           )}
         </g>
 
@@ -571,30 +559,34 @@ export function SeaFrameSvg({
       </g>
 
       {/* =================================================================== */}
-      {/* 3. 1–2 O'CLOCK GLOBAL FOOTPRINT TRACK & BGG-STYLE HUD WIDGET        */}
+      {/* 3. 1–2 O'CLOCK CURVED GLOBAL FOOTPRINT TRACK & BGG-STYLE HUD WIDGET */}
       {/* =================================================================== */}
       <g
         data-testid="gf-track"
         aria-label={`Global Footprint Track: ${clampedGF} of ${gfConfig.max} (True Total LF: ${trueTotalLF}), drawing ${currentDrawCount} event discs per turn`}
       >
-        {/* Subtle Translucent Coastal Chart Backing under the GF Track */}
-        <g transform={`translate(${(gfBaseX + 8.5 * gfStep * cosA).toFixed(1)}, ${(gfBaseY + 8.5 * gfStep * sinA).toFixed(1)}) rotate(${gfAngleDeg})`}>
-          <rect
-            x={-118}
-            y={-12}
-            width={236}
-            height={42}
-            rx={12}
-            fill="rgba(14, 58, 92, 0.42)"
-            stroke="rgba(164, 224, 255, 0.35)"
-            strokeWidth={1.2}
-          />
-        </g>
+        {/* Shallow Turquoise Reef & Foam Shoreline under the Curved GF Peninsula */}
+        <path
+          d="M 640 52 A 468 468 0 0 1 962 422 Q 930 446, 886 436 A 392 392 0 0 0 616 128 Q 620 70, 640 52 Z"
+          fill="rgba(138, 232, 255, 0.36)"
+          stroke="rgba(220, 248, 255, 0.7)"
+          strokeWidth={4.5}
+          strokeLinejoin="round"
+        />
+
+        {/* Curved Green Coastal Peninsula Hugging the Outer 1-2 o'clock Rim (matching VP track curve) */}
+        <path
+          d="M 644 58 A 465 465 0 0 1 958 419 Q 928 440, 890 431 A 396 396 0 0 0 622 123 Q 625 75, 644 58 Z"
+          fill="url(#greenIslandGrad)"
+          stroke="#ece2c6"
+          strokeWidth={3.5}
+          strokeLinejoin="round"
+        />
 
         {/* BGG-Style Horizontal Global Footprint Callout Box ([- cloud] [12] [+ cloud] & Bag Draw Icon) */}
         <g
           data-testid="gf-hud-widget"
-          transform="translate(744, 152)"
+          transform="translate(686, 204)"
         >
           {/* Drop shadow */}
           <rect x={-48} y={-24} width={96} height={50} rx={7} fill="rgba(0,0,0,0.38)" />
@@ -672,17 +664,28 @@ export function SeaFrameSvg({
           </g>
         </g>
 
-        {/* Render Segmented Cells in 2 Non-Overlapping Coastal Rows */}
+        {/* Render Slightly Larger Segmented Cells in 2 Concentric Curved Rows */}
         {Array.from({ length: gfConfig.max + 1 }, (_, val) => {
-          // Row 0: 0..17, Row 1: 18..max (tucked INWARD underneath Row 0 with +18.5px perpendicular offset)
-          const isSecondRow = val >= 18;
-          const colIdx = isSecondRow ? val - 18 : val;
+          // Row 0: 0..17 in 4P (0..14 in 3P), Row 1: 18..max in 4P (15..max in 3P)
+          const row0Count = playerCount === 4 ? 18 : 15;
+          const isSecondRow = val >= row0Count;
+          const colIdx = isSecondRow ? val - row0Count : val;
+          const totalColsInRow = isSecondRow ? (gfConfig.max + 1 - row0Count) : row0Count;
 
-          const rowOffset = isSecondRow ? 18.5 : 0;
-          const colShift = isSecondRow ? colIdx + 4.5 : colIdx;
+          // Outer arc r=442, inner arc r=416 (26px radial difference ensures >12px clear gap between rows)
+          const rArc = isSecondRow ? 416 : 442;
+          const degStart = isSecondRow ? -56 : -66;
+          const degEnd = isSecondRow ? -25 : -15;
 
-          const cx = gfBaseX + colShift * gfStep * cosA + rowOffset * perpX;
-          const cy = gfBaseY + colShift * gfStep * sinA + rowOffset * perpY;
+          const deg =
+            totalColsInRow > 1
+              ? degStart + (colIdx / (totalColsInRow - 1)) * (degEnd - degStart)
+              : degStart;
+          const rad = (deg * Math.PI) / 180;
+
+          const cx = BOARD_CENTER_X + Math.cos(rad) * rArc;
+          const cy = BOARD_CENTER_Y + Math.sin(rad) * rArc;
+          const cellRot = deg + 90;
 
           // Determine band color (matching BGG board's natural coastal green / olive / amber / earth bands)
           let cellFill = '#3b9c3f'; // Green eco band (0..5: 2 draws)
@@ -702,23 +705,24 @@ export function SeaFrameSvg({
             <g
               key={val}
               data-testid={`gf-space-${val}`}
-              transform={`translate(${cx.toFixed(1)}, ${cy.toFixed(1)}) rotate(${gfAngleDeg})`}
+              transform={`translate(${cx.toFixed(1)}, ${cy.toFixed(1)}) rotate(${cellRot.toFixed(1)})`}
             >
+              {/* Slightly larger cell (13.6 x 13.6) with curved corners */}
               <rect
-                x={-5.8}
-                y={-6.0}
-                width={11.6}
-                height={12.0}
-                rx={2}
+                x={-6.8}
+                y={-6.8}
+                width={13.6}
+                height={13.6}
+                rx={2.8}
                 fill={cellFill}
                 stroke={isCurrentGF ? '#f5d11d' : 'rgba(238, 245, 228, 0.85)'}
-                strokeWidth={isCurrentGF ? 1.8 : 0.9}
+                strokeWidth={isCurrentGF ? 2.2 : 1.0}
               />
               <text
                 x={0}
-                y={2.5}
+                y={2.8}
                 textAnchor="middle"
-                fontSize="6.3"
+                fontSize="7.5"
                 fontWeight="900"
                 fill="#ffffff"
               >
@@ -729,22 +733,22 @@ export function SeaFrameSvg({
               {isCurrentGF && (
                 <g data-testid="gf-marker" transform="translate(0, -1)">
                   {/* Shadow */}
-                  <rect x={-4.5} y={-4.5} width={11} height={11} rx={1.5} fill="rgba(0,0,0,0.52)" />
+                  <rect x={-5.5} y={-5.5} width={12} height={12} rx={1.8} fill="rgba(0,0,0,0.52)" />
                   {/* 3D Black Wooden Cube */}
                   <polygon
-                    points="-5,-5 3,-5 6,-2 6,6 -2,6 -5,3"
+                    points="-6,-6 3.5,-6 7,-2.5 7,6.5 -2.5,6.5 -6,3"
                     fill="#141619"
                     stroke="#f5d11d"
-                    strokeWidth={1.3}
+                    strokeWidth={1.4}
                   />
                   <rect
-                    x={-5}
-                    y={-5}
-                    width={8}
-                    height={8}
+                    x={-6}
+                    y={-6}
+                    width={9.5}
+                    height={9.5}
                     fill="#2b3038"
                     stroke="#ffffff"
-                    strokeWidth={0.9}
+                    strokeWidth={1.0}
                   />
                 </g>
               )}

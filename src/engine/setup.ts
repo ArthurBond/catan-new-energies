@@ -37,6 +37,8 @@ export interface InitialGameOptions {
   playerCount?: 3 | 4;
   seed?: number;
   playerNames?: Partial<Record<PlayerId, string>>;
+  setupRoll?: boolean;
+  skipSetupRoll?: boolean;
 }
 
 // Terrain to resource production mapping
@@ -377,6 +379,8 @@ export function createInitialGameState(options?: InitialGameOptions): GameState 
       player.localFootprint = 0;
     });
 
+    const shouldRollForSetup = options?.setupRoll === true;
+
     const initialDecision: PendingDecision = {
       id: 'setup-0',
       type: 'SETUP_PLACE_SETTLEMENT',
@@ -390,7 +394,7 @@ export function createInitialGameState(options?: InitialGameOptions): GameState 
       playerOrder,
       activePlayerId: playerOrder[0]!,
       currentTurn: 0,
-      phase: 'SetupDraft',
+      phase: shouldRollForSetup ? 'SetupRoll' : 'SetupDraft',
       board,
       players: players as Record<PlayerId, PlayerState>,
       trueTotalLF: 0,
@@ -407,12 +411,16 @@ export function createInitialGameState(options?: InitialGameOptions): GameState 
       },
       lockedDrawCount: null,
       supply,
-      pendingDecisions: [initialDecision],
+      pendingDecisions: shouldRollForSetup ? [] : [initialDecision],
+      setupRolls: shouldRollForSetup ? {} : undefined,
+      setupRollWinner: null,
       prng: prng.getState(),
       log: [
         {
           timestamp: 0,
-          message: `Game initialized in Standard Variable Draft mode with ${playerCount} players.`,
+          message: shouldRollForSetup
+            ? `Game initialized. Each player rolls 2 dice to choose who places a settlement first (highest roll goes first).`
+            : `Game initialized in Standard Variable Draft mode with ${playerCount} players.`,
         },
       ],
       winner: null,

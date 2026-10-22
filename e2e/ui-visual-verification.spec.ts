@@ -80,39 +80,26 @@ test.describe('CATAN: New Energies — UI Visual Polish, Ocean Whales & Zero-Ove
       // 3. Programmatically verify GF Track Row 1 (0..17) and Row 2 (18..28) do NOT overlap
       //    and GF header pill stays inside the circular sea rim
       const gfOverlapCheck = await page.evaluate(() => {
-        const angleRad = (40 * Math.PI) / 180;
-        const cosA = Math.cos(angleRad);
-        const sinA = Math.sin(angleRad);
-
-        const getRotatedCenterAndSize = (el: Element) => {
-          const r = el.getBoundingClientRect();
-          const cx = (r.left + r.right) / 2;
-          const cy = (r.top + r.bottom) / 2;
-          // Project center onto track axis u (along 40 deg) and v (perpendicular to 40 deg)
-          const u = cx * cosA + cy * sinA;
-          const v = -cx * sinA + cy * cosA;
-          // True unrotated cell edge length from AABB: L = width_aabb / (cosA + sinA)
-          const size = r.width / (cosA + sinA);
-          return { u, v, half: size / 2 };
-        };
-
-        const row1 = [];
-        const row2 = [];
+        const row1: DOMRect[] = [];
+        const row2: DOMRect[] = [];
         for (let v = 0; v <= 17; v++) {
           const el = document.querySelector(`[data-testid="gf-space-${v}"] rect`);
-          if (el) row1.push(getRotatedCenterAndSize(el));
+          if (el) row1.push(el.getBoundingClientRect());
         }
         for (let v = 18; v <= 28; v++) {
           const el = document.querySelector(`[data-testid="gf-space-${v}"] rect`);
-          if (el) row2.push(getRotatedCenterAndSize(el));
+          if (el) row2.push(el.getBoundingClientRect());
         }
 
         let overlaps = 0;
-        for (const c1 of row1) {
-          for (const c2 of row2) {
+        for (const r1 of row1) {
+          for (const r2 of row2) {
+            // Check if bounding boxes intersect (with 0.5px margin)
             if (
-              Math.abs(c1.u - c2.u) < c1.half + c2.half - 0.5 &&
-              Math.abs(c1.v - c2.v) < c1.half + c2.half - 0.5
+              r1.left < r2.right - 0.5 &&
+              r1.right > r2.left + 0.5 &&
+              r1.top < r2.bottom - 0.5 &&
+              r1.bottom > r2.top + 0.5
             ) {
               overlaps++;
             }

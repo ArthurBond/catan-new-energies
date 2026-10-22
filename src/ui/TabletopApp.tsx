@@ -259,6 +259,7 @@ export function TabletopApp() {
       setupMode: lobbyConfig.setupMode,
       playerCount: lobbyConfig.playerCount,
       seed: lobbyConfig.seed,
+      setupRoll: lobbyConfig.setupMode === 'standard',
       playerNames: {
         orange: lobbyConfig.seats.orange.name,
         purple: lobbyConfig.seats.purple.name,
@@ -500,6 +501,7 @@ export function TabletopApp() {
       setupMode: cfg.setupMode,
       playerCount: cfg.playerCount,
       seed: cfg.seed,
+      setupRoll: cfg.setupMode === 'standard',
       playerNames: {
         orange: cfg.seats.orange.name,
         purple: cfg.seats.purple.name,
@@ -809,6 +811,11 @@ export function TabletopApp() {
     !isActingPlayerBot &&
     gameState.phase === 'ActionPhase' &&
     gameState.pendingDecisions.length === 0;
+
+  const canRollSetupDice =
+    !isActingPlayerBot &&
+    gameState.phase === 'SetupRoll' &&
+    (gameState.activePlayerId === displayedMatPlayerId || !gameState.setupRolls?.[displayedMatPlayerId]);
 
   const activePlayerTheme = PLAYER_THEMES[gameState.activePlayerId];
 
@@ -1258,17 +1265,19 @@ export function TabletopApp() {
             onClick={() => {
               if (canRollDice) {
                 dispatchAction({ type: 'ROLL_DICE', playerId: actingPlayerId });
+              } else if (canRollSetupDice) {
+                dispatchAction({ type: 'SETUP_ROLL_DICE', playerId: actingPlayerId });
               }
             }}
             style={{
               background: 'rgba(20, 24, 30, 0.9)',
-              border: canRollDice ? '2px solid #f5d11d' : '1.5px solid #3c424d',
+              border: canRollDice || canRollSetupDice ? '2px solid #f5d11d' : '1.5px solid #3c424d',
               borderRadius: '10px',
               padding: '8px 10px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              cursor: canRollDice ? 'pointer' : 'default',
+              cursor: canRollDice || canRollSetupDice ? 'pointer' : 'default',
               boxShadow: '0 4px 12px rgba(0,0,0,0.45)',
             }}
           >
@@ -1288,7 +1297,7 @@ export function TabletopApp() {
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '10.5px', color: '#a0aec0', fontWeight: 800 }}>
-                {canRollDice ? 'CLICK TO ROLL!' : 'LAST ROLL'}
+                {canRollDice || canRollSetupDice ? 'CLICK TO ROLL!' : 'LAST ROLL'}
               </div>
               <div style={{ fontSize: '16px', fontWeight: 900, color: '#f5d11d' }}>
                 {gameState.lastDiceRoll
@@ -1623,6 +1632,8 @@ export function TabletopApp() {
               e.stopPropagation();
               if (canRollDice) {
                 dispatchAction({ type: 'ROLL_DICE', playerId: actingPlayerId });
+              } else if (canRollSetupDice) {
+                dispatchAction({ type: 'SETUP_ROLL_DICE', playerId: actingPlayerId });
               }
             }}
             style={{
@@ -1633,11 +1644,11 @@ export function TabletopApp() {
               zIndex: 42,
               background: 'rgba(16, 20, 26, 0.94)',
               backdropFilter: 'blur(6px)',
-              border: canRollDice ? '2px solid #f5d11d' : '1.5px solid #3c424d',
+              border: canRollDice || canRollSetupDice ? '2px solid #f5d11d' : '1.5px solid #3c424d',
               borderRadius: '10px',
               padding: '6px 8px',
-              cursor: canRollDice ? 'pointer' : 'default',
-              boxShadow: canRollDice
+              cursor: canRollDice || canRollSetupDice ? 'pointer' : 'default',
+              boxShadow: canRollDice || canRollSetupDice
                 ? '0 0 14px rgba(245, 209, 29, 0.55)'
                 : '0 6px 16px rgba(0,0,0,0.55)',
             }}
@@ -1663,7 +1674,7 @@ export function TabletopApp() {
               >
                 {gameState.lastDiceRoll
                   ? `Sum: ${gameState.lastDiceRoll[0] + gameState.lastDiceRoll[1]}`
-                  : canRollDice
+                  : canRollDice || canRollSetupDice
                     ? 'Roll!'
                     : 'Ready'}
               </span>
@@ -1715,6 +1726,104 @@ export function TabletopApp() {
                   : 'Waiting for Production Phase'}
             </div>
           </div>
+
+          {/* Setup Roll Modal Overlay */}
+          {gameState.phase === 'SetupRoll' && (
+            <div
+              data-testid="setup-roll-overlay"
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                zIndex: 55,
+                background: 'rgba(16, 20, 28, 0.95)',
+                backdropFilter: 'blur(8px)',
+                border: '2px solid #f5d11d',
+                borderRadius: '16px',
+                padding: '20px 24px',
+                boxShadow: '0 12px 36px rgba(0,0,0,0.7)',
+                color: '#ffffff',
+                width: 'min(90%, 460px)',
+                textAlign: 'center',
+              }}
+            >
+              <div style={{ fontSize: '18px', fontWeight: 900, color: '#f5d11d', marginBottom: '4px' }}>
+                🎲 Roll to Determine Turn Order
+              </div>
+              <div style={{ fontSize: '12px', color: '#cbd5e1', marginBottom: '16px', lineHeight: 1.4 }}>
+                Each player rolls 2 dice. The highest roll places their first Town &amp; Road first.
+                Round 2 snakes in reverse order with City &amp; Road.
+              </div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: `repeat(${gameState.playerCount}, 1fr)`,
+                  gap: '10px',
+                  marginBottom: '16px',
+                }}
+              >
+                {gameState.playerOrder.map((pid) => {
+                  const roll = gameState.setupRolls?.[pid];
+                  const p = gameState.players[pid]!;
+                  const isCur = gameState.activePlayerId === pid;
+                  return (
+                    <div
+                      key={pid}
+                      style={{
+                        background: isCur ? 'rgba(245, 209, 29, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                        border: isCur ? '2px solid #f5d11d' : '1px solid rgba(255, 255, 255, 0.15)',
+                        borderRadius: '10px',
+                        padding: '10px 6px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <svg width="24" height="24" viewBox="-12 -12 24 24">
+                        <PlayerEmblemSvg playerId={pid} cx={0} cy={0} r={9} />
+                      </svg>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: PLAYER_THEMES[pid].fill }}>
+                        {p.name}
+                      </div>
+                      {roll ? (
+                        <div style={{ fontSize: '15px', fontWeight: 900, color: '#f5d11d', fontVariantNumeric: 'tabular-nums' }}>
+                          {roll[0] + roll[1]} <span style={{ fontSize: '11px', color: '#94a3b8' }}>({roll[0]}+{roll[1]})</span>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>
+                          {isCur ? 'Rolling...' : 'Waiting'}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {canRollSetupDice && (
+                <button
+                  type="button"
+                  data-testid="setup-roll-dialog-btn"
+                  onClick={() => dispatchAction({ type: 'SETUP_ROLL_DICE', playerId: actingPlayerId })}
+                  style={{
+                    background: 'linear-gradient(135deg, #f5d11d, #e08b1a)',
+                    color: '#1a202c',
+                    fontWeight: 900,
+                    fontSize: '14px',
+                    padding: '10px 24px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(245, 209, 29, 0.5)',
+                  }}
+                >
+                  🎲 Roll Dice ({gameState.players[actingPlayerId]?.name})
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Pan & Zoom Circular Board Container */}
           <div
@@ -2001,6 +2110,27 @@ export function TabletopApp() {
                 }}
               >
                 Draw Event Disc ({gameState.eventDiscsDrawnThisTurn}/{drawCountThisTurn})
+              </button>
+            )}
+
+            {canRollSetupDice && (
+              <button
+                type="button"
+                data-testid="action-setup-roll-btn"
+                onClick={() => dispatchAction({ type: 'SETUP_ROLL_DICE', playerId: actingPlayerId })}
+                style={{
+                  padding: '6px 16px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #f5d11d, #e08b1a)',
+                  color: '#1a202c',
+                  fontWeight: 900,
+                  fontSize: '12.5px',
+                  border: '2px solid #ffffff',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 10px rgba(245, 209, 29, 0.45)',
+                }}
+              >
+                🎲 Roll for Setup Turn Order
               </button>
             )}
 

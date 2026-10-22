@@ -78,6 +78,8 @@ export function isActionEqual(a: GameAction, b: GameAction): boolean {
   if (a.type !== b.type || a.playerId !== b.playerId) return false;
 
   switch (a.type) {
+    case 'SETUP_ROLL_DICE':
+      return b.type === a.type;
     case 'SETUP_BUILD_TOWN':
     case 'SETUP_BUILD_CITY':
       return b.type === a.type && b.nodeId === a.nodeId;
@@ -612,6 +614,13 @@ export function legalActions(state: GameState, playerId: PlayerId): GameAction[]
   }
 
   // 2. If no pending decisions, only the active player may take turn phase actions
+  if (state.phase === 'SetupRoll') {
+    if (state.activePlayerId === playerId || !state.setupRolls?.[playerId]) {
+      return [{ type: 'SETUP_ROLL_DICE', playerId }];
+    }
+    return [];
+  }
+
   if (state.activePlayerId !== playerId) {
     return [];
   }

@@ -640,7 +640,7 @@ export function IslandBoardSvg({
                   playerId={node.building.playerId}
                   cx={0}
                   cy={0}
-                  scale={1.0}
+                  scale={0.96}
                   cutoutAngleDeg={townCutoutAngleDeg}
                 />
               )}
@@ -649,7 +649,7 @@ export function IslandBoardSvg({
                   playerId={node.building.playerId}
                   cx={0}
                   cy={0}
-                  scale={1.0}
+                  scale={1.14}
                   cutoutAngleDeg={firstHexAngleDeg}
                 />
               )}

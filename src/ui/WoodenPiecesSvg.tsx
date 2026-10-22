@@ -161,41 +161,41 @@ export function TownPieceSvg({
 }
 
 /**
- * Builds the 3-lobed City path with 3 concave circular sockets spaced at exact 120-degree intervals (0°, 120°, 240°),
- * each centered at distance 13.5 from (0,0) with socket radius 8.0 so up to 3 Power Plants lock into the 3 hex corners.
+ * Builds the 3-lobed City path with 3 deep semicircular apple-bite cutouts spaced at exact 120-degree intervals (0°, 120°, 240°),
+ * each centered at distance 13.5 from (0,0) with socket radius 8.35 so up to 3 Power Plants fit and lock snugly inside.
  */
 const CITY_120_PATH_D = (() => {
-  const R_OUTER = 12.2;
-  const halfSpanRad = (32 * Math.PI) / 180; // 32 deg half-angle on each side of 0°, 120°, 240°
-  const lobeHalfRad = (14 * Math.PI) / 180;
-  const cmds: string[] = [];
+  const R_OUTER = 16.5;
+  const D_CENTER = 13.5;
+  const R_BITE = 8.35;
+  const cosPhi =
+    (R_OUTER * R_OUTER + D_CENTER * D_CENTER - R_BITE * R_BITE) / (2 * R_OUTER * D_CENTER);
+  const phi = Math.acos(Math.max(-1, Math.min(1, cosPhi)));
 
+  const cmds: string[] = [];
   for (let i = 0; i < 3; i++) {
     const cRad = (i * 120 * Math.PI) / 180;
-    const lobeRad = ((i * 120 + 60) * Math.PI) / 180;
+    const nextCRad = (((i + 1) % 3) * 120 * Math.PI) / 180;
 
-    // Socket entry & exit points on the outer ring
-    const sx1 = Math.cos(cRad - halfSpanRad) * R_OUTER;
-    const sy1 = Math.sin(cRad - halfSpanRad) * R_OUTER;
-    const sx2 = Math.cos(cRad + halfSpanRad) * R_OUTER;
-    const sy2 = Math.sin(cRad + halfSpanRad) * R_OUTER;
+    const sx1 = Math.cos(cRad - phi) * R_OUTER;
+    const sy1 = Math.sin(cRad - phi) * R_OUTER;
+    const sx2 = Math.cos(cRad + phi) * R_OUTER;
+    const sy2 = Math.sin(cRad + phi) * R_OUTER;
 
-    // Lobe shoulder points between sockets (at +60°, +180°, +300°)
-    const lx1 = Math.cos(lobeRad - lobeHalfRad) * (R_OUTER + 1.4);
-    const ly1 = Math.sin(lobeRad - lobeHalfRad) * (R_OUTER + 1.4);
-    const lx2 = Math.cos(lobeRad + lobeHalfRad) * (R_OUTER + 1.4);
-    const ly2 = Math.sin(lobeRad + lobeHalfRad) * (R_OUTER + 1.4);
+    const nextSx1 = Math.cos(nextCRad - phi) * R_OUTER;
+    const nextSy1 = Math.sin(nextCRad - phi) * R_OUTER;
 
     if (i === 0) {
       cmds.push(`M ${sx1.toFixed(2)} ${sy1.toFixed(2)}`);
-    } else {
-      cmds.push(`L ${sx1.toFixed(2)} ${sy1.toFixed(2)}`);
     }
-    // Concave circular socket of radius 8.0 curving inward around the power plant center at distance 13.5
-    cmds.push(`A 8.0 8.0 0 0 0 ${sx2.toFixed(2)} ${sy2.toFixed(2)}`);
-    // Outward architectural city wing between the 120° sockets
-    cmds.push(`L ${lx1.toFixed(2)} ${ly1.toFixed(2)}`);
-    cmds.push(`L ${lx2.toFixed(2)} ${ly2.toFixed(2)}`);
+    // Deep semicircular apple bite curving inward toward the city center (sweep = 0)
+    cmds.push(
+      `A ${R_BITE.toFixed(2)} ${R_BITE.toFixed(2)} 0 0 0 ${sx2.toFixed(2)} ${sy2.toFixed(2)}`
+    );
+    // Full rounded architectural outer lobe between the apple bites (sweep = 1)
+    cmds.push(
+      `A ${R_OUTER.toFixed(2)} ${R_OUTER.toFixed(2)} 0 0 1 ${nextSx1.toFixed(2)} ${nextSy1.toFixed(2)}`
+    );
   }
   cmds.push('Z');
   return cmds.join(' ');

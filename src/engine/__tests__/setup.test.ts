@@ -4,6 +4,8 @@ import { clampGF, computePlayerLF, computeTrueTotalLF, getDrawCountForGF } from 
 import { getDistanceBetweenNodes } from '../board';
 import { TOTAL_RESOURCES_PER_TYPE, TOTAL_SCIENCE_CARDS } from '../config';
 import { ResourceType } from '../types';
+import { legalActions } from '../actions';
+import { applyAction } from '../reducer';
 
 describe('Game Setup & Footprint — SET-01..SET-04, GF-01, GF-02', () => {
   describe('SET-01: First Game Fixed Setup (4P & 3P)', () => {
@@ -120,6 +122,94 @@ describe('Game Setup & Footprint — SET-01..SET-04, GF-01, GF-02', () => {
         playerId: state.playerOrder[0]!,
         round: 1,
       });
+    });
+
+    it('rolls dice to determine who goes first, enforces Round 1 Town (clockwise) and Round 2 City (reverse)', () => {
+      // Initialize with setupRoll: true
+      let state = createInitialGameState({ setupMode: 'standard', setupRoll: true, playerCount: 4, seed: 777 });
+      expect(state.phase).toBe('SetupRoll');
+      expect(state.setupRolls).toEqual({});
+
+      // All 4 players roll for setup turn order
+      while (state.phase === 'SetupRoll') {
+        const actor = state.activePlayerId;
+        const legal = legalActions(state, actor);
+        expect(legal).toEqual([{ type: 'SETUP_ROLL_DICE', playerId: actor }]);
+        state = applyAction(state, legal[0]!);
+      }
+
+      // After rolls complete, a winner is established and phase transitions to SetupDraft
+      expect(state.phase).toBe('SetupDraft');
+      expect(state.setupRollWinner).not.toBeNull();
+      const firstPlayer = state.setupRollWinner!;
+      expect(state.playerOrder[0]).toBe(firstPlayer);
+      expect(state.activePlayerId).toBe(firstPlayer);
+
+      // Verify Round 1: strictly Town + Road in clockwise order
+      expect(state.pendingDecisions[0]!.type).toBe('SETUP_PLACE_SETTLEMENT');
+      if ('round' in state.pendingDecisions[0]!) {
+        expect(state.pendingDecisions[0].round).toBe(1);
+      }
+      const r1Actions = legalActions(state, firstPlayer);
+      expect(r1Actions.every((a) => a.type === 'SETUP_BUILD_TOWN')).toBe(true);
+
+      // Complete Round 1 for all players
+      for (let i = 0; i < state.playerCount; i++) {
+        const actor = state.pendingDecisions[0]!.playerId;
+        if ('round' in state.pendingDecisions[0]!) {
+          expect(state.pendingDecisions[0].round).toBe(1);
+        }
+        const townActs = legalActions(state, actor);
+        expect(townActs[0]!.type).toBe('SETUP_BUILD_TOWN');
+        state = applyAction(state, townActs[0]!);
+
+        // Next must place connected road
+        expect(state.pendingDecisions[0]!.type).toBe('SETUP_PLACE_ROAD');
+        const roadActs = legalActions(state, actor);
+        expect(roadActs[0]!.type).toBe('SETUP_BUILD_ROAD');
+        state = applyAction(state, roadActs[0]!);
+      }
+
+      // Round 2 turnaround: last player places second piece, which is strictly a CITY!
+      const lastPlayer = state.playerOrder[state.playerCount - 1]!;
+      expect(state.activePlayerId).toBe(lastPlayer);
+      if ('round' in state.pendingDecisions[0]!) {
+        expect(state.pendingDecisions[0].round).toBe(2);
+      }
+      expect(state.pendingDecisions[0]!.playerId).toBe(lastPlayer);
+
+      const r2Actions = legalActions(state, lastPlayer);
+      expect(r2Actions.every((a) => a.type === 'SETUP_BUILD_CITY')).toBe(true);
+
+      // Complete Round 2 for all players (snakes in reverse / anticlockwise)
+      for (let i = state.playerCount - 1; i >= 0; i--) {
+        const expectedPid = state.playerOrder[i]!;
+        const actor = state.pendingDecisions[0]!.playerId;
+        expect(actor).toBe(expectedPid);
+        if ('round' in state.pendingDecisions[0]!) {
+          expect(state.pendingDecisions[0].round).toBe(2);
+        }
+
+        const cityActs = legalActions(state, actor);
+        expect(cityActs[0]!.type).toBe('SETUP_BUILD_CITY');
+        state = applyAction(state, cityActs[0]!);
+
+        // City built: player has 1 city, 1 town, and received starting science
+        expect(state.players[actor]!.citiesBuilt).toBe(1);
+        expect(state.players[actor]!.townsBuilt).toBe(1);
+        expect(state.players[actor]!.science).toBeGreaterThanOrEqual(1);
+
+        // Next must place connected road
+        expect(state.pendingDecisions[0]!.type).toBe('SETUP_PLACE_ROAD');
+        const roadActs = legalActions(state, actor);
+        expect(roadActs[0]!.type).toBe('SETUP_BUILD_ROAD');
+        state = applyAction(state, roadActs[0]!);
+      }
+
+      // Snake draft complete: transitions to EventPhase on Turn 1!
+      expect(state.phase).toBe('EventPhase');
+      expect(state.currentTurn).toBe(1);
+      expect(state.activePlayerId).toBe(firstPlayer);
     });
   });
 

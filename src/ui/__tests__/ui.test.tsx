@@ -292,4 +292,21 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
     });
     expect(appShell.getAttribute('data-tablecloth-color')).toBe('#4a1d6e');
   });
+
+  it('renders interactive SetupRoll overlay and roll dice button in standard setup mode', () => {
+    // Set URL query params using pushState
+    window.history.pushState({}, '', '/?setup=standard&autostart=1');
+
+    try {
+      act(() => {
+        render(<TabletopApp />, container);
+      });
+
+      // In standard setup mode, starts in SetupRoll
+      expect(container.querySelector('[data-testid="setup-roll-overlay"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="action-setup-roll-btn"]')).not.toBeNull();
+    } finally {
+      window.history.pushState({}, '', '/');
+    }
+  });
 });
