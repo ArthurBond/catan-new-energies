@@ -42,6 +42,7 @@ import {
 export interface IslandBoardSvgProps {
   state: GameState;
   highlightedHexIds?: Set<HexId>;
+  producingHexIds?: Set<HexId>;
   highlightedNodeIds?: Set<NodeId>;
   highlightedEdgeIds?: Set<EdgeId>;
   highlightedCutoutSlots?: Set<string>; // Format: `${nodeId}-${hexId}`
@@ -151,22 +152,90 @@ function TerrainArtworkSvg({ terrain, hexId }: { terrain: TerrainType; hexId: nu
 
         {terrain === 'fields' && (
           <g>
-            {/* Parallel golden plowed strips */}
-            {[-36, -20, -4, 12, 28].map((offset, idx) => (
-              <rect
-                key={idx}
-                x={offset}
-                y={-55}
-                width={10}
-                height={110}
-                transform="rotate(28)"
-                fill={idx % 2 === 0 ? theme.secondaryFill : theme.accentFill}
-                opacity={0.75}
-              />
+            {/* Golden wheat field swaths matching Catan: New Energies board art */}
+            {[-44, -28, -12, 4, 20, 36].map((offset, idx) => (
+              <g key={idx} transform="rotate(28)">
+                <rect
+                  x={offset}
+                  y={-58}
+                  width={16}
+                  height={116}
+                  fill={idx % 2 === 0 ? '#eab839' : '#d69e26'}
+                />
+                {/* Fine wheat row texture lines */}
+                <line
+                  x1={offset + 4}
+                  y1={-58}
+                  x2={offset + 4}
+                  y2={58}
+                  stroke="#f6d567"
+                  strokeWidth={1}
+                  opacity={0.65}
+                />
+                <line
+                  x1={offset + 11}
+                  y1={-58}
+                  x2={offset + 11}
+                  y2={58}
+                  stroke="#b57d14"
+                  strokeWidth={0.9}
+                  opacity={0.55}
+                />
+              </g>
             ))}
-            {/* Circular irrigation crop rings */}
-            <circle cx={-16} cy={-16} r={14} fill="#88a844" stroke="#66822b" strokeWidth={1.5} opacity={0.8} />
-            <circle cx={18} cy={18} r={12} fill="#c4952b" stroke="#8c6716" strokeWidth={1.5} opacity={0.8} />
+
+            {/* Swaying Golden Wheat Sheaves / Stalks around the perimeter */}
+            {[
+              [-22, -16],
+              [21, -18],
+              [-20, 19],
+              [22, 16],
+            ].map(([wx, wy], wIdx) => (
+              <g key={wIdx} transform={`translate(${wx}, ${wy})`}>
+                <path
+                  d="M -3 6 L 2 -6 M 0 6 L 0 -7 M 3 6 L -2 -6"
+                  stroke="#8c580c"
+                  strokeWidth={1.2}
+                  strokeLinecap="round"
+                />
+                <ellipse
+                  cx={-2.5}
+                  cy={-4}
+                  rx={1.8}
+                  ry={3.2}
+                  transform="rotate(-18 -2.5 -4)"
+                  fill="#fef08a"
+                  stroke="#8c580c"
+                  strokeWidth={0.7}
+                />
+                <ellipse
+                  cx={0}
+                  cy={-5}
+                  rx={1.8}
+                  ry={3.4}
+                  fill="#fde047"
+                  stroke="#8c580c"
+                  strokeWidth={0.7}
+                />
+                <ellipse
+                  cx={2.5}
+                  cy={-4}
+                  rx={1.8}
+                  ry={3.2}
+                  transform="rotate(18 2.5 -4)"
+                  fill="#fef08a"
+                  stroke="#8c580c"
+                  strokeWidth={0.7}
+                />
+              </g>
+            ))}
+
+            {/* Mini Harvester Tractor along the lower-left swath */}
+            <g transform="translate(-14, 24) rotate(28)">
+              <rect x={-5} y={-3} width={10} height={6} rx={1.5} fill="#2f6f3e" stroke="#1a3d22" strokeWidth={0.8} />
+              <rect x={-2} y={-2} width={4} height={4} rx={0.8} fill="#e2e8f0" />
+              <rect x={5} y={-5.5} width={2.5} height={11} rx={0.8} fill="#b84a27" />
+            </g>
           </g>
         )}
 
@@ -213,6 +282,7 @@ function TerrainArtworkSvg({ terrain, hexId }: { terrain: TerrainType; hexId: nu
 export function IslandBoardSvg({
   state,
   highlightedHexIds,
+  producingHexIds,
   highlightedNodeIds,
   highlightedEdgeIds,
   highlightedCutoutSlots,
@@ -272,6 +342,7 @@ export function IslandBoardSvg({
         {board.hexes.map((hex) => {
           const { x, y } = hexCoordToSvg(hex.coord);
           const isHighlighted = highlightedHexIds?.has(hex.id) ?? false;
+          const isProducing = producingHexIds?.has(hex.id) ?? false;
           const isHighProb = hex.numberDisc === 6 || hex.numberDisc === 8;
           const pips = hex.numberDisc ? getNumberDiscPips(hex.numberDisc) : 0;
 
@@ -372,6 +443,26 @@ export function IslandBoardSvg({
                   cy={hex.numberDisc !== null ? -8 : 2}
                   scale={1.05}
                 />
+              )}
+
+              {/* Production Roll Highlight Glow */}
+              {isProducing && (
+                <g data-testid={`hex-producing-${hex.id}`} pointerEvents="none">
+                  <polygon
+                    points={getPointyHexPoints(0, 0, HEX_RADIUS - 5)}
+                    fill="rgba(246, 224, 94, 0.28)"
+                    stroke="#f6e05e"
+                    strokeWidth={4}
+                  />
+                  <circle
+                    cx={0}
+                    cy={0}
+                    r={21}
+                    fill="none"
+                    stroke="#f6e05e"
+                    strokeWidth={3}
+                  />
+                </g>
               )}
 
               {/* Interactive Hex Highlight Overlay (Move Inspector / Clean Hazard / High Yield) */}
@@ -493,7 +584,103 @@ export function IslandBoardSvg({
         })}
       </g>
 
-      {/* 5. Hex-Corner Power Plant Cutout Slots (Fossil & Renewable Cylinders) */}
+      {/* 5. 54 Intersections (Towns & Cities with oriented concave sockets, Hazards & Placement Targets) */}
+      <g className="intersections-layer">
+        {board.intersections.map((node) => {
+          const np = latticeToSvg(node.u, node.v);
+          const isHighlighted = highlightedNodeIds?.has(node.id) ?? false;
+
+          // Compute exact cutout orientation so Town's 1 concave socket faces its attached/target Power Plant,
+          // and City's 3 120°-spaced concave sockets align with all 3 adjacent resource hexes!
+          const firstAdjHexId = node.adjacentHexIds[0];
+          const firstHexAngleDeg =
+            firstAdjHexId !== undefined
+              ? (() => {
+                  const hp = hexCoordToSvg(board.hexes[firstAdjHexId]!.coord);
+                  return (Math.atan2(hp.y - np.y, hp.x - np.x) * 180) / Math.PI;
+                })()
+              : 30;
+
+          const townTargetHexId =
+            node.powerPlants[0]?.hexId ??
+            node.adjacentHexIds.find((hId) => highlightedCutoutSlots?.has(`${node.id}-${hId}`)) ??
+            firstAdjHexId;
+
+          const townCutoutAngleDeg =
+            townTargetHexId !== undefined
+              ? (() => {
+                  const hp = hexCoordToSvg(board.hexes[townTargetHexId]!.coord);
+                  return (Math.atan2(hp.y - np.y, hp.x - np.x) * 180) / Math.PI;
+                })()
+              : firstHexAngleDeg;
+
+          return (
+            <g
+              key={node.id}
+              data-node={node.id}
+              transform={`translate(${np.x.toFixed(2)}, ${np.y.toFixed(2)})`}
+              onClick={() => onNodeClick?.(node.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onNodeClick?.(node.id);
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              aria-label={`Intersection ${node.id}${node.building ? `: ${node.building.type} owned by ${node.building.playerId}` : ''}${node.hasHazard ? ', blocked by Hazard' : ''}`}
+              style={{ cursor: isHighlighted ? 'pointer' : 'default' }}
+            >
+              {/* Invisible hit circle */}
+              <circle cx={0} cy={0} r={13} fill="transparent" />
+
+              {/* Built Town or City with exact interlocking cutout orientation */}
+              {node.building?.type === 'town' && (
+                <TownPieceSvg
+                  playerId={node.building.playerId}
+                  cx={0}
+                  cy={0}
+                  scale={1.0}
+                  cutoutAngleDeg={townCutoutAngleDeg}
+                />
+              )}
+              {node.building?.type === 'city' && (
+                <CityPieceSvg
+                  playerId={node.building.playerId}
+                  cx={0}
+                  cy={0}
+                  scale={1.0}
+                  cutoutAngleDeg={firstHexAngleDeg}
+                />
+              )}
+
+              {/* Building Hazard Oil Spill Overlay */}
+              {node.hasHazard && (
+                <g data-testid={`node-hazard-${node.id}`}>
+                  <HazardCogSvg cx={0} cy={0} r={15.5} />
+                </g>
+              )}
+
+              {/* Interactive Placement Highlight Ring */}
+              {isHighlighted && (
+                <g data-testid={`node-target-${node.id}`}>
+                  <circle
+                    cx={0}
+                    cy={0}
+                    r={13}
+                    fill="rgba(245, 209, 29, 0.8)"
+                    stroke="#ffffff"
+                    strokeWidth={2.5}
+                  />
+                  <circle cx={0} cy={0} r={6} fill="#1e2022" />
+                </g>
+              )}
+            </g>
+          );
+        })}
+      </g>
+
+      {/* 6. Hex-Corner Power Plant Cutout Slots (Locked directly into Town/City concave sockets at dist=13.5) */}
       <g className="power-plants-cutout-layer">
         {board.intersections.map((node) => {
           const np = latticeToSvg(node.u, node.v);
@@ -504,9 +691,10 @@ export function IslandBoardSvg({
             const dx = hp.x - np.x;
             const dy = hp.y - np.y;
             const dist = Math.hypot(dx, dy) || 1;
-            // Position cutout slot 18.5 units from the intersection toward the hex center
-            const slotX = np.x + (dx / dist) * 18.5;
-            const slotY = np.y + (dy / dist) * 18.5;
+            // Position cutout slot at exact socket center (13.5 units from intersection toward hex center)
+            // so the r=7.5 cylinder locks directly into the r=8.0 concave cutout of the Town or City piece!
+            const slotX = np.x + (dx / dist) * 13.5;
+            const slotY = np.y + (dy / dist) * 13.5;
 
             const slotKey = `${node.id}-${hexId}`;
             const plant = node.powerPlants.find((p) => p.hexId === hexId) ?? null;
@@ -539,7 +727,7 @@ export function IslandBoardSvg({
                     type={plant.type}
                     cx={slotX}
                     cy={slotY}
-                    r={8.5}
+                    r={7.5}
                   />
                 )}
 
@@ -548,13 +736,13 @@ export function IslandBoardSvg({
                     <circle
                       cx={slotX}
                       cy={slotY}
-                      r={10.5}
-                      fill="rgba(46, 184, 87, 0.65)"
+                      r={9.5}
+                      fill="rgba(46, 184, 87, 0.72)"
                       stroke="#ffffff"
                       strokeWidth={2.2}
                     />
                     <polygon
-                      points={`${slotX - 1},${slotY - 5} ${slotX + 3},${slotY - 5} ${slotX},${slotY} ${slotX + 3.5},${slotY} ${slotX - 2.5},${slotY + 5.5} ${slotX - 0.5},${slotY + 0.5} ${slotX - 3.5},${slotY + 0.5}`}
+                      points={`${slotX - 1},${slotY - 4.5} ${slotX + 2.8},${slotY - 4.5} ${slotX},${slotY} ${slotX + 3.2},${slotY} ${slotX - 2.2},${slotY + 5} ${slotX - 0.5},${slotY + 0.5} ${slotX - 3.2},${slotY + 0.5}`}
                       fill="#f5d11d"
                     />
                   </g>
@@ -562,71 +750,6 @@ export function IslandBoardSvg({
               </g>
             );
           });
-        })}
-      </g>
-
-      {/* 6. 54 Intersections (Towns, Cities, Building Hazards & Placement Targets) */}
-      <g className="intersections-layer">
-        {board.intersections.map((node) => {
-          const { x, y } = latticeToSvg(node.u, node.v);
-          const isHighlighted = highlightedNodeIds?.has(node.id) ?? false;
-
-          return (
-            <g
-              key={node.id}
-              data-node={node.id}
-              transform={`translate(${x.toFixed(2)}, ${y.toFixed(2)})`}
-              onClick={() => onNodeClick?.(node.id)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onNodeClick?.(node.id);
-                }
-              }}
-              role="button"
-              tabIndex={0}
-              aria-label={`Intersection ${node.id}${node.building ? `: ${node.building.type} owned by ${node.building.playerId}` : ''}${node.hasHazard ? ', blocked by Hazard' : ''}`}
-              style={{ cursor: isHighlighted ? 'pointer' : 'default' }}
-            >
-              {/* Invisible hit circle */}
-              <circle cx={0} cy={0} r={13} fill="transparent" />
-
-              {/* Built Town or City */}
-              {node.building?.type === 'town' && (
-                <TownPieceSvg playerId={node.building.playerId} cx={0} cy={0} scale={1.02} />
-              )}
-              {node.building?.type === 'city' && (
-                <CityPieceSvg playerId={node.building.playerId} cx={0} cy={0} scale={1.06} />
-              )}
-
-              {/* Building Hazard Cog Overlay */}
-              {node.hasHazard && (
-                <g data-testid={`node-hazard-${node.id}`}>
-                  <HazardCogSvg cx={0} cy={0} r={16.5} />
-                </g>
-              )}
-
-              {/* Interactive Placement Highlight Ring */}
-              {isHighlighted && (
-                <g data-testid={`node-target-${node.id}`}>
-                  <circle
-                    cx={0}
-                    cy={0}
-                    r={13}
-                    fill="rgba(245, 209, 29, 0.8)"
-                    stroke="#ffffff"
-                    strokeWidth={2.5}
-                  />
-                  <circle
-                    cx={0}
-                    cy={0}
-                    r={6}
-                    fill="#1e2022"
-                  />
-                </g>
-              )}
-            </g>
-          );
         })}
       </g>
     </svg>

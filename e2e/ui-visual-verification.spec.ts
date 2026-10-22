@@ -19,11 +19,17 @@ test.describe('CATAN: New Energies — UI Visual Polish, Ocean Whales & Zero-Ove
       const boardSvg = page.getByTestId('island-board-svg');
       await expect(boardSvg).toBeVisible();
 
-      // 1. Verify Ocean Whales & 4-Player Whale Pod
+      // 1. Verify Ocean Whales, 4-Player Whale Pod, BGG GF HUD Widget, Live Action Banner & Tabletop Dice Tray
       await expect(page.getByTestId('ocean-whales')).toBeVisible();
       const whalePod = page.getByTestId('gf-whale-pod');
       await expect(whalePod).toBeVisible();
       await expect(whalePod.locator('.ocean-whale-animated')).toHaveCount(4);
+      await expect(page.getByTestId('gf-hud-widget')).toBeVisible();
+      await expect(page.getByTestId('live-action-banner')).toBeVisible();
+      await expect(page.getByTestId('tabletop-dice-roll-overlay')).toBeVisible();
+      await expect(page.getByTestId('tablecloth-color-input')).toBeVisible();
+      await expect(page.getByTestId('toggle-player-mat-btn')).toBeVisible();
+      await expect(page.getByTestId('zoom-in-btn')).toBeVisible();
 
       // 2. Programmatically verify ocean gradient stops and rasterized SVG pixel colors are blue-dominant (not black)
       const seaPixelCheck = await page.evaluate(async () => {
@@ -235,6 +241,44 @@ test.describe('CATAN: New Energies — UI Visual Polish, Ocean Whales & Zero-Ove
       if (viewport.width === 1920) {
         await boardSvg.screenshot({ path: 'docs/ui-after-sea-closeup.png' });
         await page.getByTestId('player-mat').screenshot({ path: 'docs/ui-after-player-mat.png' });
+
+        // 7. Step through Draw Event Disc -> Roll Dice -> Build Fossil Plant on Town/City to verify animations & interlocking sockets
+        const drawBtn = page.getByTestId('action-draw-event-btn');
+        if (await drawBtn.isVisible()) {
+          await drawBtn.click();
+        }
+        const rollBtn = page.getByTestId('action-roll-dice-btn');
+        if (await rollBtn.isVisible()) {
+          await rollBtn.click();
+        }
+
+        // Verify tabletop dice tray shows rolled sum and live action banner updated
+        await expect(page.getByTestId('tabletop-dice-roll-overlay')).toContainText('Sum:');
+        await expect(page.getByTestId('live-action-banner')).toBeVisible();
+
+        // If 7 was rolled (MOVE_INSPECTOR), click hex 0 to move the Inspector
+        const pendingBanner = page.getByTestId('pending-decision-banner');
+        if (await pendingBanner.isVisible()) {
+          await page.locator('[data-hex="0"]').click({ force: true });
+        }
+
+        // Click Fossil Plant slot 0 on Player Mat to enter BUILD_FOSSIL_PLANT mode and place on first highlighted cutout
+        const fossilSlot0 = page.getByTestId('mat-fossil-slot-0');
+        if (await fossilSlot0.isVisible()) {
+          await fossilSlot0.click();
+          const firstCutout = page.locator('[data-plant-slot]').first();
+          if (await firstCutout.isVisible()) {
+            await firstCutout.click({ force: true });
+          }
+        }
+
+        // Test Hide Player Mat + Zoom In (2x+) and take zoomed board screenshot
+        await page.getByTestId('toggle-player-mat-btn').click();
+        await expect(page.getByTestId('player-mat')).toHaveCount(0);
+        for (let z = 0; z < 4; z++) {
+          await page.getByTestId('zoom-in-btn').click();
+        }
+        await page.screenshot({ path: 'docs/ui-after-pieces-closeup.png' });
       }
     });
   }

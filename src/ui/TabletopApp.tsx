@@ -64,6 +64,38 @@ import {
 } from './WoodenPiecesSvg';
 
 const STORAGE_KEY = 'catan_new_energies_saved_state_v1';
+const TABLECLOTH_COLOR_KEY = 'catan_new_energies_tablecloth_color_v1';
+
+function hexToRgba(hex: string, alpha: number): string {
+  const clean = hex.replace('#', '');
+  const full =
+    clean.length === 3
+      ? clean
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : clean.padEnd(6, '0');
+  const r = parseInt(full.slice(0, 2), 16) || 24;
+  const g = parseInt(full.slice(2, 4), 16) || 26;
+  const b = parseInt(full.slice(4, 6), 16) || 29;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function hexToLightBase(hex: string): string {
+  const clean = hex.replace('#', '');
+  const full =
+    clean.length === 3
+      ? clean
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : clean.padEnd(6, '0');
+  const r = parseInt(full.slice(0, 2), 16) || 24;
+  const g = parseInt(full.slice(2, 4), 16) || 26;
+  const b = parseInt(full.slice(4, 6), 16) || 29;
+  const mix = (channel: number) => Math.round(channel * 0.25 + 235 * 0.75);
+  return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
+}
 
 function parseUrlParams(): {
   seed: number;
@@ -249,8 +281,44 @@ export function TabletopApp() {
   const [selectedEventInfo, setSelectedEventInfo] = useState<EventDiscType | null>(null);
   const [privacyCurtainForPlayer, setPrivacyCurtainForPlayer] = useState<PlayerId | null>(null);
   const [botPaused, setBotPaused] = useState(false);
+  const [isPlayerMatHidden, setIsPlayerMatHidden] = useState(false);
 
-  // Pan & Zoom state for the central circular board
+  // Tablecloth color state (changeable to any color via color picker or presets)
+  const [tableclothColor, setTableclothColor] = useState<string>(() => {
+    try {
+      return localStorage.getItem(TABLECLOTH_COLOR_KEY) || '#181a1d';
+    } catch {
+      return '#181a1d';
+    }
+  });
+
+  const handleTableclothColorChange = (newColor: string) => {
+    setTableclothColor(newColor);
+    try {
+      localStorage.setItem(TABLECLOTH_COLOR_KEY, newColor);
+    } catch {
+      // Ignore storage errors
+    }
+  };
+
+  // Animated Tabletop Dice Roll overlay state (tumbles onto the table & stays on the side)
+  const [diceRollOverlay, setDiceRollOverlay] = useState<{
+    rollId: number;
+    die1: number;
+    die2: number;
+    playerId: PlayerId;
+  } | null>(null);
+
+  // Animated Live Action Banner state (displays latest action & gamestate clearly on tabletop)
+  const [liveActionBanner, setLiveActionBanner] = useState<{
+    actionId: number;
+    playerId: PlayerId;
+    title: string;
+    detail: string;
+    category: 'event' | 'dice' | 'build' | 'trade' | 'energy' | 'turn';
+  } | null>(null);
+
+  // Pan & Zoom state for the central circular board (supports zooming up to 5.0x)
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const isDraggingRef = useRef(false);
@@ -299,7 +367,7 @@ export function TabletopApp() {
 
   const displayedPlayer = gameState.players[displayedMatPlayerId]!;
 
-  // Dispatch game action with history + persistence + multi-tab broadcast
+  // Dispatch game action with history + persistence + multi-tab broadcast + live visual animations
   const dispatchAction = (action: GameAction) => {
     try {
       const prevActing = getActingPlayerId(gameState);
@@ -309,6 +377,88 @@ export function TabletopApp() {
       setHistory((prev) => [...prev.slice(-24), gameState]);
       setGameState(next);
       setActiveBuildMode(null);
+
+      const latestLogMsg =
+        next.log[next.log.length - 1]?.message ?? `${action.playerId}: ${action.type}`;
+      const actorName = next.players[action.playerId]?.name ?? action.playerId;
+
+      if (action.type === 'ROLL_DICE' && next.lastDiceRoll) {
+        const [d1, d2] = next.lastDiceRoll;
+        setDiceRollOverlay({
+          rollId: Date.now(),
+          die1: d1,
+          die2: d2,
+          playerId: action.playerId,
+        });
+        setLiveActionBanner({
+          actionId: Date.now(),
+          playerId: action.playerId,
+          title: `🎲 ${actorName} Rolled ${d1 + d2} (${d1} + ${d2})`,
+          detail: latestLogMsg,
+          category: 'dice',
+        });
+      } else if (action.type === 'DRAW_EVENT_DISC') {
+        setLiveActionBanner({
+          actionId: Date.now(),
+          playerId: action.playerId,
+          title: `⚡ ${actorName} Drew an Event Disc`,
+          detail: latestLogMsg,
+          category: 'event',
+        });
+      } else if (
+        action.type === 'BUILD_ROAD' ||
+        action.type === 'BUILD_TOWN' ||
+        action.type === 'BUILD_CITY' ||
+        action.type === 'BUILD_FOSSIL_PLANT' ||
+        action.type === 'BUILD_RENEWABLE_PLANT' ||
+        action.type === 'BUILD_WAREHOUSE' ||
+        action.type === 'BUY_DEV_CARD'
+      ) {
+        setLiveActionBanner({
+          actionId: Date.now(),
+          playerId: action.playerId,
+          title: `🏗️ ${actorName}: ${action.type.replace(/_/g, ' ')}`,
+          detail: latestLogMsg,
+          category: 'build',
+        });
+      } else if (action.type === 'SPEND_ENERGY') {
+        setLiveActionBanner({
+          actionId: Date.now(),
+          playerId: action.playerId,
+          title: `⚡ ${actorName}: Energy (${action.usage.replace(/_/g, ' ')})`,
+          detail: latestLogMsg,
+          category: 'energy',
+        });
+      } else if (
+        action.type === 'TRADE_SUPPLY' ||
+        action.type === 'TRADE_HARBOR' ||
+        action.type === 'OFFER_TRADE'
+      ) {
+        setLiveActionBanner({
+          actionId: Date.now(),
+          playerId: action.playerId,
+          title: `🤝 ${actorName}: ${action.type.replace(/_/g, ' ')}`,
+          detail: latestLogMsg,
+          category: 'trade',
+        });
+      } else if (action.type === 'END_TURN') {
+        const nextPlayerName = next.players[next.activePlayerId]?.name ?? next.activePlayerId;
+        setLiveActionBanner({
+          actionId: Date.now(),
+          playerId: next.activePlayerId,
+          title: `➡️ Turn ${next.currentTurn}: ${nextPlayerName}'s Turn`,
+          detail: latestLogMsg,
+          category: 'turn',
+        });
+      } else {
+        setLiveActionBanner({
+          actionId: Date.now(),
+          playerId: action.playerId,
+          title: `${actorName}: ${action.type.replace(/_/g, ' ')}`,
+          detail: latestLogMsg,
+          category: 'turn',
+        });
+      }
 
       // Save to localStorage
       try {
@@ -662,14 +812,32 @@ export function TabletopApp() {
 
   const activePlayerTheme = PLAYER_THEMES[gameState.activePlayerId];
 
+  // Compute producing hexes on the latest dice roll
+  const producingHexIds = useMemo(() => {
+    const prod = new Set<HexId>();
+    if (!gameState.lastDiceRoll) return prod;
+    const sum = gameState.lastDiceRoll[0] + gameState.lastDiceRoll[1];
+    if (sum === 7) return prod;
+    for (const h of gameState.board.hexes) {
+      if (h.numberDisc === sum && !h.hasHazard && !h.hasInspector) {
+        prod.add(h.id);
+      }
+    }
+    return prod;
+  }, [gameState.lastDiceRoll, gameState.board.hexes]);
+
   // Redact private cards on the bottom mat if viewing an AI bot's mat or if privacy curtain is up
   const shouldRedactDisplayedMat =
     privacyCurtainForPlayer !== null ||
     lobbyConfig.seats[displayedMatPlayerId]?.controller === 'bot';
 
+  const ginghamRgba = hexToRgba(tableclothColor, 0.58);
+  const ginghamBase = hexToLightBase(tableclothColor);
+
   return (
     <div
       data-testid="tabletop-app"
+      data-tablecloth-color={tableclothColor}
       style={{
         width: '100vw',
         height: '100vh',
@@ -678,11 +846,11 @@ export function TabletopApp() {
         flexDirection: 'column',
         justifyContent: 'space-between',
         position: 'relative',
-        // Buffalo-plaid gingham tablecloth matching UI-design-style.png (28px weave squares)
-        backgroundColor: '#e8eaed',
+        // Customizable buffalo-plaid gingham tablecloth (default #181a1d, changeable to any color)
+        backgroundColor: ginghamBase,
         backgroundImage: `
-          linear-gradient(90deg, rgba(24, 26, 29, 0.56) 50%, transparent 50%),
-          linear-gradient(rgba(24, 26, 29, 0.56) 50%, transparent 50%)
+          linear-gradient(90deg, ${ginghamRgba} 50%, transparent 50%),
+          linear-gradient(${ginghamRgba} 50%, transparent 50%)
         `,
         backgroundSize: '56px 56px',
         color: '#f0f4f8',
@@ -706,13 +874,13 @@ export function TabletopApp() {
         }}
       >
         {/* Left: Game Brand & Active Turn Indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span
             style={{
               fontWeight: 900,
-              fontSize: '15px',
+              fontSize: '14.5px',
               color: '#f5d11d',
-              letterSpacing: '0.6px',
+              letterSpacing: '0.5px',
             }}
           >
             CATAN: NEW ENERGIES
@@ -729,7 +897,7 @@ export function TabletopApp() {
               background: activePlayerTheme.fill,
               color: activePlayerTheme.textOnFill,
               fontWeight: 900,
-              fontSize: '12.5px',
+              fontSize: '12px',
             }}
           >
             <svg width="16" height="16" viewBox="-8 -8 16 16">
@@ -748,12 +916,12 @@ export function TabletopApp() {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '14px',
-            padding: '4px 14px',
+            gap: '12px',
+            padding: '4px 12px',
             borderRadius: '18px',
             background: '#232830',
             border: '1px solid #454d5c',
-            fontSize: '12px',
+            fontSize: '11.5px',
             fontWeight: 800,
           }}
         >
@@ -774,20 +942,165 @@ export function TabletopApp() {
           </span>
         </div>
 
-        {/* Right: Utility Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {/* Right: Tablecloth Color Picker, Zoom Controls, Hide Mat & Utility Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {/* Custom Tablecloth Color Picker + Presets */}
+          <div
+            data-testid="tablecloth-color-picker"
+            title="Change tablecloth color to any color"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              background: '#232830',
+              border: '1px solid #4a5260',
+              borderRadius: '7px',
+              padding: '3px 7px',
+            }}
+          >
+            <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#cbd5e0' }}>Cloth:</span>
+            <input
+              type="color"
+              data-testid="tablecloth-color-input"
+              aria-label="Tablecloth color picker"
+              value={tableclothColor}
+              onInput={(e) => handleTableclothColorChange((e.target as HTMLInputElement).value)}
+              onChange={(e) => handleTableclothColorChange((e.target as HTMLInputElement).value)}
+              style={{
+                width: '20px',
+                height: '20px',
+                padding: 0,
+                border: '1px solid #ffffff',
+                borderRadius: '4px',
+                background: 'transparent',
+                cursor: 'pointer',
+              }}
+            />
+            {[
+              { color: '#181a1d', label: 'Classic Black' },
+              { color: '#133b63', label: 'Ocean Blue' },
+              { color: '#174f2c', label: 'Forest Green' },
+              { color: '#7a1c1c', label: 'Picnic Red' },
+            ].map((preset) => (
+              <button
+                key={preset.color}
+                type="button"
+                data-testid={`tablecloth-preset-${preset.color.slice(1)}`}
+                title={`Tablecloth: ${preset.label}`}
+                onClick={() => handleTableclothColorChange(preset.color)}
+                style={{
+                  width: '13px',
+                  height: '13px',
+                  borderRadius: '50%',
+                  background: preset.color,
+                  border:
+                    tableclothColor.toLowerCase() === preset.color
+                      ? '2px solid #f5d11d'
+                      : '1px solid #a0aec0',
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Extended Zoom Controls (0.6x up to 5.0x — >2x more zoom) */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '3px',
+              background: '#232830',
+              border: '1px solid #4a5260',
+              borderRadius: '7px',
+              padding: '2px 5px',
+            }}
+          >
+            <button
+              type="button"
+              data-testid="zoom-out-btn"
+              title="Zoom Out"
+              onClick={() =>
+                setZoom((z) => Math.max(0.6, Number((z - 0.35).toFixed(2))))
+              }
+              style={{
+                padding: '2px 7px',
+                borderRadius: '5px',
+                background: '#2d333d',
+                color: '#ffffff',
+                border: 'none',
+                fontSize: '12px',
+                fontWeight: 900,
+                cursor: 'pointer',
+              }}
+            >
+              &minus;
+            </button>
+            <span
+              data-testid="zoom-level-readout"
+              style={{
+                fontSize: '10.5px',
+                fontWeight: 800,
+                minWidth: '38px',
+                textAlign: 'center',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {Math.round(zoom * 100)}%
+            </span>
+            <button
+              type="button"
+              data-testid="zoom-in-btn"
+              title="Zoom In (up to 500%)"
+              onClick={() =>
+                setZoom((z) => Math.min(5.0, Number((z + 0.35).toFixed(2))))
+              }
+              style={{
+                padding: '2px 7px',
+                borderRadius: '5px',
+                background: '#2d333d',
+                color: '#ffffff',
+                border: 'none',
+                fontSize: '12px',
+                fontWeight: 900,
+                cursor: 'pointer',
+              }}
+            >
+              +
+            </button>
+          </div>
+
+          {/* Hide / Show Player Mat Toggle */}
+          <button
+            type="button"
+            data-testid="toggle-player-mat-btn"
+            onClick={() => setIsPlayerMatHidden((h) => !h)}
+            style={{
+              padding: '5px 9px',
+              borderRadius: '7px',
+              background: isPlayerMatHidden ? '#276749' : '#2d333d',
+              color: '#ffffff',
+              border: '1px solid #4a5260',
+              fontSize: '11px',
+              fontWeight: 800,
+              cursor: 'pointer',
+            }}
+          >
+            {isPlayerMatHidden ? 'Show Mat' : 'Hide Mat'}
+          </button>
+
           <button
             type="button"
             data-testid="undo-btn"
             disabled={history.length === 0}
             onClick={handleUndo}
             style={{
-              padding: '5px 10px',
+              padding: '5px 9px',
               borderRadius: '7px',
               background: history.length > 0 ? '#2d333d' : '#1e2228',
               color: history.length > 0 ? '#ffffff' : '#636b78',
               border: '1px solid #4a5260',
-              fontSize: '11.5px',
+              fontSize: '11px',
               fontWeight: 800,
               cursor: history.length > 0 ? 'pointer' : 'not-allowed',
             }}
@@ -800,12 +1113,12 @@ export function TabletopApp() {
             data-testid="bot-pause-btn"
             onClick={() => setBotPaused((p) => !p)}
             style={{
-              padding: '5px 10px',
+              padding: '5px 9px',
               borderRadius: '7px',
               background: botPaused ? '#c93b2b' : '#2d333d',
               color: '#ffffff',
               border: '1px solid #4a5260',
-              fontSize: '11.5px',
+              fontSize: '11px',
               fontWeight: 800,
               cursor: 'pointer',
             }}
@@ -821,12 +1134,12 @@ export function TabletopApp() {
               setPan({ x: 0, y: 0 });
             }}
             style={{
-              padding: '5px 10px',
+              padding: '5px 9px',
               borderRadius: '7px',
               background: '#2d333d',
               color: '#ffffff',
               border: '1px solid #4a5260',
-              fontSize: '11.5px',
+              fontSize: '11px',
               fontWeight: 800,
               cursor: 'pointer',
             }}
@@ -839,12 +1152,12 @@ export function TabletopApp() {
             data-testid="open-lobby-btn"
             onClick={() => setShowLobby(true)}
             style={{
-              padding: '5px 12px',
+              padding: '5px 11px',
               borderRadius: '7px',
               background: '#3676c8',
               color: '#ffffff',
               border: '1px solid #90cdf4',
-              fontSize: '11.5px',
+              fontSize: '11px',
               fontWeight: 800,
               cursor: 'pointer',
             }}
@@ -1091,8 +1404,8 @@ export function TabletopApp() {
           }}
           onWheel={(e) => {
             e.preventDefault();
-            const delta = e.deltaY < 0 ? 0.1 : -0.1;
-            setZoom((z) => Math.max(0.75, Math.min(2.2, Number((z + delta).toFixed(2)))));
+            const delta = e.deltaY < 0 ? 0.2 : -0.2;
+            setZoom((z) => Math.max(0.6, Math.min(5.0, Number((z + delta).toFixed(2)))));
           }}
           onMouseDown={(e) => {
             if (e.button !== 0) return;
@@ -1214,6 +1527,195 @@ export function TabletopApp() {
             );
           })}
 
+          {/* Live Gamestate Phase Stepper & Action Animation Callout (Left Tabletop Overlay) */}
+          <div
+            data-testid="live-action-banner"
+            key={liveActionBanner?.actionId ?? 'initial-banner'}
+            className="live-action-banner-anim"
+            style={{
+              position: 'absolute',
+              top: '80px',
+              left: '4px',
+              width: '166px',
+              zIndex: 42,
+              background: 'rgba(16, 20, 26, 0.94)',
+              backdropFilter: 'blur(6px)',
+              border: `2px solid ${
+                liveActionBanner
+                  ? PLAYER_THEMES[liveActionBanner.playerId].fill
+                  : activePlayerTheme.fill
+              }`,
+              borderRadius: '10px',
+              padding: '6px 8px',
+              boxShadow: '0 6px 18px rgba(0,0,0,0.6)',
+              pointerEvents: 'none',
+            }}
+          >
+            {/* 4-Step Turn Phase Progress Stepper */}
+            <div
+              data-testid="phase-stepper"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: '3px',
+                marginBottom: '5px',
+              }}
+            >
+              {(
+                [
+                  { key: 'EventPhase', label: '1.Event' },
+                  { key: 'ProductionPhase', label: '2.Roll' },
+                  { key: 'ActionPhase', label: '3.Build' },
+                  { key: 'EndTurn', label: '4.End' },
+                ] as const
+              ).map((step) => {
+                const isCurrent = gameState.phase === step.key;
+                return (
+                  <div
+                    key={step.key}
+                    style={{
+                      textAlign: 'center',
+                      fontSize: '8.5px',
+                      fontWeight: 900,
+                      padding: '2px 1px',
+                      borderRadius: '4px',
+                      background: isCurrent ? '#f5d11d' : '#262b33',
+                      color: isCurrent ? '#14171a' : '#8a94a6',
+                    }}
+                  >
+                    {step.label}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div
+              style={{
+                fontSize: '10.5px',
+                fontWeight: 900,
+                color: '#f5d11d',
+                lineHeight: 1.25,
+                marginBottom: '2px',
+              }}
+            >
+              {liveActionBanner
+                ? liveActionBanner.title
+                : `Turn ${gameState.currentTurn}: ${gameState.players[gameState.activePlayerId]?.name}`}
+            </div>
+            <div
+              style={{
+                fontSize: '9.5px',
+                fontWeight: 700,
+                color: '#cbd5e0',
+                lineHeight: 1.25,
+              }}
+            >
+              {liveActionBanner
+                ? liveActionBanner.detail
+                : gameState.log[gameState.log.length - 1]?.message ?? 'Ready for next action'}
+            </div>
+          </div>
+
+          {/* Animated Tabletop Dice Roll Tray (Rolls directly on the table & stays on the side) */}
+          <div
+            data-testid="tabletop-dice-roll-overlay"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (canRollDice) {
+                dispatchAction({ type: 'ROLL_DICE', playerId: actingPlayerId });
+              }
+            }}
+            style={{
+              position: 'absolute',
+              top: '80px',
+              right: '4px',
+              width: '166px',
+              zIndex: 42,
+              background: 'rgba(16, 20, 26, 0.94)',
+              backdropFilter: 'blur(6px)',
+              border: canRollDice ? '2px solid #f5d11d' : '1.5px solid #3c424d',
+              borderRadius: '10px',
+              padding: '6px 8px',
+              cursor: canRollDice ? 'pointer' : 'default',
+              boxShadow: canRollDice
+                ? '0 0 14px rgba(245, 209, 29, 0.55)'
+                : '0 6px 16px rgba(0,0,0,0.55)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '4px',
+              }}
+            >
+              <span style={{ fontSize: '9.5px', fontWeight: 900, color: '#90cdf4' }}>
+                TABLETOP DICE TRAY
+              </span>
+              <span
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 900,
+                  color: '#f5d11d',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {gameState.lastDiceRoll
+                  ? `Sum: ${gameState.lastDiceRoll[0] + gameState.lastDiceRoll[1]}`
+                  : canRollDice
+                    ? 'Roll!'
+                    : 'Ready'}
+              </span>
+            </div>
+
+            <div
+              key={diceRollOverlay?.rollId ?? 'static-dice'}
+              className={diceRollOverlay ? 'dice-tumble-anim' : undefined}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                padding: '4px 6px',
+                borderRadius: '8px',
+                background: 'radial-gradient(circle, #1e4628 0%, #122b18 100%)',
+                border: '1.5px solid #5c3a1e',
+              }}
+            >
+              <DieFaceSvg
+                value={diceRollOverlay?.die1 ?? gameState.lastDiceRoll?.[0] ?? 4}
+                bgColor="#f3efe2"
+                pipColor="#22252a"
+                strokeColor="#b8ad93"
+              />
+              <DieFaceSvg
+                value={diceRollOverlay?.die2 ?? gameState.lastDiceRoll?.[1] ?? 3}
+                bgColor="#439639"
+                pipColor="#ffffff"
+                strokeColor="#255c1e"
+              />
+            </div>
+
+            <div
+              style={{
+                fontSize: '9px',
+                fontWeight: 800,
+                color: '#a0aec0',
+                textAlign: 'center',
+                marginTop: '3px',
+              }}
+            >
+              {gameState.lastDiceRoll
+                ? gameState.lastDiceRoll[0] + gameState.lastDiceRoll[1] === 7
+                  ? '⚠️ Rolled 7 — Inspector Active!'
+                  : `Producing on #${gameState.lastDiceRoll[0] + gameState.lastDiceRoll[1]} (${producingHexIds.size} hexes)`
+                : canRollDice
+                  ? 'Click tray to roll on table'
+                  : 'Waiting for Production Phase'}
+            </div>
+          </div>
+
           {/* Pan & Zoom Circular Board Container */}
           <div
             data-testid="tabletop-board"
@@ -1238,6 +1740,7 @@ export function TabletopApp() {
               highlightedNodeIds={highlightedNodeIds}
               highlightedEdgeIds={highlightedEdgeIds}
               highlightedCutoutSlots={highlightedCutoutSlots}
+              producingHexIds={producingHexIds}
               onHexClick={handleHexClick}
               onNodeClick={handleNodeClick}
               onEdgeClick={handleEdgeClick}
@@ -1612,39 +2115,58 @@ export function TabletopApp() {
                 </button>
               );
             })}
+            <button
+              type="button"
+              data-testid="dock-toggle-mat-btn"
+              onClick={() => setIsPlayerMatHidden((h) => !h)}
+              style={{
+                padding: '3px 10px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                background: isPlayerMatHidden ? '#276749' : '#2d333d',
+                color: '#ffffff',
+                border: '1px solid #8ce09a',
+              }}
+            >
+              {isPlayerMatHidden ? '▲ Show Player Mat' : '▼ Hide Player Mat'}
+            </button>
           </div>
         </div>
 
-        {/* Centerpiece Player Mat & Resource Organiser Tray */}
-        <PlayerMat
-          player={displayedPlayer}
-          isActiveTurn={
-            !isActingPlayerBot &&
-            displayedMatPlayerId === actingPlayerId &&
-            gameState.pendingDecisions.length === 0
-          }
-          isActionPhase={gameState.phase === 'ActionPhase'}
-          isPreEventWindow={
-            gameState.phase === 'EventPhase' && gameState.eventDiscsDrawnThisTurn === 0
-          }
-          turnStats={gameState.turnStats}
-          devCardsBoughtThisTurn={gameState.devCardsBoughtThisTurn}
-          devCardPlayedThisTurn={gameState.devCardPlayedThisTurn}
-          activeBuildMode={activeBuildMode}
-          redactPrivateCards={shouldRedactDisplayedMat}
-          onSelectBuildMode={(mode) => setActiveBuildMode(mode)}
-          onBuildWarehouse={() =>
-            dispatchAction({ type: 'BUILD_WAREHOUSE', playerId: actingPlayerId })
-          }
-          onBuyDevCard={() =>
-            dispatchAction({ type: 'BUY_DEV_CARD', playerId: actingPlayerId })
-          }
-          onOpenEnergyBuyCardModal={() => setShowEnergyCardModal(true)}
-          onPlayDevCardPrompt={(cardId, cardType) => setDevCardPrompt({ cardId, cardType })}
-          onRevealVpCards={(cardIds) =>
-            dispatchAction({ type: 'REVEAL_VP_CARDS', playerId: actingPlayerId, cardIds })
-          }
-        />
+        {/* Centerpiece Player Mat & Resource Organiser Tray (Collapsible to maximize board view) */}
+        {!isPlayerMatHidden && (
+          <PlayerMat
+            player={displayedPlayer}
+            isActiveTurn={
+              !isActingPlayerBot &&
+              displayedMatPlayerId === actingPlayerId &&
+              gameState.pendingDecisions.length === 0
+            }
+            isActionPhase={gameState.phase === 'ActionPhase'}
+            isPreEventWindow={
+              gameState.phase === 'EventPhase' && gameState.eventDiscsDrawnThisTurn === 0
+            }
+            turnStats={gameState.turnStats}
+            devCardsBoughtThisTurn={gameState.devCardsBoughtThisTurn}
+            devCardPlayedThisTurn={gameState.devCardPlayedThisTurn}
+            activeBuildMode={activeBuildMode}
+            redactPrivateCards={shouldRedactDisplayedMat}
+            onSelectBuildMode={(mode) => setActiveBuildMode(mode)}
+            onBuildWarehouse={() =>
+              dispatchAction({ type: 'BUILD_WAREHOUSE', playerId: actingPlayerId })
+            }
+            onBuyDevCard={() =>
+              dispatchAction({ type: 'BUY_DEV_CARD', playerId: actingPlayerId })
+            }
+            onOpenEnergyBuyCardModal={() => setShowEnergyCardModal(true)}
+            onPlayDevCardPrompt={(cardId, cardType) => setDevCardPrompt({ cardId, cardType })}
+            onRevealVpCards={(cardIds) =>
+              dispatchAction({ type: 'REVEAL_VP_CARDS', playerId: actingPlayerId, cardIds })
+            }
+          />
+        )}
       </footer>
 
       {/* =================================================================== */}

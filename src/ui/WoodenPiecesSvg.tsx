@@ -93,7 +93,7 @@ export function PlayerEmblemSvg({
 }
 
 /**
- * 3D Wooden Town piece with 1 circular power-plant cutout indention (matching player-mat-reference.png)
+ * 3D Wooden Town piece with 1 concave circular power-plant socket that rotates to lock around the attached Power Plant
  */
 export function TownPieceSvg({
   playerId,
@@ -101,62 +101,108 @@ export function TownPieceSvg({
   cy,
   scale = 1,
   showEmblem = true,
+  cutoutAngleDeg = -35,
 }: {
   playerId: PlayerId;
   cx: number;
   cy: number;
   scale?: number;
   showEmblem?: boolean;
+  cutoutAngleDeg?: number;
 }) {
   const p = PLAYER_THEMES[playerId];
-  // Hexagonal-house wooden block with 1 concave circular cutout on its upper-right edge
+  // In local coordinates, the concave socket is centered at (13.5, 0) with radius 8.0
+  // so a Power Plant cylinder (r=7.6) at distance 13.5 along cutoutAngleDeg locks snugly into the crescent notch.
   const pathD =
-    'M -11 -4 L -2 -13 L 5 -9 A 5.5 5.5 0 0 0 11 -1 L 11 9 L 0 13 L -11 8 Z';
+    'M 9.3 -6.8 A 8.0 8.0 0 0 0 9.3 6.8 L 1.5 11.8 L -9.5 9.2 L -12.2 0 L -9.5 -9.2 L 1.5 -11.8 Z';
   return (
     <g transform={`translate(${cx}, ${cy}) scale(${scale})`}>
-      {/* Drop shadow */}
-      <path d={pathD} transform="translate(2, 3.2)" fill="rgba(0,0,0,0.34)" />
-      {/* High-contrast outer halo for dark pieces */}
-      <path
-        d={pathD}
-        transform="translate(0, 1.5)"
-        fill={p.sideFill}
-        stroke={p.outerHalo}
-        strokeWidth={2.4}
-        strokeLinejoin="round"
-      />
-      {/* 3D Side Extrusion */}
-      <path
-        d={pathD}
-        transform="translate(0, 2)"
-        fill={p.sideFill}
-        stroke={p.stroke}
-        strokeWidth={1.4}
-        strokeLinejoin="round"
-      />
-      {/* Top Wooden Face */}
-      <path
-        d={pathD}
-        fill={p.fill}
-        stroke={p.stroke}
-        strokeWidth={1.3}
-        strokeLinejoin="round"
-      />
-      {/* Top Bevel Highlight */}
-      <path
-        d="M -9 -3 L -2 -10.5 L 3.5 -7.5"
-        fill="none"
-        stroke={p.highlight}
-        strokeWidth={1.5}
-        strokeLinecap="round"
-      />
-      {showEmblem && <PlayerEmblemSvg playerId={playerId} cx={-1} cy={1} r={4.2} />}
+      <g transform={`rotate(${cutoutAngleDeg})`}>
+        {/* Drop shadow */}
+        <path d={pathD} transform="translate(1.8, 2.8)" fill="rgba(0,0,0,0.36)" />
+        {/* High-contrast outer halo for dark pieces */}
+        <path
+          d={pathD}
+          transform="translate(0, 1.2)"
+          fill={p.sideFill}
+          stroke={p.outerHalo}
+          strokeWidth={2.2}
+          strokeLinejoin="round"
+        />
+        {/* 3D Side Extrusion */}
+        <path
+          d={pathD}
+          transform="translate(0, 1.8)"
+          fill={p.sideFill}
+          stroke={p.stroke}
+          strokeWidth={1.3}
+          strokeLinejoin="round"
+        />
+        {/* Top Wooden Face */}
+        <path
+          d={pathD}
+          fill={p.fill}
+          stroke={p.stroke}
+          strokeWidth={1.3}
+          strokeLinejoin="round"
+        />
+        {/* Top Bevel Highlight */}
+        <path
+          d="M -7.5 -7.2 L 1 -9.5 L 6.8 -6"
+          fill="none"
+          stroke={p.highlight}
+          strokeWidth={1.4}
+          strokeLinecap="round"
+        />
+      </g>
+      {showEmblem && <PlayerEmblemSvg playerId={playerId} cx={-1.5} cy={0} r={4.1} />}
     </g>
   );
 }
 
 /**
- * 3D Wooden City piece with 3 circular power-plant cutout indentions around its perimeter
+ * Builds the 3-lobed City path with 3 concave circular sockets spaced at exact 120-degree intervals (0°, 120°, 240°),
+ * each centered at distance 13.5 from (0,0) with socket radius 8.0 so up to 3 Power Plants lock into the 3 hex corners.
+ */
+const CITY_120_PATH_D = (() => {
+  const R_OUTER = 12.2;
+  const halfSpanRad = (32 * Math.PI) / 180; // 32 deg half-angle on each side of 0°, 120°, 240°
+  const lobeHalfRad = (14 * Math.PI) / 180;
+  const cmds: string[] = [];
+
+  for (let i = 0; i < 3; i++) {
+    const cRad = (i * 120 * Math.PI) / 180;
+    const lobeRad = ((i * 120 + 60) * Math.PI) / 180;
+
+    // Socket entry & exit points on the outer ring
+    const sx1 = Math.cos(cRad - halfSpanRad) * R_OUTER;
+    const sy1 = Math.sin(cRad - halfSpanRad) * R_OUTER;
+    const sx2 = Math.cos(cRad + halfSpanRad) * R_OUTER;
+    const sy2 = Math.sin(cRad + halfSpanRad) * R_OUTER;
+
+    // Lobe shoulder points between sockets (at +60°, +180°, +300°)
+    const lx1 = Math.cos(lobeRad - lobeHalfRad) * (R_OUTER + 1.4);
+    const ly1 = Math.sin(lobeRad - lobeHalfRad) * (R_OUTER + 1.4);
+    const lx2 = Math.cos(lobeRad + lobeHalfRad) * (R_OUTER + 1.4);
+    const ly2 = Math.sin(lobeRad + lobeHalfRad) * (R_OUTER + 1.4);
+
+    if (i === 0) {
+      cmds.push(`M ${sx1.toFixed(2)} ${sy1.toFixed(2)}`);
+    } else {
+      cmds.push(`L ${sx1.toFixed(2)} ${sy1.toFixed(2)}`);
+    }
+    // Concave circular socket of radius 8.0 curving inward around the power plant center at distance 13.5
+    cmds.push(`A 8.0 8.0 0 0 0 ${sx2.toFixed(2)} ${sy2.toFixed(2)}`);
+    // Outward architectural city wing between the 120° sockets
+    cmds.push(`L ${lx1.toFixed(2)} ${ly1.toFixed(2)}`);
+    cmds.push(`L ${lx2.toFixed(2)} ${ly2.toFixed(2)}`);
+  }
+  cmds.push('Z');
+  return cmds.join(' ');
+})();
+
+/**
+ * 3D Wooden City piece with 3 concave power-plant sockets at exact 120° intervals
  */
 export function CityPieceSvg({
   playerId,
@@ -164,50 +210,60 @@ export function CityPieceSvg({
   cy,
   scale = 1,
   showEmblem = true,
+  cutoutAngleDeg = 30,
 }: {
   playerId: PlayerId;
   cx: number;
   cy: number;
   scale?: number;
   showEmblem?: boolean;
+  cutoutAngleDeg?: number;
 }) {
   const p = PLAYER_THEMES[playerId];
-  // Star-clustered wooden city block with 3 semicircular cutouts
-  const pathD =
-    'M -5 -15 L 5 -15 L 8 -10 A 5.5 5.5 0 0 0 14 -3 L 16 3 L 11 11 A 5.5 5.5 0 0 0 2 14 L -3 15 L -11 11 A 5.5 5.5 0 0 0 -14 1 L -15 -5 L -9 -11 Z';
+  const pathD = CITY_120_PATH_D;
   return (
     <g transform={`translate(${cx}, ${cy}) scale(${scale})`}>
-      {/* Drop shadow */}
-      <path d={pathD} transform="translate(2.5, 3.8)" fill="rgba(0,0,0,0.38)" />
-      {/* High-contrast outer halo */}
-      <path
-        d={pathD}
-        transform="translate(0, 1.8)"
-        fill={p.sideFill}
-        stroke={p.outerHalo}
-        strokeWidth={2.6}
-        strokeLinejoin="round"
-      />
-      {/* 3D Side Extrusion */}
-      <path
-        d={pathD}
-        transform="translate(0, 2.5)"
-        fill={p.sideFill}
-        stroke={p.stroke}
-        strokeWidth={1.5}
-        strokeLinejoin="round"
-      />
-      {/* Top Wooden Face */}
-      <path
-        d={pathD}
-        fill={p.fill}
-        stroke={p.stroke}
-        strokeWidth={1.4}
-        strokeLinejoin="round"
-      />
-      {/* Inner roof ridge details */}
-      <circle cx={0} cy={0} r={6.8} fill={p.highlight} fillOpacity={0.25} stroke={p.stroke} strokeWidth={0.8} />
-      {showEmblem && <PlayerEmblemSvg playerId={playerId} cx={0} cy={0} r={5} />}
+      <g transform={`rotate(${cutoutAngleDeg})`}>
+        {/* Drop shadow */}
+        <path d={pathD} transform="translate(2.2, 3.2)" fill="rgba(0,0,0,0.38)" />
+        {/* High-contrast outer halo */}
+        <path
+          d={pathD}
+          transform="translate(0, 1.4)"
+          fill={p.sideFill}
+          stroke={p.outerHalo}
+          strokeWidth={2.4}
+          strokeLinejoin="round"
+        />
+        {/* 3D Side Extrusion */}
+        <path
+          d={pathD}
+          transform="translate(0, 2.0)"
+          fill={p.sideFill}
+          stroke={p.stroke}
+          strokeWidth={1.4}
+          strokeLinejoin="round"
+        />
+        {/* Top Wooden Face */}
+        <path
+          d={pathD}
+          fill={p.fill}
+          stroke={p.stroke}
+          strokeWidth={1.4}
+          strokeLinejoin="round"
+        />
+        {/* Inner roof turret ring */}
+        <circle
+          cx={0}
+          cy={0}
+          r={5.8}
+          fill={p.highlight}
+          fillOpacity={0.28}
+          stroke={p.stroke}
+          strokeWidth={0.8}
+        />
+      </g>
+      {showEmblem && <PlayerEmblemSvg playerId={playerId} cx={0} cy={0} r={4.5} />}
     </g>
   );
 }
@@ -290,7 +346,7 @@ export function PowerPlantCylinderSvg({
 }
 
 /**
- * 8-Tooth Grey Cog Hazard Token (with translucent center hole)
+ * Natural Hazard Token — Glossy Crude Oil Spill / Toxic Pollution Slick (replaces old gear icon)
  */
 export function HazardCogSvg({
   cx,
@@ -301,52 +357,75 @@ export function HazardCogSvg({
   cy: number;
   r?: number;
 }) {
-  const teeth = 8;
-  const outerR = r;
-  const innerToothR = r * 0.76;
-  const holeR = r * 0.42;
-
-  const pts: string[] = [];
-  for (let i = 0; i < teeth * 2; i++) {
-    const angle1 = ((i * Math.PI) / teeth) - Math.PI / (teeth * 2);
-    const angle2 = ((i * Math.PI) / teeth) + Math.PI / (teeth * 2);
-    const rad = i % 2 === 0 ? outerR : innerToothR;
-    pts.push(`${(Math.cos(angle1) * rad).toFixed(2)},${(Math.sin(angle1) * rad).toFixed(2)}`);
-    pts.push(`${(Math.cos(angle2) * rad).toFixed(2)},${(Math.sin(angle2) * rad).toFixed(2)}`);
-  }
+  const s = r / 14;
+  // Organic wavy multi-lobed oil spill puddle path
+  const spillPath =
+    'M -3 -13.5 C 2 -15, 6 -11, 9.5 -12 C 13 -13, 15.5 -8.5, 13 -4.5 C 11 -1.5, 15.5 2, 14 6.5 C 12.5 11, 7.5 10.5, 4.5 13.5 C 1.5 16.5, -3.5 14, -7 12.5 C -10.5 11, -14.5 12, -14.5 7 C -14.5 3, -11.5 0.5, -13.5 -3.5 C -15.5 -7.5, -11.5 -12.5, -7.5 -11.5 C -5 -11, -5.5 -12.5, -3 -13.5 Z';
 
   return (
-    <g transform={`translate(${cx}, ${cy})`}>
-      {/* Drop Shadow */}
-      <polygon points={pts.join(' ')} transform="translate(1.8, 2.5)" fill="rgba(0,0,0,0.36)" />
-      {/* Cog Ring */}
-      <polygon
-        points={pts.join(' ')}
-        fill={TABLETOP_THEME.tokens.hazard.fill}
-        stroke={TABLETOP_THEME.tokens.hazard.stroke}
-        strokeWidth={1.4}
+    <g transform={`translate(${cx}, ${cy}) scale(${s})`}>
+      {/* Soft dark outer oil stain shadow */}
+      <path d={spillPath} transform="translate(1.4, 2.0)" fill="rgba(0, 0, 0, 0.48)" />
+
+      {/* Main glossy pitch-black crude oil puddle */}
+      <path
+        d={spillPath}
+        fill="#14171f"
+        stroke="#3b4252"
+        strokeWidth={1.3}
         strokeLinejoin="round"
       />
-      <circle
-        r={innerToothR * 0.86}
+
+      {/* Iridescent petrol-slick rainbow sheen bands (teal / violet / amber oil film) */}
+      <path
+        d="M -8 -8 C -3 -11, 5 -9, 9 -5 C 11 -2, 8 3, 10 6 C 7 9, 1 11, -5 9 C -10 7, -11 1, -8 -8 Z"
         fill="none"
-        stroke={TABLETOP_THEME.tokens.hazard.innerFill}
-        strokeWidth={1.2}
-        strokeDasharray="2.5 2"
-      />
-      {/* Center Cutout Ring */}
-      <circle
-        r={holeR}
-        fill="rgba(25, 28, 32, 0.55)"
-        stroke={TABLETOP_THEME.tokens.hazard.stroke}
+        stroke="#4fd1c5"
         strokeWidth={1.3}
+        strokeOpacity={0.65}
+        strokeLinecap="round"
+      />
+      <path
+        d="M -6 -5 C -1 -8, 6 -6, 7 -1 C 8 4, 3 8, -3 7 C -8 6, -9 0, -6 -5 Z"
+        fill="none"
+        stroke="#b794f4"
+        strokeWidth={1.2}
+        strokeOpacity={0.6}
+        strokeLinecap="round"
+      />
+
+      {/* Specular liquid gloss highlights */}
+      <path
+        d="M -7 -7.5 Q -2 -10.5, 4 -8"
+        fill="none"
+        stroke="#ffffff"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        opacity={0.75}
+      />
+      <circle cx={8.5} cy={-6.5} r={1.3} fill="#ffffff" opacity={0.7} />
+
+      {/* Satellite oil splatter droplets around the puddle perimeter */}
+      <circle cx={-14.5} cy={-8.5} r={2.1} fill="#14171f" stroke="#4fd1c5" strokeWidth={0.7} />
+      <circle cx={15.2} cy={-1.2} r={1.8} fill="#14171f" stroke="#b794f4" strokeWidth={0.7} />
+      <circle cx={9.5} cy={12.8} r={2.2} fill="#14171f" stroke="#4fd1c5" strokeWidth={0.7} />
+      <circle cx={-11.8} cy={11.5} r={1.6} fill="#14171f" />
+
+      {/* Translucent center ring so underlying hex number disc remains visible */}
+      <circle
+        r={5.2}
+        fill="rgba(16, 20, 28, 0.52)"
+        stroke="#f6ad55"
+        strokeWidth={1.1}
+        strokeDasharray="2.5 1.8"
       />
     </g>
   );
 }
 
 /**
- * 3D Grey Wooden Environmental Inspector Pawn
+ * 3D Environmental Inspector Figurine — Human figure with limbs, clipboard & green ID lanyard
+ * standing on the classic 3D wooden pawn pedestal
  */
 export function InspectorPawnSvg({
   cx,
@@ -359,46 +438,130 @@ export function InspectorPawnSvg({
 }) {
   return (
     <g transform={`translate(${cx}, ${cy}) scale(${scale})`} data-testid="inspector-pawn">
-      {/* Shadow */}
-      <ellipse cx={2.5} cy={9} rx={11} ry={6.5} fill="rgba(0,0,0,0.4)" />
-      {/* Wooden Base */}
+      {/* Drop Shadow */}
+      <ellipse cx={2.5} cy={9.5} rx={11.5} ry={6.5} fill="rgba(0,0,0,0.42)" />
+
+      {/* Classic 3D Wooden Pedestal Base (retained from Robber design) */}
       <ellipse
         cx={0}
-        cy={7}
+        cy={7.5}
         rx={10.5}
-        ry={6}
+        ry={5.8}
         fill={TABLETOP_THEME.tokens.inspector.base}
         stroke="#1e2024"
         strokeWidth={1.3}
       />
       <ellipse
         cx={0}
-        cy={5}
-        rx={9.5}
-        ry={5}
+        cy={5.6}
+        rx={9.2}
+        ry={4.6}
         fill={TABLETOP_THEME.tokens.inspector.body}
         stroke="#2c2f36"
         strokeWidth={1}
       />
-      {/* Pawn Torso */}
+
+      {/* Two Distinct Human Legs planted on the pedestal */}
       <path
-        d="M -6.5 5 C -6 -4, -3.5 -8, -3 -11 L 3 -11 C 3.5 -8, 6 -4, 6.5 5 Z"
-        fill={TABLETOP_THEME.tokens.inspector.body}
-        stroke="#22252a"
-        strokeWidth={1.3}
+        d="M -4.6 5.8 L -3.8 -1.5 L -1.0 -1.5 L -1.2 5.8 Z"
+        fill="#4f5663"
+        stroke="#1e2024"
+        strokeWidth={1.1}
+        strokeLinejoin="round"
       />
-      {/* Pawn Collar & Head */}
-      <ellipse cx={0} cy={-10.5} rx={5.2} ry={2} fill={TABLETOP_THEME.tokens.inspector.highlight} stroke="#22252a" strokeWidth={1} />
+      <path
+        d="M 1.2 5.8 L 1.0 -1.5 L 3.8 -1.5 L 4.6 5.8 Z"
+        fill="#4f5663"
+        stroke="#1e2024"
+        strokeWidth={1.1}
+        strokeLinejoin="round"
+      />
+
+      {/* Human Torso / Jacket */}
+      <path
+        d="M -5.4 -1.2 L -6.2 -10.2 C -6.2 -11.5, -4.5 -12.4, -2.8 -12.4 L 2.8 -12.4 C 4.5 -12.4, 6.2 -11.5, 6.2 -10.2 L 5.4 -1.2 Z"
+        fill={TABLETOP_THEME.tokens.inspector.body}
+        stroke="#1e2024"
+        strokeWidth={1.25}
+        strokeLinejoin="round"
+      />
+
+      {/* Left & Right Articulated Arms / Limbs */}
+      {/* Left Arm (angled out, holding an environmental inspection clipboard) */}
+      <path
+        d="M -5.6 -11.4 L -9.8 -5.8 L -7.4 -4.2 L -4.6 -8.8"
+        fill={TABLETOP_THEME.tokens.inspector.highlight}
+        stroke="#1e2024"
+        strokeWidth={1.15}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Right Arm (gesture / hand on hip) */}
+      <path
+        d="M 5.6 -11.4 L 9.4 -5.5 L 7.0 -4.0 L 4.6 -8.8"
+        fill={TABLETOP_THEME.tokens.inspector.highlight}
+        stroke="#1e2024"
+        strokeWidth={1.15}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+
+      {/* Mini Inspection Clipboard in Left Hand */}
+      <g transform="translate(-9.6, -4.6) rotate(-18)">
+        <rect
+          x={-2.8}
+          y={-3.6}
+          width={5.6}
+          height={7.2}
+          rx={1}
+          fill="#f7fafc"
+          stroke="#2d3748"
+          strokeWidth={0.9}
+        />
+        <rect x={-1.5} y={-4.1} width={3} height={1.4} rx={0.5} fill="#cbd5e0" />
+        <line x1={-1.6} y1={-1.2} x2={1.6} y2={-1.2} stroke="#38a169" strokeWidth={0.9} />
+        <line x1={-1.6} y1={0.8} x2={1.2} y2={0.8} stroke="#4a5568" strokeWidth={0.8} />
+      </g>
+
+      {/* Eco-Green Lanyard Strap & Inspector ID Badge on Chest */}
+      <path
+        d="M -2.6 -12.2 L 0 -6.8 L 2.6 -12.2"
+        fill="none"
+        stroke="#48bb78"
+        strokeWidth={1.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <rect
+        x={-2.2}
+        y={-6.8}
+        width={4.4}
+        height={5.0}
+        rx={0.9}
+        fill="#ffffff"
+        stroke="#276749"
+        strokeWidth={0.85}
+      />
+      <circle cx={0} cy={-4.3} r={1.1} fill="#38a169" />
+
+      {/* Human Head & Inspector Cap/Visor */}
       <circle
         cx={0}
-        cy={-15.5}
-        r={5.5}
+        cy={-16.8}
+        r={4.8}
         fill={TABLETOP_THEME.tokens.inspector.highlight}
-        stroke="#22252a"
-        strokeWidth={1.3}
+        stroke="#1e2024"
+        strokeWidth={1.25}
+      />
+      {/* Safety Hat / Inspector Cap Brim */}
+      <path
+        d="M -5.2 -18.2 Q 0 -22.8, 5.2 -18.2 L 6.2 -17.5 Q 0 -19.2, -5.2 -18.2 Z"
+        fill="#ecc94b"
+        stroke="#744210"
+        strokeWidth={0.9}
       />
       {/* Specular highlight */}
-      <circle cx={-1.8} cy={-17.2} r={1.6} fill="#ffffff" fillOpacity={0.75} />
+      <circle cx={-1.6} cy={-18.0} r={1.2} fill="#ffffff" fillOpacity={0.8} />
     </g>
   );
 }
@@ -547,9 +710,18 @@ export function ResourceIconSvg({
     case 'food':
       return (
         <g transform={`translate(${cx}, ${cy}) scale(${scale})`}>
-          {/* Golden Harvest Bread / Grain */}
-          <rect x={-8} y={-3} width={12} height={7} rx={3} fill="#e8ba38" stroke="#5c4206" strokeWidth={1.1} />
-          <ellipse cx={4} cy={2} rx={4} ry={2.5} fill="#f5d469" stroke="#5c4206" strokeWidth={1} />
+          {/* Golden Wheat Sheaf / Grain Stalks */}
+          <path
+            d="M -4 6 L 3 -6 M -1 6 L 0 -7 M 3 6 L -3 -6"
+            stroke="#b7791f"
+            strokeWidth={1.4}
+            strokeLinecap="round"
+          />
+          <ellipse cx={-3.2} cy={-4.2} rx={2.2} ry={3.8} transform="rotate(-22 -3.2 -4.2)" fill="#f6e05e" stroke="#744210" strokeWidth={0.9} />
+          <ellipse cx={0} cy={-5.2} rx={2.2} ry={4.0} fill="#ecc94b" stroke="#744210" strokeWidth={0.9} />
+          <ellipse cx={3.2} cy={-4.2} rx={2.2} ry={3.8} transform="rotate(22 3.2 -4.2)" fill="#f6e05e" stroke="#744210" strokeWidth={0.9} />
+          {/* Tie ribbon */}
+          <rect x={-3.2} y={1.2} width={6.4} height={2.2} rx={1} fill="#c53030" />
         </g>
       );
     case 'steel':

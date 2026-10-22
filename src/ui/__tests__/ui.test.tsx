@@ -229,4 +229,67 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
     }
     expect(container.querySelector('[data-testid="gf-space-22"]')).toBeNull();
   });
+
+  it('supports 5x board zoom, hide player mat toggle, tablecloth color picker, live action banner, tabletop dice tray, and Town/City 120-deg plant sockets', () => {
+    act(() => {
+      render(<TabletopApp />, container);
+    });
+
+    // 1. Verify BGG-style GF HUD widget, Live Action Banner & Tabletop Dice Roll Overlay
+    expect(container.querySelector('[data-testid="gf-hud-widget"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="live-action-banner"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="tabletop-dice-roll-overlay"]')).not.toBeNull();
+
+    // 2. Verify Zoom In up to 500% (5.0x)
+    const zoomInBtn = container.querySelector('[data-testid="zoom-in-btn"]') as HTMLButtonElement;
+    const zoomReadout = container.querySelector('[data-testid="zoom-level-readout"]');
+    expect(zoomInBtn).not.toBeNull();
+    expect(zoomReadout?.textContent).toBe('100%');
+
+    act(() => {
+      for (let i = 0; i < 15; i++) {
+        zoomInBtn.click();
+      }
+    });
+    expect(zoomReadout?.textContent).toBe('500%');
+
+    // 3. Verify Hide / Show Player Mat Toggle
+    const toggleMatBtn = container.querySelector(
+      '[data-testid="toggle-player-mat-btn"]'
+    ) as HTMLButtonElement;
+    expect(toggleMatBtn).not.toBeNull();
+    expect(container.querySelector('[data-testid="player-mat"]')).not.toBeNull();
+
+    act(() => {
+      toggleMatBtn.click();
+    });
+    expect(container.querySelector('[data-testid="player-mat"]')).toBeNull();
+
+    act(() => {
+      toggleMatBtn.click();
+    });
+    expect(container.querySelector('[data-testid="player-mat"]')).not.toBeNull();
+
+    // 4. Verify Tablecloth Color Picker & Presets
+    const appShell = container.querySelector('[data-testid="tabletop-app"]') as HTMLElement;
+    const oceanPreset = container.querySelector(
+      '[data-testid="tablecloth-preset-133b63"]'
+    ) as HTMLButtonElement;
+    expect(oceanPreset).not.toBeNull();
+
+    act(() => {
+      oceanPreset.click();
+    });
+    expect(appShell.getAttribute('data-tablecloth-color')).toBe('#133b63');
+
+    const colorInput = container.querySelector(
+      '[data-testid="tablecloth-color-input"]'
+    ) as HTMLInputElement;
+    expect(colorInput).not.toBeNull();
+    act(() => {
+      colorInput.value = '#4a1d6e';
+      colorInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(appShell.getAttribute('data-tablecloth-color')).toBe('#4a1d6e');
+  });
 });

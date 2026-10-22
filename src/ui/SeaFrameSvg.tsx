@@ -168,23 +168,17 @@ export function SeaFrameSvg({
     vpSlotPlayers.get(clampedVp)!.push(pid);
   }
 
-  // Global Footprint track geometry constants (1–2 o'clock diagonal)
-  const gfBaseX = 584;
-  const gfBaseY = 98;
-  const gfAngleDeg = 38;
+  // Global Footprint track geometry constants (1–2 o'clock coastal chart matching BGG board)
+  const gfBaseX = 612;
+  const gfBaseY = 122;
+  const gfAngleDeg = 40;
   const gfRad = (gfAngleDeg * Math.PI) / 180;
   const cosA = Math.cos(gfRad);
   const sinA = Math.sin(gfRad);
   // Inward perpendicular vector (pointing down-left toward the island)
   const perpX = -sinA;
   const perpY = cosA;
-  const gfStep = 13.4;
-
-  // Header pill positioned outward of Row 0, centered along the track
-  const headerShift = 8.5;
-  const headerOutwardOffset = -17.5;
-  const headerCx = gfBaseX + headerShift * gfStep * cosA + headerOutwardOffset * perpX;
-  const headerCy = gfBaseY + headerShift * gfStep * sinA + headerOutwardOffset * perpY;
+  const gfStep = 12.6;
 
   return (
     <g className="sea-frame-layer" data-testid="sea-frame">
@@ -217,7 +211,7 @@ export function SeaFrameSvg({
       {/* Outer Cardboard Table Drop Shadow */}
       <circle cx={BOARD_CENTER_X + 6} cy={BOARD_CENTER_Y + 9} r={474} fill="rgba(0,0,0,0.46)" />
 
-      {/* Main Circular Sea Frame Base (with solid #1c74b8 fallback + rich ocean radial gradient) */}
+      {/* Main Circular Sea Frame Base (with solid #1c74b8 fallback + rich ocean radial gradient + vibrant green outer rim matching BGG board) */}
       <circle
         cx={BOARD_CENTER_X}
         cy={BOARD_CENTER_Y}
@@ -229,28 +223,28 @@ export function SeaFrameSvg({
         cy={BOARD_CENTER_Y}
         r={470}
         fill="url(#oceanRadialGrad)"
-        stroke="#0e3b68"
-        strokeWidth={4.5}
+        stroke="#38a832"
+        strokeWidth={7}
       />
 
-      {/* Outer Decorative Nautical Rim Ring */}
+      {/* Inner Rim Trim Ring */}
       <circle
         cx={BOARD_CENTER_X}
         cy={BOARD_CENTER_Y}
-        r={463}
+        r={465}
         fill="none"
-        stroke="rgba(179, 229, 252, 0.38)"
-        strokeWidth={1.5}
+        stroke="#1e6b1a"
+        strokeWidth={1.8}
       />
 
-      {/* Shallow Turquoise Reef Halo around the Central Island */}
+      {/* Wide Sandy Coastal Shelf around the Central 19-Hex Island (matching BGG board) */}
       <circle
         cx={BOARD_CENTER_X}
         cy={BOARD_CENTER_Y}
-        r={282}
-        fill="rgba(122, 224, 255, 0.22)"
-        stroke="rgba(184, 240, 255, 0.4)"
-        strokeWidth={8}
+        r={286}
+        fill="rgba(122, 228, 255, 0.28)"
+        stroke="rgba(236, 226, 198, 0.55)"
+        strokeWidth={12}
       />
 
       {/* Subtle Wave Contour Ripples & Whitecaps */}
@@ -449,87 +443,98 @@ export function SeaFrameSvg({
       })}
 
       {/* =================================================================== */}
-      {/* 2. TOP 12 O'CLOCK GREEN ISLAND — VICTORY POINT TRACK (1..10)        */}
+      {/* 2. TOP 12 O'CLOCK GREEN COASTAL PENINSULA — VICTORY POINTS (1..10)  */}
       {/* =================================================================== */}
       <g data-testid="vp-track">
-        {/* Shallow Reef Halo around VP Island */}
+        {/* Shallow Turquoise Reef & Foam Shoreline under the Top Coastal Peninsula */}
         <path
-          d="M 316 114 Q 432 42, 560 58 Q 588 64, 582 94 Q 574 124, 530 116 Q 432 100, 350 140 Q 318 148, 312 124 Z"
-          fill="rgba(130, 228, 255, 0.28)"
-          stroke="rgba(210, 246, 255, 0.55)"
+          d="M 284 86 A 466 466 0 0 1 592 43 Q 598 76, 568 86 Q 445 64, 326 112 Q 290 116, 284 86 Z"
+          fill="rgba(138, 232, 255, 0.36)"
+          stroke="rgba(220, 248, 255, 0.7)"
           strokeWidth={5}
+          strokeLinejoin="round"
         />
 
-        {/* Green Coastal Island Body at Top (11:00 to 12:30) */}
+        {/* Green Coastal Peninsula Hugging the Outer Top Rim (matching BGG board image) */}
         <path
-          d="M 320 112 Q 435 44, 558 60 Q 584 65, 578 93 Q 570 120, 528 113 Q 435 98, 352 137 Q 320 145, 315 123 Z"
+          d="M 290 83 A 465 465 0 0 1 588 42 Q 592 72, 564 81 Q 445 59, 328 106 Q 296 110, 290 83 Z"
           fill="url(#greenIslandGrad)"
           stroke="#ece2c6"
           strokeWidth={3.5}
+          strokeLinejoin="round"
         />
 
-        {/* Track Title Pill Centered Cleanly Above the Island */}
-        <g transform="translate(448, 43)">
+        {/* Subtle Inner-Shore VP Badge (positioned below the peninsula at cy=96, never sticking outside the board rim) */}
+        <g transform="translate(454, 96)">
           <rect
-            x={-88}
-            y={-10}
-            width={176}
-            height={16}
-            rx={8}
-            fill="rgba(12, 34, 58, 0.88)"
-            stroke="rgba(190, 232, 255, 0.45)"
-            strokeWidth={1}
+            x={-68}
+            y={-7.5}
+            width={136}
+            height={14}
+            rx={7}
+            fill="rgba(14, 42, 68, 0.82)"
+            stroke="rgba(190, 232, 255, 0.5)"
+            strokeWidth={0.9}
           />
           <text
             x={0}
-            y={1.5}
+            y={2}
             textAnchor="middle"
-            fontSize="8.2"
+            fontSize="7.2"
             fontWeight="800"
-            letterSpacing="0.9"
+            letterSpacing="0.7"
             fill="#f0f8ff"
           >
             VICTORY POINTS (10 TO WIN)
           </text>
         </g>
 
-        {/* 10 Stone Circles along the Green Island Arc */}
+        {/* 10 Stone Circles Following the Top Rim Curve (from angle -114° to -80° at r=441) */}
         {Array.from({ length: 10 }, (_, idx) => {
           const vp = idx + 1;
-          const t = idx / 9;
-          // Arc from left (340, 118) to right (552, 82)
-          const cx = 340 + t * 212;
-          const cy = 117 - Math.sin(t * Math.PI) * 28 - t * 30;
+          const deg = -114 + (idx / 9) * 34;
+          const rad = (deg * Math.PI) / 180;
+          const rTrack = 441;
+          const cx = BOARD_CENTER_X + Math.cos(rad) * rTrack;
+          const cy = BOARD_CENTER_Y + Math.sin(rad) * rTrack;
           const occupants = vpSlotPlayers.get(vp) ?? [];
 
           return (
             <g key={vp} data-testid={`vp-slot-${vp}`}>
+              {/* Outer stone ring */}
               <circle
                 cx={cx}
                 cy={cy}
-                r={10.2}
-                fill={vp === 10 ? '#f7e594' : '#dedcd2'}
-                stroke={vp === 10 ? '#9c7816' : '#4a4d45'}
-                strokeWidth={1.6}
+                r={10.8}
+                fill={vp === 10 ? '#f7e594' : '#cbd5c0'}
+                stroke={vp === 10 ? '#9c7816' : '#4a5d3f'}
+                strokeWidth={1.8}
+              />
+              <circle
+                cx={cx}
+                cy={cy}
+                r={8.4}
+                fill={vp === 10 ? '#fff3b8' : '#e6ebe0'}
+                stroke="rgba(74, 93, 63, 0.45)"
+                strokeWidth={0.9}
               />
               <text
                 x={cx}
-                y={cy + 3.5}
+                y={cy + 3.4}
                 textAnchor="middle"
-                fontSize="9.5"
+                fontSize="9.2"
                 fontWeight="900"
-                fill="#1e221b"
+                fill="#1e2b18"
               >
                 {vp}
               </text>
 
-              {/* Render 3D Player Cylinder Markers occupying this VP slot */}
+              {/* Render 3D Wooden Player Cylinder Discs occupying this VP slot */}
               {occupants.map((pid, pIdx) => {
                 const pTheme = PLAYER_THEMES[pid];
-                const offsetAngle = (pIdx * Math.PI) / 2 - Math.PI / 4;
-                const offsetR = occupants.length > 1 ? 5.5 : 0;
-                const mx = cx + Math.cos(offsetAngle) * offsetR;
-                const my = cy + Math.sin(offsetAngle) * offsetR - 2;
+                const stackOffset = pIdx * -3.2;
+                const mx = cx + (occupants.length > 1 ? (pIdx - (occupants.length - 1) / 2) * 4.5 : 0);
+                const my = cy + stackOffset;
 
                 return (
                   <g
@@ -537,26 +542,26 @@ export function SeaFrameSvg({
                     data-testid={`vp-marker-${pid}`}
                     transform={`translate(${mx.toFixed(1)}, ${my.toFixed(1)})`}
                   >
-                    <ellipse cx={1.5} cy={3} rx={7.2} ry={6.2} fill="rgba(0,0,0,0.4)" />
+                    <ellipse cx={1.4} cy={3.2} rx={8.2} ry={6.8} fill="rgba(0,0,0,0.42)" />
                     <ellipse
                       cx={0}
-                      cy={1.8}
-                      rx={7}
-                      ry={6}
+                      cy={2.2}
+                      rx={8}
+                      ry={6.5}
                       fill={pTheme.sideFill}
                       stroke={pTheme.outerHalo}
                       strokeWidth={1.4}
                     />
                     <ellipse
                       cx={0}
-                      cy={-1}
-                      rx={7}
-                      ry={6}
+                      cy={-0.8}
+                      rx={8}
+                      ry={6.5}
                       fill={pTheme.fill}
                       stroke={pTheme.stroke}
                       strokeWidth={1.2}
                     />
-                    <PlayerEmblemSvg playerId={pid} cx={0} cy={-1} r={3.4} />
+                    <PlayerEmblemSvg playerId={pid} cx={0} cy={-0.8} r={3.6} />
                   </g>
                 );
               })}
@@ -566,40 +571,110 @@ export function SeaFrameSvg({
       </g>
 
       {/* =================================================================== */}
-      {/* 3. 1–2 O'CLOCK DIAGONAL GLOBAL FOOTPRINT TRACK (0..28 / 0..21)      */}
+      {/* 3. 1–2 O'CLOCK GLOBAL FOOTPRINT TRACK & BGG-STYLE HUD WIDGET        */}
       {/* =================================================================== */}
       <g
         data-testid="gf-track"
         aria-label={`Global Footprint Track: ${clampedGF} of ${gfConfig.max} (True Total LF: ${trueTotalLF}), drawing ${currentDrawCount} event discs per turn`}
       >
-        {/* Track Header Pill (positioned cleanly inside the circular rim above Row 0) */}
-        <g transform={`translate(${headerCx.toFixed(1)}, ${headerCy.toFixed(1)}) rotate(${gfAngleDeg})`}>
+        {/* Subtle Translucent Coastal Chart Backing under the GF Track */}
+        <g transform={`translate(${(gfBaseX + 8.5 * gfStep * cosA).toFixed(1)}, ${(gfBaseY + 8.5 * gfStep * sinA).toFixed(1)}) rotate(${gfAngleDeg})`}>
           <rect
-            x={-104}
-            y={-9}
-            width={208}
-            height={17}
-            rx={8.5}
-            fill="rgba(12, 34, 58, 0.9)"
-            stroke="rgba(190, 232, 255, 0.5)"
-            strokeWidth={1}
+            x={-118}
+            y={-12}
+            width={236}
+            height={42}
+            rx={12}
+            fill="rgba(14, 58, 92, 0.42)"
+            stroke="rgba(164, 224, 255, 0.35)"
+            strokeWidth={1.2}
           />
-          <text
-            x={0}
-            y={2.5}
-            textAnchor="middle"
-            fontSize="8"
-            fontWeight="800"
-            letterSpacing="0.4"
-            fill="#f0f8ff"
-          >
-            GLOBAL FOOTPRINT: {clampedGF}/{gfConfig.max} ({currentDrawCount} DISC{currentDrawCount > 1 ? 'S' : ''}/TURN)
-          </text>
         </g>
 
-        {/* Render Segmented Cells in 2 Non-Overlapping Diagonal Rows */}
+        {/* BGG-Style Horizontal Global Footprint Callout Box ([- cloud] [12] [+ cloud] & Bag Draw Icon) */}
+        <g
+          data-testid="gf-hud-widget"
+          transform="translate(744, 152)"
+        >
+          {/* Drop shadow */}
+          <rect x={-48} y={-24} width={96} height={50} rx={7} fill="rgba(0,0,0,0.38)" />
+          {/* Sky-blue framed widget matching media_1792637289394_167577ac.png */}
+          <rect
+            x={-50}
+            y={-26}
+            width={96}
+            height={50}
+            rx={7}
+            fill="#2b8ad4"
+            stroke="#16202a"
+            strokeWidth={1.8}
+          />
+          {/* Left Green Minus Cloud (-1 LF) */}
+          <g transform="translate(-31, -11)">
+            <path
+              d="M -8 4 C -11 4, -12 1.5, -11 -1 C -11 -3.5, -8 -5, -5.5 -4.5 C -4 -7.5, 1 -8, 3.5 -5 C 6.5 -5.5, 9 -3, 8.5 0 C 10 1.5, 9 4, 6.5 4 Z"
+              fill="#4ea83b"
+              stroke="#e6f7de"
+              strokeWidth={1.1}
+            />
+            <line x1={-3.5} y1={-0.5} x2={2.5} y2={-0.5} stroke="#ffffff" strokeWidth={2} strokeLinecap="round" />
+          </g>
+
+          {/* Center Parchment Square with Current Clamped GF Numeral */}
+          <rect
+            x={-13}
+            y={-21}
+            width={24}
+            height={20}
+            rx={3}
+            fill="#f5f0dc"
+            stroke="#2d3748"
+            strokeWidth={1.4}
+          />
+          <text
+            x={-1}
+            y={-7}
+            textAnchor="middle"
+            fontSize="12"
+            fontWeight="900"
+            fill="#1a202c"
+          >
+            {clampedGF}
+          </text>
+
+          {/* Right Grey Plus Cloud (+1 LF) */}
+          <g transform="translate(28, -11)">
+            <path
+              d="M -8 4 C -11 4, -12 1.5, -11 -1 C -11 -3.5, -8 -5, -5.5 -4.5 C -4 -7.5, 1 -8, 3.5 -5 C 6.5 -5.5, 9 -3, 8.5 0 C 10 1.5, 9 4, 6.5 4 Z"
+              fill="#636b75"
+              stroke="#e2e8f0"
+              strokeWidth={1.1}
+            />
+            <line x1={-3} y1={-0.5} x2={3} y2={-0.5} stroke="#ffffff" strokeWidth={1.8} strokeLinecap="round" />
+            <line x1={0} y1={-3.5} x2={0} y2={2.5} stroke="#ffffff" strokeWidth={1.8} strokeLinecap="round" />
+          </g>
+
+          {/* Bottom Row: Bag Draw Indicator (Mini Bag + Disc + Draw Count) */}
+          <g transform="translate(0, 11)">
+            <rect x={-38} y={-8} width={74} height={16} rx={8} fill="rgba(11, 38, 65, 0.72)" />
+            <circle cx={-24} cy={0} r={5.5} fill="#8d6e63" stroke="#f5f0dc" strokeWidth={1} />
+            <path d="M -24 -5.5 A 5.5 5.5 0 0 1 -18.5 0 L -24 0 Z" fill="#689f38" />
+            <text
+              x={5}
+              y={3}
+              textAnchor="middle"
+              fontSize="8.2"
+              fontWeight="900"
+              fill="#ffffff"
+            >
+              DRAW {currentDrawCount}/TURN
+            </text>
+          </g>
+        </g>
+
+        {/* Render Segmented Cells in 2 Non-Overlapping Coastal Rows */}
         {Array.from({ length: gfConfig.max + 1 }, (_, val) => {
-          // Row 0: 0..17, Row 1: 18..max (tucked INWARD underneath Row 0 with +16.5px perpendicular offset)
+          // Row 0: 0..17, Row 1: 18..max (tucked INWARD underneath Row 0 with +18.5px perpendicular offset)
           const isSecondRow = val >= 18;
           const colIdx = isSecondRow ? val - 18 : val;
 
@@ -609,16 +684,16 @@ export function SeaFrameSvg({
           const cx = gfBaseX + colShift * gfStep * cosA + rowOffset * perpX;
           const cy = gfBaseY + colShift * gfStep * sinA + rowOffset * perpY;
 
-          // Determine band color
+          // Determine band color (matching BGG board's natural coastal green / olive / amber / earth bands)
           let cellFill = '#3b9c3f'; // Green eco band (0..5: 2 draws)
           const b1Max = playerCount === 4 ? 17 : 13;
           const b2Max = playerCount === 4 ? 23 : 17;
           if (val >= 6 && val <= b1Max) {
             cellFill = '#7cb342'; // Neutral lime/olive band (1 draw)
           } else if (val > b1Max && val <= b2Max) {
-            cellFill = '#c28b2e'; // Amber-brown warning band (2 draws)
+            cellFill = '#c28b2e'; // Amber-tan warning band (2 draws)
           } else if (val > b2Max) {
-            cellFill = '#6b5344'; // Dark smog band (3 draws)
+            cellFill = '#785a46'; // Earth-brown smog band (3 draws)
           }
 
           const isCurrentGF = val === clampedGF;
@@ -630,20 +705,20 @@ export function SeaFrameSvg({
               transform={`translate(${cx.toFixed(1)}, ${cy.toFixed(1)}) rotate(${gfAngleDeg})`}
             >
               <rect
-                x={-6.2}
-                y={-6.5}
-                width={12.4}
-                height={13}
+                x={-5.8}
+                y={-6.0}
+                width={11.6}
+                height={12.0}
                 rx={2}
                 fill={cellFill}
-                stroke={isCurrentGF ? '#f5d11d' : '#e8f0dc'}
+                stroke={isCurrentGF ? '#f5d11d' : 'rgba(238, 245, 228, 0.85)'}
                 strokeWidth={isCurrentGF ? 1.8 : 0.9}
               />
               <text
                 x={0}
-                y={2.6}
+                y={2.5}
                 textAnchor="middle"
-                fontSize="6.5"
+                fontSize="6.3"
                 fontWeight="900"
                 fill="#ffffff"
               >
@@ -685,12 +760,12 @@ export function SeaFrameSvg({
         const meta = EVENT_TRACK_METADATA[trackKey];
         const filledCount = eventTracks[trackKey] ?? 0;
         const rad = (meta.angleDeg * Math.PI) / 180;
-        const islandRadiusFromCenter = 412;
+        const islandRadiusFromCenter = 434;
 
         const ix = BOARD_CENTER_X + Math.cos(rad) * islandRadiusFromCenter;
         const iy = BOARD_CENTER_Y + Math.sin(rad) * islandRadiusFromCenter;
 
-        // Tangent angle along the circular rim so the island curves naturally along the coast
+        // Tangent angle along the circular rim so the island hugs the outer coast like BGG board
         const tangentDeg = meta.angleDeg + 90;
         const isGreen = meta.category === 'green' || meta.category === 'hybrid';
         const pillHalfLen = meta.capacity === 4 ? 52 : 40;
@@ -716,7 +791,7 @@ export function SeaFrameSvg({
               width={(pillHalfLen + 7) * 2}
               height={44}
               rx={22}
-              fill="rgba(130, 228, 255, 0.25)"
+              fill="rgba(130, 228, 255, 0.28)"
             />
 
             {/* Coastal Foam / Sandy Beach Outline */}
@@ -741,6 +816,14 @@ export function SeaFrameSvg({
               stroke={isGreen ? '#35591b' : '#4a3f2f'}
               strokeWidth={1.4}
             />
+
+            {/* BGG-Style '?' Info Badge on the End of Each Event Island */}
+            <g transform={`translate(${-pillHalfLen - 6}, -4) ${isBottomHalf ? 'rotate(180)' : ''}`}>
+              <circle r={7.5} fill="#c8ba9e" stroke="#2d261c" strokeWidth={1.2} />
+              <text x={0} y={2.8} textAnchor="middle" fontSize="8.5" fontWeight="900" fill="#1e1a14">
+                ?
+              </text>
+            </g>
 
             {/* Slots along the Island */}
             {Array.from({ length: meta.capacity }, (_, sIdx) => {
