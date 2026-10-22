@@ -1996,6 +1996,67 @@ select.lb-input {
 /* Responsive                                                                 */
 /* ========================================================================== */
 
+@media (min-width: 1600px) and (min-height: 940px) {
+  .tt-table {
+    grid-template-columns: 292px minmax(0, 1fr) 292px;
+    gap: 18px;
+    padding: 14px 18px 12px;
+  }
+  .tt-rail {
+    gap: 12px;
+  }
+  .tt-card-title {
+    font-size: 15.5px;
+  }
+  .tt-player {
+    padding: 11px 13px 11px 18px;
+  }
+  .tt-player-name {
+    font-size: 17px;
+  }
+  .tt-player-role,
+  .tt-player-stats,
+  .tt-feed-item,
+  .tt-award {
+    font-size: 13px;
+  }
+  .tt-player-vp strong {
+    font-size: 30px;
+  }
+  .tt-bag-count {
+    font-size: 32px;
+  }
+  .tt-dice-felt {
+    height: 64px;
+  }
+  .tt-dock {
+    gap: 18px;
+    padding: 0 18px 14px;
+  }
+  .tt-dock-panel {
+    padding: 10px 14px 12px;
+    gap: 8px;
+  }
+  .tt-res-card {
+    max-width: 74px;
+    height: 76px;
+  }
+  .tt-build {
+    min-height: 50px;
+  }
+  .tt-build b {
+    font-size: 14px;
+  }
+  .tt-cta {
+    min-height: 60px;
+    font-size: 20px;
+  }
+  .tt-cta-sub,
+  .tt-hand-extras {
+    font-size: 13px;
+  }
+}
+
 @media (max-width: 1280px) {
   .tt-table {
     grid-template-columns: 212px minmax(0, 1fr) 212px;
@@ -2014,6 +2075,13 @@ select.lb-input {
   .tt-dock {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
+  .tt-build b {
+    font-size: 11.5px;
+  }
+  .tt-build {
+    grid-template-columns: 26px 1fr;
+    padding: 4px 5px;
+  }
   .tt-action-panel {
     grid-column: 1 / -1;
     flex-direction: row;
@@ -2025,25 +2093,58 @@ select.lb-input {
 }
 
 @media (max-width: 900px) {
+  /* Phone / narrow: one scrolling column — board, then your hand & action, then the rails */
   .tt-app {
+    display: flex;
+    flex-direction: column;
     overflow-y: auto;
-    height: auto;
-    min-height: 100vh;
-    grid-template-rows: 52px auto auto;
+    height: 100vh;
+  }
+  .tt-topbar {
+    position: sticky;
+    top: 0;
+    flex: 0 0 52px;
   }
   .tt-table {
-    grid-template-columns: 1fr;
+    display: contents;
   }
   .tt-board-area {
+    order: 1;
+    flex: 0 0 auto;
     height: min(100vw, 70vh);
-    order: -1;
+    margin: 8px 10px 0;
   }
   .tt-dock {
+    order: 2;
     grid-template-columns: 1fr;
+    padding: 10px;
+  }
+  .tt-rail {
+    order: 3;
+    overflow: visible;
+    margin: 0;
+    padding: 0 10px 12px;
   }
   .tt-gf,
-  .tt-brand-word small {
+  .tt-brand-word,
+  .tt-btn-label {
     display: none;
+  }
+  .tt-topbar {
+    gap: 8px;
+    padding: 0 10px;
+  }
+  .tt-turn {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 600px) {
+  .tt-build-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .tt-build b {
+    font-size: 12.5px;
   }
 }
 

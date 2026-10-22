@@ -134,7 +134,8 @@ export function TopBar({
             <PlayerEmblemSvg playerId={state.activePlayerId} cx={0} cy={0} r={6} />
           </svg>
           <span>
-            {active.name} · {activeLabel}
+            {active.name}
+            <span className="tt-btn-label"> · {activeLabel}</span>
           </span>
           {activeIsBot && !botPaused && (
             <span className="tt-thinking" aria-hidden="true">
@@ -205,7 +206,7 @@ export function TopBar({
             title={botPaused ? 'Resume bots' : 'Pause bots'}
           >
             <Icon name={botPaused ? 'play' : 'pause'} size={14} />
-            {botPaused ? 'Resume bots' : 'Pause bots'}
+            <span className="tt-btn-label">{botPaused ? 'Resume bots' : 'Pause bots'}</span>
           </button>
         )}
 
@@ -218,7 +219,7 @@ export function TopBar({
           title={isMatOpen ? 'Hide player board' : 'Show player board'}
         >
           <Icon name="board" />
-          Player board
+          <span className="tt-btn-label">Player board</span>
         </button>
 
         <div ref={settingsRef} style={{ position: 'relative' }}>
@@ -302,7 +303,7 @@ export function TopBar({
           onClick={onOpenLobby}
         >
           <Icon name="newGame" />
-          New game
+          <span className="tt-btn-label">New game</span>
         </button>
       </div>
     </header>

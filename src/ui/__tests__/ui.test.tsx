@@ -1,7 +1,7 @@
 import 'preact/compat';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInitialGameState } from '../../engine/setup';
 import { IslandBoardSvg } from '../IslandBoardSvg';
 import { PlayerMat } from '../PlayerMat';
@@ -315,6 +315,40 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
     } finally {
       window.history.pushState({}, '', '/');
     }
+  });
+
+  it('restores an unfinished game after a page reload', () => {
+    // Node's own (flag-gated) localStorage global shadows happy-dom's, so provide one
+    const store = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+      clear: () => store.clear(),
+    });
+    window.history.pushState({}, '', '/?placement=fixed');
+    act(() => {
+      render(<TabletopApp />, container);
+    });
+    act(() => {
+      (container.querySelector('[data-testid="bot-pause-btn"]') as HTMLButtonElement).click();
+    });
+    act(() => {
+      (container.querySelector('[data-testid="action-draw-event-btn"]') as HTMLButtonElement).click();
+    });
+    expect(container.querySelector('[data-testid="action-roll-dice-btn"]')).not.toBeNull();
+
+    // "Reload": unmount and mount again on a plain URL
+    act(() => {
+      render(null, container);
+    });
+    window.history.pushState({}, '', '/');
+    act(() => {
+      render(<TabletopApp />, container);
+    });
+    expect(container.querySelector('[data-testid="action-roll-dice-btn"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="live-action-banner"]')?.textContent).toContain('Welcome back');
+    vi.unstubAllGlobals();
   });
 
   it('lets every hotseat player place a starting town, road, city and road on the beginner board', () => {

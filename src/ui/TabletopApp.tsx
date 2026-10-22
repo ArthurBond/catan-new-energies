@@ -54,7 +54,7 @@ import { TableRail } from './TableRail';
 import { DEV_CARD_METADATA, EVENT_TRACK_METADATA, PLAYER_THEMES } from './theme';
 import { TopBar } from './TopBar';
 
-const STORAGE_KEY = 'catan_new_energies_saved_state_v1';
+const SAVED_GAME_KEY = 'catan_new_energies_saved_game_v2';
 const TABLECLOTH_COLOR_KEY = 'catan_new_energies_tablecloth_color_v1';
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 5;
@@ -97,6 +97,8 @@ interface UrlParams {
   allBots: boolean;
   roomCode: string;
   scenario: string;
+  /** The URL asks for a specific new game (so a saved game should not be resumed) */
+  hasGameParams: boolean;
 }
 
 function parseUrlParams(): UrlParams {
@@ -111,11 +113,14 @@ function parseUrlParams(): UrlParams {
       allBots: false,
       roomCode: '',
       scenario: '',
+      hasGameParams: false,
     };
   }
   const params = new URLSearchParams(window.location.search);
   const scenario = params.get('scenario') ?? '';
+  const gameParams = ['seed', 'setup', 'placement', 'players', 'bots', 'mode', 'room', 'scenario'];
   return {
+    hasGameParams: gameParams.some((k) => params.has(k)),
     seed: parseInt(params.get('seed') ?? '42', 10) || 42,
     setupMode: params.get('setup') === 'standard' ? 'standard' : 'first',
     // Players place their own starting pieces unless beginner positions are asked for
@@ -171,6 +176,36 @@ function createGameFromConfig(cfg: LobbyConfig, scenario = ''): GameState {
     },
   });
   return scenario ? applyDevScenario(state, scenario) : state;
+}
+
+interface SavedGame {
+  version: 2;
+  savedAt: number;
+  state: GameState;
+  config: LobbyConfig;
+}
+
+/** The unfinished game this browser was last playing, if any. */
+function loadSavedGame(): SavedGame | null {
+  try {
+    const raw = localStorage.getItem(SAVED_GAME_KEY);
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as SavedGame;
+    if (saved?.version !== 2 || !saved.state?.board || !saved.config?.seats) return null;
+    if (saved.state.phase === 'GameEnd' || saved.state.winner !== null) return null;
+    return saved;
+  } catch {
+    return null;
+  }
+}
+
+function saveGame(state: GameState, config: LobbyConfig) {
+  try {
+    const saved: SavedGame = { version: 2, savedAt: Date.now(), state, config };
+    localStorage.setItem(SAVED_GAME_KEY, JSON.stringify(saved));
+  } catch {
+    // Ignore storage quota / privacy-mode errors
+  }
 }
 
 function mapDifficulty(d: 'easy' | 'normal' | 'hard'): BotDifficulty {
@@ -279,10 +314,14 @@ function describeAction(action: GameAction, prev: GameState, next: GameState): T
 
 export function TabletopApp() {
   const initialUrl = useMemo(() => parseUrlParams(), []);
-  const [lobbyConfig, setLobbyConfig] = useState<LobbyConfig>(() => createDefaultLobbyConfig(initialUrl));
+  // A refresh picks the unfinished game back up unless the URL asks for a specific new one
+  const resumed = useMemo(() => (initialUrl.hasGameParams ? null : loadSavedGame()), [initialUrl]);
+  const [lobbyConfig, setLobbyConfig] = useState<LobbyConfig>(
+    () => resumed?.config ?? createDefaultLobbyConfig(initialUrl)
+  );
   const [showLobby, setShowLobby] = useState<boolean>(!initialUrl.autostart);
-  const [gameState, setGameState] = useState<GameState>(() =>
-    createGameFromConfig(lobbyConfig, initialUrl.scenario)
+  const [gameState, setGameState] = useState<GameState>(
+    () => resumed?.state ?? createGameFromConfig(lobbyConfig, initialUrl.scenario)
   );
 
   const [history, setHistory] = useState<GameState[]>([]);
@@ -301,7 +340,16 @@ export function TabletopApp() {
   const [isMatOpen, setIsMatOpen] = useState(false);
   const [hoveredNodeId, setHoveredNodeId] = useState<NodeId | null>(null);
   const [hoveredEdgeId, setHoveredEdgeId] = useState<EdgeId | null>(null);
-  const [toast, setToast] = useState<Toast | null>(null);
+  const [toast, setToast] = useState<Toast | null>(() =>
+    resumed
+      ? {
+          id: 1,
+          playerId: resumed.state.activePlayerId,
+          title: 'Welcome back',
+          detail: 'Your game was restored where you left off.',
+        }
+      : null
+  );
   const [rollAnimKey, setRollAnimKey] = useState<number | null>(null);
 
   const [tableclothColor, setTableclothColor] = useState<string>(() => {
@@ -399,11 +447,7 @@ export function TabletopApp() {
         setRollAnimKey(Date.now());
       }
 
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // Ignore storage quota errors
-      }
+      saveGame(next, lobbyConfig);
 
       if (transportRef.current) {
         transportRef.current.send({
@@ -431,8 +475,10 @@ export function TabletopApp() {
   };
 
   const handleStartNewGame = (cfg: LobbyConfig) => {
+    const fresh = createGameFromConfig(cfg);
     setLobbyConfig(cfg);
-    setGameState(createGameFromConfig(cfg));
+    setGameState(fresh);
+    saveGame(fresh, cfg);
     setHistory([]);
     setActiveBuildMode(null);
     setInspectedPlayerId(null);
