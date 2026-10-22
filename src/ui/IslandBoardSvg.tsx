@@ -64,6 +64,25 @@ export interface IslandBoardSvgProps {
   onSelectEventTrackInfo?: (track: EventDiscType) => void;
 }
 
+/** Conifer positions [x, y, scale] for the forest tile, leaving the number disc clear. */
+const FOREST_TREES: [number, number, number][] = [
+  [-30, -18, 1],
+  [-18, -32, 0.95],
+  [-4, -40, 0.85],
+  [12, -34, 1],
+  [26, -24, 1.05],
+  [36, -6, 0.9],
+  [-38, 0, 0.9],
+  [-30, 16, 1.05],
+  [-16, 30, 0.95],
+  [0, 40, 0.85],
+  [16, 32, 1],
+  [30, 22, 1.05],
+  [40, 10, 0.85],
+  [-26, -4, 0.8],
+  [26, 6, 0.8],
+];
+
 /**
  * Renders original clean vector topographic/architectural terrain artwork inside a pointy-top hex centered at (0,0)
  */
@@ -92,32 +111,26 @@ function TerrainArtworkSvg({ terrain, hexId }: { terrain: TerrainType; hexId: nu
       <g clipPath={`url(#${clipId})`}>
         {terrain === 'forest' && (
           <g>
-            {/* Deep forest patches */}
-            <circle cx={-18} cy={-14} r={26} fill={theme.secondaryFill} />
-            <circle cx={20} cy={12} r={28} fill={theme.accentFill} />
-            {/* Winding logging trail */}
+            {/* Mossy undergrowth and a logging trail */}
+            <circle cx={-20} cy={-16} r={26} fill={theme.secondaryFill} />
+            <circle cx={22} cy={14} r={28} fill={theme.accentFill} />
             <path
-              d="M -35 28 Q -10 10, 0 -5 T 32 -32"
+              d="M -40 30 Q -12 12, -2 -2 T 34 -34"
               fill="none"
-              stroke="#7a6348"
-              strokeWidth={5}
+              stroke="#8a7152"
+              strokeWidth={5.5}
               strokeLinecap="round"
-              opacity={0.7}
+              opacity={0.75}
             />
-            {/* Conifer tree canopies */}
-            {[
-              [-24, -18],
-              [-10, -28],
-              [14, -22],
-              [26, -8],
-              [-28, 8],
-              [18, 22],
-              [-8, 28],
-            ].map(([tx, ty], idx) => (
-              <g key={idx} transform={`translate(${tx}, ${ty})`}>
-                <circle cx={1} cy={2} r={8.5} fill="rgba(0,0,0,0.28)" />
-                <polygon points="0,-10 7,3 -7,3" fill="#3f704d" stroke="#182e1f" strokeWidth={0.8} />
-                <polygon points="0,-14 5.5,-3 -5.5,-3" fill="#528c63" />
+            {/* Dense layered conifers (kept clear of the number disc) */}
+            {FOREST_TREES.map(([tx, ty, sc], idx) => (
+              <g key={idx} transform={`translate(${tx}, ${ty}) scale(${sc})`}>
+                <ellipse cx={1.5} cy={5.5} rx={6.5} ry={2.6} fill="rgba(0,0,0,0.3)" />
+                <rect x={-0.9} y={2} width={1.8} height={4} fill="#5b3f26" />
+                <polygon points="0,-4 6.5,4 -6.5,4" fill="#2f5d3c" stroke="#16301f" strokeWidth={0.7} strokeLinejoin="round" />
+                <polygon points="0,-9 5.2,-1 -5.2,-1" fill="#3f7a50" stroke="#16301f" strokeWidth={0.7} strokeLinejoin="round" />
+                <polygon points="0,-13 3.8,-6 -3.8,-6" fill="#5a9a68" stroke="#16301f" strokeWidth={0.7} strokeLinejoin="round" />
+                <path d="M 0 -12.5 L -3 -6.5 M 0 -8.5 L -4.4 -1.4" stroke="#8cc79a" strokeWidth={0.8} strokeLinecap="round" opacity={0.7} />
               </g>
             ))}
           </g>
@@ -138,7 +151,7 @@ function TerrainArtworkSvg({ terrain, hexId }: { terrain: TerrainType; hexId: nu
 
         {terrain === 'pasture' && (
           <g>
-            {/* Patchwork meadow paddocks */}
+            {/* Patchwork meadow paddocks with fence lines */}
             <polygon points="-55,-10 10,-55 55,5 -10,55" fill={theme.secondaryFill} opacity={0.65} />
             <path
               d="M -45 -18 L 45 18 M -18 45 L 18 -45"
@@ -146,16 +159,42 @@ function TerrainArtworkSvg({ terrain, hexId }: { terrain: TerrainType; hexId: nu
               strokeWidth={2.2}
               strokeDasharray="6 3"
             />
-            {/* Grazing fiber/sheep tufts */}
+            {/* Grass tufts */}
+            {([
+              [-34, -2],
+              [-8, -36],
+              [30, -30],
+              [36, 4],
+              [-26, 30],
+              [10, 36],
+              [-40, 14],
+            ] as [number, number][]).map(([gx, gy], i) => (
+              <path
+                key={`tuft-${i}`}
+                d={`M ${gx - 3} ${gy} L ${gx - 1} ${gy - 4} M ${gx} ${gy} L ${gx} ${gy - 5} M ${gx + 3} ${gy} L ${gx + 1} ${gy - 4}`}
+                stroke={theme.accentFill}
+                strokeWidth={1.1}
+                strokeLinecap="round"
+              />
+            ))}
+            {/* Grazing sheep */}
             {[
-              [-22, -16],
-              [20, -18],
-              [-20, 20],
-              [22, 16],
-            ].map(([sx, sy], i) => (
-              <g key={i} transform={`translate(${sx}, ${sy})`}>
-                <ellipse cx={0} cy={0} rx={4.5} ry={3.2} fill="#f4f6f0" stroke="#4a6324" strokeWidth={0.8} />
-                <circle cx={-2.5} cy={-1} r={2.2} fill="#ffffff" />
+              [-22, -16, 1],
+              [20, -18, -1],
+              [-20, 20, -1],
+              [22, 16, 1],
+              [-2, -30, 1],
+            ].map(([sx, sy, dir], i) => (
+              <g key={i} transform={`translate(${sx}, ${sy}) scale(${dir}, 1)`}>
+                <ellipse cx={0.6} cy={3.4} rx={5.4} ry={1.6} fill="rgba(0,0,0,0.22)" />
+                <path d="M -3 1.5 L -3 3.6 M -1 1.8 L -1 3.8 M 1.5 1.8 L 1.5 3.8 M 3 1.5 L 3 3.6" stroke="#2a2a2a" strokeWidth={0.9} strokeLinecap="round" />
+                <path
+                  d="M -4.6 1 C -6.2 0.6, -6 -2.4, -4.2 -2.6 C -3.8 -4.4, -1 -4.6, 0 -3.4 C 1.2 -4.8, 3.8 -4.2, 4 -2.4 C 5.6 -2, 5.4 1.2, 3.8 1.4 Z"
+                  fill="#fbfbf6"
+                  stroke="#4a6324"
+                  strokeWidth={0.8}
+                />
+                <ellipse cx={5.6} cy={-1.4} rx={1.9} ry={1.5} fill="#2d2a26" />
               </g>
             ))}
           </g>
@@ -252,16 +291,32 @@ function TerrainArtworkSvg({ terrain, hexId }: { terrain: TerrainType; hexId: nu
 
         {terrain === 'mountains' && (
           <g>
-            {/* Faceted geometric slate ridges */}
-            <polygon points="-42,32 -14,-34 14,32" fill={theme.accentFill} />
-            <polygon points="-14,-34 14,32 -8,32" fill={theme.secondaryFill} />
-            <polygon points="-8,35 20,-28 46,35" fill={theme.accentFill} />
-            <polygon points="20,-28 46,35 22,35" fill={theme.secondaryFill} />
-            {/* Crisp snow caps */}
-            <polygon points="-14,-34 -4,-12 -14,-16 -22,-12" fill="#edf2f7" />
-            <polygon points="20,-28 29,-9 20,-13 12,-9" fill="#edf2f7" />
+            {/* Distant range */}
+            <polygon points="-56,18 -30,-22 -8,10 10,-14 34,8 56,-6 56,40 -56,40" fill={theme.secondaryFill} opacity={0.55} />
+            {/* Left peak: lit and shaded faces */}
+            <polygon points="-46,34 -18,-30 -6,34" fill={theme.secondaryFill} />
+            <polygon points="-18,-30 -6,34 8,34" fill={theme.accentFill} />
+            {/* Main peak */}
+            <polygon points="-12,38 18,-38 30,38" fill="#7d8899" />
+            <polygon points="18,-38 30,38 50,38" fill={theme.accentFill} />
+            <path d="M 18 -38 L 12 -6 L 20 10 L 16 38" fill="none" stroke="#3b424c" strokeWidth={1} opacity={0.6} />
+            {/* Jagged snow caps */}
+            <polygon points="-18,-30 -11,-13 -15,-16 -19,-11 -23,-17 -27,-12" fill="#f4f7fb" />
+            <polygon points="18,-38 26,-16 21,-20 17,-14 12,-21 8,-15" fill="#f4f7fb" />
+            <path d="M 18 -38 L 26 -16" stroke="#c7d2df" strokeWidth={1.2} />
+            {/* Scree at the foot */}
+            {[
+              [-30, 30],
+              [-4, 36],
+              [36, 32],
+              [44, 24],
+              [-38, 24],
+            ].map(([rx, ry], i) => (
+              <ellipse key={i} cx={rx} cy={ry} rx={3} ry={1.8} fill="#9aa5b4" stroke="#3b424c" strokeWidth={0.6} />
+            ))}
             {/* Mine portal */}
             <rect x={-26} y={14} width={12} height={11} rx={2} fill="#1f242b" stroke="#a0aec0" strokeWidth={1.2} />
+            <path d="M -26 14 L -14 14" stroke="#c9a46b" strokeWidth={1.6} />
           </g>
         )}
 
