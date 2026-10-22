@@ -12,6 +12,7 @@
  */
 
 import 'preact/compat';
+import { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import { getHarborsForPlayer } from '../engine/board';
 import { RESOURCE_TYPES } from '../engine/config';
@@ -424,6 +425,8 @@ function TradeCard({
   disabled,
   onClick,
   testId,
+  footer,
+  dim,
 }: {
   kind: TradeKind;
   badge: string;
@@ -432,6 +435,10 @@ function TradeCard({
   disabled: boolean;
   onClick: () => void;
   testId: string;
+  /** Replaces the caption, e.g. with a stepper */
+  footer?: ComponentChildren;
+  /** Grey the card out (defaults to `disabled`) */
+  dim?: boolean;
 }) {
   const meta = kind === 'energy' ? { ...ENERGY_CARD_STYLE, shortLabel: 'Energy' } : CARD_METADATA[kind];
   return (
@@ -441,7 +448,7 @@ function TradeCard({
         className="tt-res-card md-pick"
         data-testid={testId}
         data-selected={selected ? 'true' : 'false'}
-        data-empty={disabled ? 'true' : 'false'}
+        data-empty={(dim ?? disabled) ? 'true' : 'false'}
         disabled={disabled}
         aria-pressed={selected}
         onClick={onClick}
@@ -458,7 +465,7 @@ function TradeCard({
         <span className="tt-res-label">{meta.shortLabel}</span>
         <span className="tt-res-count">{badge}</span>
       </button>
-      <span style={{ fontSize: '11px', color: 'var(--ink-300)' }}>{caption}</span>
+      {footer ?? <span style={{ fontSize: '11px', color: 'var(--ink-300)' }}>{caption}</span>}
     </div>
   );
 }
@@ -640,95 +647,83 @@ export function TradeModal({
         )}
 
         {tab === 'harbor' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {playerHarbors.length === 0 ? (
-              <p style={{ color: 'var(--ink-300)', fontSize: '13px' }}>
-                Build a town or city on a harbor to trade there at 3:1 or 2:1.
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {playerHarbors.length === 0 || !selectedHarbor ? (
+              <p className="md-sub">
+                Build a town or city on a harbor to trade there at 3:1 (any harbor) or 2:1 (a resource
+                harbor).
               </p>
             ) : (
               <>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {playerHarbors.map((h) => (
-                    <button
-                      key={h.id}
-                      type="button"
-                      onClick={() => setSelectedHarborId(h.id)}
-                      style={{
-                        padding: '7px 12px',
-                        borderRadius: '8px',
-                        fontWeight: 800,
-                        background: selectedHarbor?.id === h.id ? 'var(--sea)' : 'var(--ink-700)',
-                        color: '#ffffff',
-                        border: '1px solid rgba(163, 183, 202, 0.28)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Harbor #{h.id} ({h.ratio}:1 {h.resource ? CARD_METADATA[h.resource].shortLabel : 'Generic'})
-                    </button>
+                {playerHarbors.length > 1 && (
+                  <div className="lb-segment" role="group" aria-label="Harbor" style={{ alignSelf: 'flex-start', marginBottom: '6px' }}>
+                    {playerHarbors.map((h) => (
+                      <button
+                        key={h.id}
+                        type="button"
+                        data-selected={selectedHarbor.id === h.id ? 'true' : 'false'}
+                        onClick={() => setSelectedHarborId(h.id)}
+                      >
+                        {h.ratio}:1 {h.resource ? CARD_METADATA[h.resource].shortLabel.toLowerCase() : 'any'}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <p className="md-sub" style={{ marginTop: 0, fontWeight: 700, color: '#ffffff' }}>
+                  You give
+                  <span style={{ fontWeight: 400, color: 'var(--ink-300)' }}>
+                    {' '}
+                    — {selectedHarbor.ratio} {selectedHarbor.resource ? tradeLabel(selectedHarbor.resource) : 'of one resource'} at
+                    this {selectedHarbor.ratio}:1 harbor
+                  </span>
+                </p>
+                <div className="md-cards" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', marginTop: '8px' }}>
+                  {RESOURCE_TYPES.map((r) => (
+                    <TradeCard
+                      key={r}
+                      kind={r}
+                      testId={`harbor-give-${r}`}
+                      badge={`${selectedHarbor.ratio}×`}
+                      caption={`have ${player.resources[r]}`}
+                      selected={effectiveHarborGive === r}
+                      disabled={
+                        (selectedHarbor.resource !== null && selectedHarbor.resource !== r) ||
+                        player.resources[r] < selectedHarbor.ratio
+                      }
+                      onClick={() => setHarborGiveRes(r)}
+                    />
                   ))}
                 </div>
 
-                {selectedHarbor?.type === 'generic' && (
-                  <div>
-                    <div style={{ fontSize: '12px', fontWeight: 800, marginBottom: '6px' }}>
-                      You give
-                    </div>
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                      {RESOURCE_TYPES.map((r) => (
-                        <button
-                          key={r}
-                          type="button"
-                          onClick={() => setHarborGiveRes(r)}
-                          style={{
-                            padding: '6px 10px',
-                            borderRadius: '6px',
-                            fontWeight: 800,
-                            background: harborGiveRes === r ? 'var(--leaf)' : 'var(--ink-700)',
-                            color: '#ffffff',
-                            border: '1px solid rgba(163, 183, 202, 0.28)',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          3x {CARD_METADATA[r].shortLabel} (Have {player.resources[r]})
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <div style={{ fontSize: '12px', fontWeight: 800, marginBottom: '6px' }}>
-                    You get one card
-                  </div>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science'] as const).map(
-                      (k) => (
-                        <button
-                          key={k}
-                          type="button"
-                          onClick={() => setHarborReceiveType(k)}
-                          style={{
-                            padding: '6px 10px',
-                            borderRadius: '6px',
-                            fontWeight: 800,
-                            background: harborReceiveType === k ? 'var(--sea)' : 'var(--ink-700)',
-                            color: '#ffffff',
-                            border: '1px solid rgba(163, 183, 202, 0.28)',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          1x {CARD_METADATA[k].shortLabel}
-                        </button>
-                      )
-                    )}
-                  </div>
+                <p className="md-sub" style={{ marginTop: '14px', fontWeight: 700, color: '#ffffff' }}>
+                  You get
+                  <span style={{ fontWeight: 400, color: 'var(--ink-300)' }}> — one card of your choice</span>
+                </p>
+                <div className="md-cards" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', marginTop: '8px' }}>
+                  {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science'] as const).map((k) => {
+                    const left = k === 'science' ? state.supply.science : state.supply.resources[k];
+                    return (
+                      <TradeCard
+                        key={k}
+                        kind={k}
+                        testId={`harbor-receive-${k}`}
+                        badge="1"
+                        caption={`${left} left`}
+                        selected={harborReceiveType === k}
+                        disabled={left === 0 || k === effectiveHarborGive}
+                        onClick={() => setHarborReceiveType(k)}
+                      />
+                    );
+                  })}
                 </div>
 
                 <button
                   type="button"
+                  className="tt-cta"
+                  data-testid="execute-harbor-trade-btn"
                   disabled={!canExecuteHarborTrade}
+                  style={{ marginTop: '16px' }}
                   onClick={() => {
-                    if (!selectedHarbor) return;
                     onDispatch({
                       type: 'TRADE_HARBOR',
                       playerId,
@@ -738,17 +733,12 @@ export function TradeModal({
                     });
                     onClose();
                   }}
-                  style={{
-                    padding: '10px',
-                    borderRadius: '8px',
-                    fontWeight: 900,
-                    background: canExecuteHarborTrade ? 'var(--leaf)' : 'var(--ink-700)',
-                    color: canExecuteHarborTrade ? '#ffffff' : 'var(--ink-300)',
-                    border: '1px solid rgba(163, 183, 202, 0.28)',
-                    cursor: canExecuteHarborTrade ? 'pointer' : 'not-allowed',
-                  }}
                 >
-                  Trade at the harbor
+                  {canExecuteHarborTrade
+                    ? `Give ${requiredHarborAmount} ${tradeLabel(effectiveHarborGive)}, get 1 ${tradeLabel(harborReceiveType)}`
+                    : player.resources[effectiveHarborGive] < requiredHarborAmount
+                      ? `You need ${requiredHarborAmount} ${tradeLabel(effectiveHarborGive)} to trade here`
+                      : 'Pick a different card to get'}
                 </button>
               </>
             )}
@@ -756,142 +746,110 @@ export function TradeModal({
         )}
 
         {tab === 'domestic' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <span style={{ fontSize: '12px', fontWeight: 800 }}>Trade with</span>
-              {state.playerOrder
-                .filter((p) => p !== playerId)
-                .map((pid) => (
-                  <button
-                    key={pid}
-                    type="button"
-                    onClick={() => setDomesticTarget(pid)}
-                    style={{
-                      padding: '5px 10px',
-                      borderRadius: '6px',
-                      fontWeight: 800,
-                      background:
-                        domesticTarget === pid ? PLAYER_THEMES[pid].fill : 'var(--ink-700)',
-                      color:
-                        domesticTarget === pid
-                          ? PLAYER_THEMES[pid].textOnFill
-                          : 'var(--ink-100)',
-                      border: '1px solid rgba(163, 183, 202, 0.28)',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {state.players[pid]!.name}
-                  </button>
-                ))}
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <div style={{ padding: '10px', background: 'rgba(0,0,0,0.25)', borderRadius: '8px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 800, marginBottom: '6px', color: 'var(--volt)' }}>
-                  You offer
-                </div>
-                {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science', 'energy'] as const).map(
-                  (k) => {
-                    const maxHeld =
-                      k === 'energy'
-                        ? player.energy
-                        : k === 'science'
-                          ? player.science
-                          : player.resources[k];
-                    const cur = domesticGive[k] || 0;
-                    return (
-                      <div key={k} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '12px' }}>
-                        <span>{k === 'energy' ? 'Energy ⚡' : CARD_METADATA[k].shortLabel} ({maxHeld})</span>
-                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setDomesticGive({ ...domesticGive, [k]: Math.max(0, cur - 1) })
-                            }
-                            style={{ padding: '1px 6px', cursor: 'pointer' }}
-                          >
-                            -
-                          </button>
-                          <span style={{ minWidth: '16px', textAlign: 'center', fontWeight: 800 }}>{cur}</span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setDomesticGive({ ...domesticGive, [k]: Math.min(maxHeld, cur + 1) })
-                            }
-                            style={{ padding: '1px 6px', cursor: 'pointer' }}
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  }
-                )}
-              </div>
-
-              <div style={{ padding: '10px', background: 'rgba(0,0,0,0.25)', borderRadius: '8px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 800, marginBottom: '6px', color: '#8ce09a' }}>
-                  You ask for
-                </div>
-                {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science', 'energy'] as const).map(
-                  (k) => {
-                    const cur = domesticWant[k] || 0;
-                    return (
-                      <div key={k} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '12px' }}>
-                        <span>{k === 'energy' ? 'Energy ⚡' : CARD_METADATA[k].shortLabel}</span>
-                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setDomesticWant({ ...domesticWant, [k]: Math.max(0, cur - 1) })
-                            }
-                            style={{ padding: '1px 6px', cursor: 'pointer' }}
-                          >
-                            -
-                          </button>
-                          <span style={{ minWidth: '16px', textAlign: 'center', fontWeight: 800 }}>{cur}</span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setDomesticWant({ ...domesticWant, [k]: Math.min(5, cur + 1) })
-                            }
-                            style={{ padding: '1px 6px', cursor: 'pointer' }}
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  }
-                )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <span className="md-sub" style={{ marginTop: 0, fontWeight: 700, color: '#ffffff' }}>
+                Offer to
+              </span>
+              <div className="lb-segment" role="group" aria-label="Trade partner">
+                {state.playerOrder
+                  .filter((p) => p !== playerId)
+                  .map((pid) => (
+                    <button
+                      key={pid}
+                      type="button"
+                      data-testid={`domestic-target-${pid}`}
+                      data-selected={domesticTarget === pid ? 'true' : 'false'}
+                      onClick={() => setDomesticTarget(pid)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <svg width="14" height="14" viewBox="-7 -7 14 14" aria-hidden="true">
+                        <circle r="6.5" fill={PLAYER_THEMES[pid].fill} />
+                      </svg>
+                      {state.players[pid]!.name}
+                    </button>
+                  ))}
               </div>
             </div>
 
-            <button
-              type="button"
-              data-testid="send-domestic-offer-btn"
-              onClick={() => {
-                onDispatch({
-                  type: 'OFFER_TRADE',
-                  playerId,
-                  targetPlayerId: domesticTarget,
-                  give: domesticGive,
-                  want: domesticWant,
-                });
-                onClose();
-              }}
-              style={{
-                padding: '10px',
-                borderRadius: '8px',
-                fontWeight: 900,
-                background: 'var(--sea)',
-                color: '#ffffff',
-                border: '1px solid #90cdf4',
-                cursor: 'pointer',
-              }}
-            >
-              Send offer
-            </button>
+            {(
+              [
+                ['give', 'You offer', domesticGive, setDomesticGive],
+                ['want', 'You ask for', domesticWant, setDomesticWant],
+              ] as const
+            ).map(([side, title, counts, setCounts]) => (
+              <div key={side}>
+                <p className="md-sub" style={{ marginTop: '14px', fontWeight: 700, color: '#ffffff' }}>
+                  {title}
+                </p>
+                <div className="md-cards" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', marginTop: '8px' }}>
+                  {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science', 'energy'] as const).map((k) => {
+                    const held = k === 'energy' ? player.energy : k === 'science' ? player.science : player.resources[k];
+                    const max = side === 'give' ? held : 5;
+                    const cur = counts[k] || 0;
+                    const set = (n: number) => setCounts({ ...counts, [k]: Math.max(0, Math.min(max, n)) });
+                    return (
+                      <TradeCard
+                        key={k}
+                        kind={k}
+                        testId={`domestic-${side}-${k}`}
+                        badge={String(cur)}
+                        caption=""
+                        selected={cur > 0}
+                        disabled={cur >= max}
+                        dim={max === 0}
+                        onClick={() => set(cur + 1)}
+                        footer={
+                          <div className="md-stepper">
+                            <button type="button" aria-label={`One less ${tradeLabel(k)}`} disabled={cur === 0} onClick={() => set(cur - 1)}>
+                              −
+                            </button>
+                            <span>{cur}</span>
+                            <button type="button" aria-label={`One more ${tradeLabel(k)}`} disabled={cur >= max} onClick={() => set(cur + 1)}>
+                              +
+                            </button>
+                          </div>
+                        }
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+            {(() => {
+              const describe = (c: Partial<Record<TradeKind, number>>) =>
+                (Object.entries(c) as [TradeKind, number][])
+                  .filter(([, n]) => n > 0)
+                  .map(([k, n]) => `${n} ${tradeLabel(k)}`)
+                  .join(', ');
+              const give = describe(domesticGive);
+              const want = describe(domesticWant);
+              const ready = give !== '' && want !== '';
+              return (
+                <button
+                  type="button"
+                  className="tt-cta"
+                  data-testid="send-domestic-offer-btn"
+                  disabled={!ready}
+                  style={{ marginTop: '16px' }}
+                  onClick={() => {
+                    onDispatch({
+                      type: 'OFFER_TRADE',
+                      playerId,
+                      targetPlayerId: domesticTarget,
+                      give: domesticGive,
+                      want: domesticWant,
+                    });
+                    onClose();
+                  }}
+                >
+                  {ready
+                    ? `Offer ${give} for ${want}`
+                    : 'Choose what you offer and what you ask for'}
+                </button>
+              );
+            })()}
           </div>
         )}
       </div>

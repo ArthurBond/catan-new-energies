@@ -83,10 +83,11 @@ Dev-only visual scenarios: `?scenario=showcase` (mid-game with plants, hazards, 
 ### 7. Later polish in this session
 - Hex tiles got a cardboard bevel and a fine printed grain.
 - Drawing an event disc plays one short reveal (wooden disc with the event's icon, name and track progress); island tracks show event icons on their discs. `EventIconSvg` / `EventDiscSvg` live in `WoodenPiecesSvg.tsx`.
-- The trade dialog's supply tab uses tappable cards (give / get) with a button that spells out the trade; tabs are a segmented control.
+- The trade dialog uses tappable cards on every tab (supply, harbors, players) with buttons that spell out the trade ("Give 4 lumber, get 1 brick", "Offer 2 steel for 1 food"); covered by `src/ui/__tests__/trade-modal.test.tsx`.
+- Forest, mountain and pasture tiles were redrawn (layered conifers, faceted peaks with snow and scree, sheep with heads).
 
 ## Suggested next steps
-1. Terrain illustrations themselves are still simple vector scenes; richer per-terrain art (denser forest canopy, rocky mountain faces, field furrows) would close the remaining gap to the printed board.
-2. The harbor and player-to-player trade tabs are restyled but still use button lists; moving them to the same `TradeCard` picker as the supply tab would finish the dialog.
-3. Online (PeerJS) play has no lobby UI beyond the room code field; the multi-tab BroadcastChannel path works.
-4. Bots could explain their choices in the activity feed (e.g. "Pink built a renewable plant to lower its footprint").
+1. Hills, fields and desert tiles could get the same illustration pass as forest/mountains/pasture.
+2. Online (PeerJS) play has no lobby UI beyond the room code field; the multi-tab BroadcastChannel path works.
+3. Bots could explain their choices in the activity feed (e.g. "Pink built a renewable plant to lower its footprint").
+4. The dev-card play dialog (`DevCardPlayModal`) is restyled but still button-heavy; it could reuse the card pickers.
