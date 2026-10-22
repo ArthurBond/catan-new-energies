@@ -2,7 +2,7 @@
  * CATAN: New Energies — Sea Frame SVG Component
  *
  * Renders:
- * 1. 6-piece interlocking azure ocean jigsaw frame with shallow turquoise reefs, wave crests & swimming Whales.
+ * 1. Seamless azure ocean frame with shallow turquoise reefs, wave crests & swimming Whales.
  * 2. 9 coastal Harbors (`[data-testid="harbor-0"]`..`harbor-8`) with pier lines, 3:1 / 2:1 labels & resource icons.
  * 3. 12 o'clock Green Island Victory Point Track (`1..10`) with 3D player cylinder markers.
  * 4. 1–2 o'clock Diagonal Global Footprint Track (`0..28` in 4P / `0..21` in 3P) with 3P/4P Whale pod, draw bands & 3D Black Cube marker.
@@ -268,37 +268,6 @@ export function SeaFrameSvg({
           strokeLinecap="round"
         />
       ))}
-
-      {/* 6 Jigsaw Frame Seams with Interlocking Tabs */}
-      {[0, 60, 120, 180, 240, 300].map((deg) => {
-        const rad = ((deg - 15) * Math.PI) / 180;
-        const innerR = 275;
-        const midR = 378;
-        const outerR = 470;
-        const perpSeamX = -Math.sin(rad);
-        const perpSeamY = Math.cos(rad);
-
-        const x1 = BOARD_CENTER_X + Math.cos(rad) * innerR;
-        const y1 = BOARD_CENTER_Y + Math.sin(rad) * innerR;
-        const xm1 = BOARD_CENTER_X + Math.cos(rad) * (midR - 14);
-        const ym1 = BOARD_CENTER_Y + Math.sin(rad) * (midR - 14);
-        const xTab = BOARD_CENTER_X + Math.cos(rad) * midR + perpSeamX * 12;
-        const yTab = BOARD_CENTER_Y + Math.sin(rad) * midR + perpSeamY * 12;
-        const xm2 = BOARD_CENTER_X + Math.cos(rad) * (midR + 14);
-        const ym2 = BOARD_CENTER_Y + Math.sin(rad) * (midR + 14);
-        const x2 = BOARD_CENTER_X + Math.cos(rad) * outerR;
-        const y2 = BOARD_CENTER_Y + Math.sin(rad) * outerR;
-
-        return (
-          <path
-            key={deg}
-            d={`M ${x1.toFixed(1)} ${y1.toFixed(1)} L ${xm1.toFixed(1)} ${ym1.toFixed(1)} Q ${xTab.toFixed(1)} ${yTab.toFixed(1)}, ${xm2.toFixed(1)} ${ym2.toFixed(1)} L ${x2.toFixed(1)} ${y2.toFixed(1)}`}
-            fill="none"
-            stroke="rgba(9, 42, 74, 0.42)"
-            strokeWidth={1.6}
-          />
-        );
-      })}
 
       {/* =================================================================== */}
       {/* 0. WHALES IN THE OCEAN (3P / 4P Indicator Pod + Scenic Ocean Whales)*/}
