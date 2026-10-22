@@ -16,12 +16,9 @@ import { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import { getHarborsForPlayer } from '../engine/board';
 import { RESOURCE_TYPES } from '../engine/config';
-import { isEdgeConnectedToPlayerNetwork } from '../engine/dev-cards';
-import { getEligibleStealVictims, getHandSizeForSeven } from '../engine/production';
+import { getHandSizeForSeven } from '../engine/production';
 import {
   DevelopmentCardType,
-  DevCardPlayParams,
-  EdgeId,
   GameAction,
   GameState,
   HexId,
@@ -35,8 +32,16 @@ import {
   CARD_METADATA,
   DEV_CARD_METADATA,
   PLAYER_THEMES,
+  TERRAIN_THEMES,
 } from './theme';
-import { EnergyBoltSvg, PlayerEmblemSvg, ResourceIconSvg } from './WoodenPiecesSvg';
+import {
+  EnergyBoltSvg,
+  HazardCogSvg,
+  InspectorPawnSvg,
+  PieceDefs,
+  PlayerEmblemSvg,
+  ResourceIconSvg,
+} from './WoodenPiecesSvg';
 
 export type BotStrategyName = 'Balanced' | 'GreenInnovator' | 'IndustrialExpansionist';
 export type BotDifficultyName = 'easy' | 'normal' | 'hard';
@@ -945,319 +950,169 @@ export function EnergyBuyCardModal({
 // 4. DEVELOPMENT CARD PLAY MODAL
 // ============================================================================
 
+export type DevBoardTarget = 'road' | 'inspector' | 'hazard';
+
+function DevOption({
+  testId,
+  title,
+  body,
+  disabled,
+  onClick,
+  icon,
+}: {
+  testId: string;
+  title: string;
+  body: string;
+  disabled?: boolean;
+  onClick: () => void;
+  icon: ComponentChildren;
+}) {
+  return (
+    <button type="button" className="lb-option" data-testid={testId} disabled={disabled} onClick={onClick}
+      style={{ gridTemplateColumns: '40px 1fr', alignItems: 'center' }}>
+      <span aria-hidden="true">{icon}</span>
+      <span>
+        <span className="lb-option-title">{title}</span>
+        <span className="lb-option-desc">{body}</span>
+      </span>
+    </button>
+  );
+}
+
 export function DevCardPlayModal({
   state,
   cardId,
   cardType,
   onDispatch,
   onClose,
+  onStartBoardTargeting,
 }: {
   state: GameState;
   cardId: string;
   cardType: DevelopmentCardType;
   onDispatch: (action: GameAction) => void;
   onClose: () => void;
+  /** Hands the rest of the card over to the board (pick paths, a hex or a hazard there) */
+  onStartBoardTargeting?: (target: DevBoardTarget) => void;
 }) {
   const playerId = state.activePlayerId;
-  const player = state.players[playerId]!;
   const meta = DEV_CARD_METADATA[cardType];
+  const hasHazards =
+    state.board.hexes.some((h) => h.hasHazard) || state.board.intersections.some((n) => n.hasHazard);
 
-  // Cleanup state
-  const [cleanupMode, setCleanupMode] = useState<'INSPECTOR' | 'HAZARD'>('INSPECTOR');
-  const legalInspectorHexes = state.board.hexes.filter((h) => !h.hasHazard && !h.hasInspector);
-  const [selectedInspectorHex, setSelectedInspectorHex] = useState<HexId>(
-    legalInspectorHexes[0]?.id ?? 0
-  );
-
-  // Hazard targets for Cleanup Option 2
-  const hazardTargets: { kind: 'hex' | 'node'; id: number; label: string }[] = [];
-  for (const h of state.board.hexes) {
-    if (h.hasHazard) {
-      hazardTargets.push({ kind: 'hex', id: h.id, label: `Hex #${h.id} (${h.terrain})` });
-    }
-  }
-  for (const n of state.board.intersections) {
-    if (n.hasHazard) {
-      hazardTargets.push({
-        kind: 'node',
-        id: n.id,
-        label: `Intersection #${n.id} (${n.building?.type ?? 'settlement'})`,
-      });
-    }
-  }
-  const [selectedHazardIdx, setSelectedHazardIdx] = useState(0);
-
-  // Research Grant state
   const [grantCard1, setGrantCard1] = useState<ResourceType | 'science'>('science');
   const [grantCard2, setGrantCard2] = useState<ResourceType | 'science'>('science');
 
-  // Road Construction connected edges
-  const connectedEdges: EdgeId[] = state.board.edges
-    .filter((e) => e.road === null && isEdgeConnectedToPlayerNetwork(state.board, playerId, e.id))
-    .map((e) => e.id);
-  const [roadEdge1, setRoadEdge1] = useState<EdgeId>(connectedEdges[0] ?? 0);
-
-  // High Yield eligible renewable hexes
+  // High Yield: hexes where this player has a renewable plant
   const renewableHexes: HexId[] = state.board.hexes
     .filter((h) =>
       state.board.intersections.some(
         (n) =>
           n.adjacentHexIds.includes(h.id) &&
-          n.powerPlants.some(
-            (p) => p.playerId === playerId && p.type === 'renewable' && p.hexId === h.id
-          )
+          n.powerPlants.some((p) => p.playerId === playerId && p.type === 'renewable' && p.hexId === h.id)
       )
     )
     .map((h) => h.id);
 
+  const startOnBoard = (target: DevBoardTarget) => {
+    onStartBoardTargeting?.(target);
+    onClose();
+  };
+
   return (
     <div style={MODAL_BACKDROP_STYLE} data-testid="dev-card-modal">
-      <div style={{ ...MODAL_CARD_STYLE, maxWidth: '540px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-          <h3 className="md-title" style={{ boxShadow: `inset 0 -3px 0 ${meta.color}`, display: 'inline-block', paddingBottom: '2px' }}>
+      <div style={{ ...MODAL_CARD_STYLE, maxWidth: '560px' }} role="dialog" aria-modal="true" aria-labelledby="dev-card-title">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+          <h3
+            id="dev-card-title"
+            className="md-title"
+            style={{ boxShadow: `inset 0 -3px 0 ${meta.color}`, display: 'inline-block', paddingBottom: '2px' }}
+          >
             Play {meta.title}
           </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              padding: '4px 10px',
-              borderRadius: '6px',
-              background: 'var(--ink-700)',
-              color: '#ffffff',
-              border: '1px solid rgba(163, 183, 202, 0.28)',
-              cursor: 'pointer',
-            }}
-          >
+          <button type="button" className="tt-icon-btn" onClick={onClose}>
             Cancel
           </button>
         </div>
-
-        <p style={{ fontSize: '12.5px', color: 'var(--ink-100)', marginBottom: '14px' }}>
+        <p className="md-sub" style={{ marginBottom: '14px' }}>
           {meta.description}
         </p>
 
         {cardType === 'cleanup' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                type="button"
-                onClick={() => setCleanupMode('INSPECTOR')}
-                style={{
-                  flex: 1,
-                  padding: '8px',
-                  borderRadius: '8px',
-                  fontWeight: 800,
-                  background: cleanupMode === 'INSPECTOR' ? 'var(--leaf)' : 'var(--ink-700)',
-                  color: '#ffffff',
-                  border: '1px solid rgba(163, 183, 202, 0.28)',
-                  cursor: 'pointer',
-                }}
-              >
-                Option A: Move Inspector & Steal
-              </button>
-              <button
-                type="button"
-                onClick={() => setCleanupMode('HAZARD')}
-                style={{
-                  flex: 1,
-                  padding: '8px',
-                  borderRadius: '8px',
-                  fontWeight: 800,
-                  background: cleanupMode === 'HAZARD' ? 'var(--leaf)' : 'var(--ink-700)',
-                  color: '#ffffff',
-                  border: '1px solid rgba(163, 183, 202, 0.28)',
-                  cursor: 'pointer',
-                }}
-              >
-                Option B: Remove Hazard & Steal (&ge; LF)
-              </button>
-            </div>
-
-            {cleanupMode === 'INSPECTOR' ? (
-              <div>
-                <div style={{ fontSize: '12px', fontWeight: 800, marginBottom: '6px' }}>
-                  Select Target Hex for Inspector:
-                </div>
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
-                  {legalInspectorHexes.map((h) => (
-                    <button
-                      key={h.id}
-                      type="button"
-                      onClick={() => setSelectedInspectorHex(h.id)}
-                      style={{
-                        padding: '5px 8px',
-                        borderRadius: '6px',
-                        fontSize: '11px',
-                        fontWeight: 800,
-                        background: selectedInspectorHex === h.id ? 'var(--sea)' : 'var(--ink-700)',
-                        color: '#ffffff',
-                        border: '1px solid rgba(163, 183, 202, 0.28)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Hex #{h.id} ({h.terrain} {h.numberDisc ?? ''})
-                    </button>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  data-testid="confirm-play-cleanup"
-                  onClick={() => {
-                    const victims = getEligibleStealVictims(state, selectedInspectorHex);
-                    const params: DevCardPlayParams = {
-                      cardType: 'cleanup',
-                      option: {
-                        type: 'INSPECTOR_MOVE_STEAL',
-                        newHexId: selectedInspectorHex,
-                        targetPlayerId: victims[0],
-                      },
-                    };
-                    onDispatch({ type: 'PLAY_DEV_CARD', playerId, cardId, params });
-                    onClose();
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '10px',
-                    borderRadius: '8px',
-                    background: 'var(--leaf)',
-                    color: '#ffffff',
-                    fontWeight: 900,
-                    border: 'none',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Confirm Move Inspector & Steal
-                </button>
-              </div>
-            ) : (
-              <div>
-                <div style={{ fontSize: '12px', fontWeight: 800, marginBottom: '6px' }}>
-                  {hazardTargets.length > 0
-                    ? 'Select Hazard Token to Remove:'
-                    : 'No Hazard Tokens on board (will still steal from player with >= LF if available):'}
-                </div>
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
-                  {hazardTargets.map((t, idx) => (
-                    <button
-                      key={`${t.kind}-${t.id}`}
-                      type="button"
-                      onClick={() => setSelectedHazardIdx(idx)}
-                      style={{
-                        padding: '5px 8px',
-                        borderRadius: '6px',
-                        fontSize: '11px',
-                        fontWeight: 800,
-                        background: selectedHazardIdx === idx ? 'var(--sea)' : 'var(--ink-700)',
-                        color: '#ffffff',
-                        border: '1px solid rgba(163, 183, 202, 0.28)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  data-testid="confirm-play-cleanup-hazard"
-                  onClick={() => {
-                    const target = hazardTargets[selectedHazardIdx] ?? {
-                      kind: 'hex' as const,
-                      id: 0,
-                    };
-                    const lfVictims = state.playerOrder.filter(
-                      (pid) =>
-                        pid !== playerId &&
-                        state.players[pid]!.localFootprint >= player.localFootprint &&
-                        getHandSizeForSeven(state.players[pid]!) > 0
-                    );
-                    const params: DevCardPlayParams = {
-                      cardType: 'cleanup',
-                      option: {
-                        type: 'REMOVE_HAZARD_STEAL',
-                        hazardTarget: { kind: target.kind, id: target.id },
-                        targetPlayerId: lfVictims[0],
-                      },
-                    };
-                    onDispatch({ type: 'PLAY_DEV_CARD', playerId, cardId, params });
-                    onClose();
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '10px',
-                    borderRadius: '8px',
-                    background: 'var(--leaf)',
-                    color: '#ffffff',
-                    fontWeight: 900,
-                    border: 'none',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Confirm Remove Hazard & Steal
-                </button>
-              </div>
-            )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <DevOption
+              testId="cleanup-option-inspector"
+              title="Move the inspector"
+              body="Pick a hex on the board, then take a card from a player with a building there."
+              onClick={() => startOnBoard('inspector')}
+              icon={
+                <svg width="40" height="40" viewBox="-20 -24 40 44">
+                  <InspectorPawnSvg cx={0} cy={0} scale={0.95} />
+                </svg>
+              }
+            />
+            <DevOption
+              testId="cleanup-option-hazard"
+              title="Remove a hazard"
+              body={
+                hasHazards
+                  ? 'Pick a hazard on the board, then take a card from a player whose footprint is at least yours.'
+                  : 'There are no hazards on the board right now.'
+              }
+              disabled={!hasHazards}
+              onClick={() => startOnBoard('hazard')}
+              icon={
+                <svg width="40" height="40" viewBox="-20 -20 40 40">
+                  <PieceDefs />
+                  <HazardCogSvg cx={0} cy={-1} r={16} />
+                </svg>
+              }
+            />
           </div>
         )}
 
+        {cardType === 'roadConstruction' && (
+          <button type="button" className="tt-cta" data-testid="road-construction-start" onClick={() => startOnBoard('road')}>
+            Place the roads on the board
+          </button>
+        )}
+
         {cardType === 'researchGrant' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div>
-              <div style={{ fontSize: '12px', fontWeight: 800, marginBottom: '6px' }}>First Free Card:</div>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science'] as const).map(
-                  (k) => (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => setGrantCard1(k)}
-                      style={{
-                        padding: '6px 10px',
-                        borderRadius: '6px',
-                        fontWeight: 800,
-                        background: grantCard1 === k ? 'var(--sea)' : 'var(--ink-700)',
-                        color: '#ffffff',
-                        border: '1px solid rgba(163, 183, 202, 0.28)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {CARD_METADATA[k].shortLabel}
-                    </button>
-                  )
-                )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {(
+              [
+                ['First card', grantCard1, setGrantCard1, 'grant1'],
+                ['Second card', grantCard2, setGrantCard2, 'grant2'],
+              ] as const
+            ).map(([label, value, setValue, key]) => (
+              <div key={key}>
+                <p className="md-sub" style={{ marginTop: key === 'grant1' ? 0 : '12px', fontWeight: 700, color: '#ffffff' }}>
+                  {label}
+                </p>
+                <div className="md-cards" style={{ marginTop: '8px' }}>
+                  {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science'] as const).map((k) => {
+                    const left = k === 'science' ? state.supply.science : state.supply.resources[k];
+                    return (
+                      <TradeCard
+                        key={k}
+                        kind={k}
+                        testId={`${key}-${k}`}
+                        badge="1"
+                        caption={`${left} left`}
+                        selected={value === k}
+                        disabled={left === 0}
+                        onClick={() => setValue(k)}
+                      />
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-
-            <div>
-              <div style={{ fontSize: '12px', fontWeight: 800, marginBottom: '6px' }}>Second Free Card:</div>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science'] as const).map(
-                  (k) => (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => setGrantCard2(k)}
-                      style={{
-                        padding: '6px 10px',
-                        borderRadius: '6px',
-                        fontWeight: 800,
-                        background: grantCard2 === k ? 'var(--sea)' : 'var(--ink-700)',
-                        color: '#ffffff',
-                        border: '1px solid rgba(163, 183, 202, 0.28)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {CARD_METADATA[k].shortLabel}
-                    </button>
-                  )
-                )}
-              </div>
-            </div>
-
+            ))}
             <button
               type="button"
+              className="tt-cta"
               data-testid="confirm-play-research-grant"
+              style={{ marginTop: '16px' }}
               onClick={() => {
                 onDispatch({
                   type: 'PLAY_DEV_CARD',
@@ -1267,31 +1122,34 @@ export function DevCardPlayModal({
                 });
                 onClose();
               }}
-              style={{
-                padding: '10px',
-                borderRadius: '8px',
-                background: 'var(--sea)',
-                color: '#ffffff',
-                fontWeight: 900,
-                border: 'none',
-                cursor: 'pointer',
-              }}
             >
-              Take 2 Cards ({CARD_METADATA[grantCard1].shortLabel} + {CARD_METADATA[grantCard2].shortLabel})
+              Take {tradeLabel(grantCard1)} and {tradeLabel(grantCard2)}
             </button>
           </div>
         )}
 
         {cardType === 'highYield' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ fontSize: '12.5px', color: 'var(--ink-100)' }}>
-              Eligible hexes with your Renewable Power Plants:{' '}
-              {renewableHexes.length > 0
-                ? renewableHexes.map((id) => `Hex #${id} (${state.board.hexes[id]!.terrain})`).join(', ')
-                : 'None currently built'}
-            </div>
+            {renewableHexes.length > 0 ? (
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {renewableHexes.slice(0, 3).map((id) => {
+                  const hex = state.board.hexes[id]!;
+                  return (
+                    <span key={id} className="tt-hexchip" style={{ color: 'var(--text)' }}>
+                      <i style={{ background: TERRAIN_THEMES[hex.terrain].primaryFill }} />
+                      {TERRAIN_THEMES[hex.terrain].resourceLabel}
+                      {hex.numberDisc !== null ? ` · ${hex.numberDisc}` : ''}
+                    </span>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="md-sub">Build a renewable power plant first — this card harvests from their hexes.</p>
+            )}
             <button
               type="button"
+              className="tt-cta"
+              data-testid="confirm-play-high-yield"
               disabled={renewableHexes.length === 0}
               onClick={() => {
                 onDispatch({
@@ -1302,84 +1160,64 @@ export function DevCardPlayModal({
                 });
                 onClose();
               }}
-              style={{
-                padding: '10px',
-                borderRadius: '8px',
-                background: renewableHexes.length > 0 ? '#dfb441' : 'var(--ink-700)',
-                color: '#1e190d',
-                fontWeight: 900,
-                border: 'none',
-                cursor: renewableHexes.length > 0 ? 'pointer' : 'not-allowed',
-              }}
             >
-              Harvest High Yield Resources
+              {renewableHexes.length > 0
+                ? `Collect from ${Math.min(3, renewableHexes.length)} hex${Math.min(3, renewableHexes.length) === 1 ? '' : 'es'}`
+                : 'Nothing to harvest yet'}
             </button>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
 
-        {cardType === 'roadConstruction' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ fontSize: '12px', fontWeight: 800 }}>
-              Select First Road Path Edge:
-            </div>
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-              {connectedEdges.map((eId) => (
-                <button
-                  key={eId}
-                  type="button"
-                  onClick={() => setRoadEdge1(eId)}
-                  style={{
-                    padding: '5px 8px',
-                    borderRadius: '6px',
-                    fontWeight: 800,
-                    background: roadEdge1 === eId ? '#b65c3b' : 'var(--ink-700)',
-                    color: '#ffffff',
-                    border: '1px solid rgba(163, 183, 202, 0.28)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Path #{eId}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              disabled={connectedEdges.length === 0}
-              onClick={() => {
-                const secondEdge = state.board.edges.find(
-                  (e) =>
-                    e.id !== roadEdge1 &&
-                    e.road === null &&
-                    isEdgeConnectedToPlayerNetwork(state.board, playerId, e.id, [roadEdge1])
-                )?.id;
-                onDispatch({
-                  type: 'PLAY_DEV_CARD',
-                  playerId,
-                  cardId,
-                  params: {
-                    cardType: 'roadConstruction',
-                    edge1: roadEdge1,
-                    ...(player.roadsInReserve >= 2 && secondEdge !== undefined
-                      ? { edge2: secondEdge }
-                      : {}),
-                  },
-                });
-                onClose();
-              }}
-              style={{
-                padding: '10px',
-                borderRadius: '8px',
-                background: '#b65c3b',
-                color: '#ffffff',
-                fontWeight: 900,
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              Place Free Road(s)
-            </button>
-          </div>
-        )}
+/** "Take a card from…" when a Clean Up card leaves more than one possible victim. */
+export function StealChooserModal({
+  state,
+  victims,
+  onChoose,
+  onCancel,
+}: {
+  state: GameState;
+  victims: PlayerId[];
+  onChoose: (pid: PlayerId) => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div style={MODAL_BACKDROP_STYLE} data-testid="steal-chooser">
+      <div style={{ ...MODAL_CARD_STYLE, maxWidth: '420px' }} role="dialog" aria-modal="true" aria-labelledby="steal-title">
+        <h3 className="md-title" id="steal-title">
+          Take a card from…
+        </h3>
+        <p className="md-sub">You take one card at random from their hand.</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px' }}>
+          {victims.map((pid) => {
+            const t = PLAYER_THEMES[pid];
+            return (
+              <button
+                key={pid}
+                type="button"
+                className="lb-option"
+                data-testid={`steal-from-${pid}`}
+                onClick={() => onChoose(pid)}
+                style={{ gridTemplateColumns: '28px 1fr auto', alignItems: 'center', boxShadow: `inset 4px 0 0 ${t.fill}` }}
+              >
+                <svg width="26" height="26" viewBox="-13 -13 26 26" aria-hidden="true">
+                  <circle r="12" fill={t.fill} stroke={t.stroke} strokeWidth="1.2" />
+                  <PlayerEmblemSvg playerId={pid} cx={0} cy={0} r={6.5} />
+                </svg>
+                <span className="lb-option-title">{state.players[pid]!.name}</span>
+                <span className="lb-option-desc" style={{ marginTop: 0 }}>
+                  {getHandSizeForSeven(state.players[pid]!)} cards
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <button type="button" className="tt-icon-btn" onClick={onCancel} style={{ marginTop: '14px', width: '100%', height: '38px' }}>
+          Cancel
+        </button>
       </div>
     </div>
   );

@@ -55,6 +55,8 @@ export interface IslandBoardSvgProps {
   /** Translucent piece shown where a hovered placement would go */
   previewNode?: { nodeId: NodeId; type: 'town' | 'city'; playerId: PlayerId } | null;
   previewEdge?: { edgeId: EdgeId; playerId: PlayerId } | null;
+  /** Roads chosen but not yet built (e.g. the first road of Road Construction) */
+  pinnedEdges?: { edgeId: EdgeId; playerId: PlayerId }[];
   onHexClick?: (hexId: HexId) => void;
   onNodeClick?: (nodeId: NodeId) => void;
   onEdgeClick?: (edgeId: EdgeId) => void;
@@ -443,6 +445,7 @@ export function IslandBoardSvg({
   highlightedCutoutSlots,
   previewNode,
   previewEdge,
+  pinnedEdges,
   onHexClick,
   onNodeClick,
   onEdgeClick,
@@ -666,8 +669,11 @@ export function IslandBoardSvg({
           const midY = (p1.y + p2.y) / 2;
           const angleDeg = (Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180) / Math.PI;
           const isHighlighted = highlightedEdgeIds?.has(edge.id) ?? false;
-          const ghostPlayer =
-            !edge.road && previewEdge?.edgeId === edge.id ? previewEdge.playerId : null;
+          const ghostPlayer = edge.road
+            ? null
+            : previewEdge?.edgeId === edge.id
+              ? previewEdge.playerId
+              : (pinnedEdges?.find((p) => p.edgeId === edge.id)?.playerId ?? null);
           const roadPlayer = edge.road?.playerId ?? ghostPlayer;
 
           return (

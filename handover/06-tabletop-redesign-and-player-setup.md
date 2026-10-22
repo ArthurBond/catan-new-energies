@@ -15,7 +15,7 @@ npm run typecheck   -> exit 0
 npm run lint        -> exit 0
 npm run build       -> dist/assets/index-*.js 289 kB (81 kB gzip), css 29 kB
 npx vitest run      -> 14 files, 174 tests passed
-npx playwright test -> 6 passed (tabletop, setup-flow x2, visual verification x2 viewports)
+npx playwright test -> 9 passed (tabletop x2, setup-flow x2, dev-cards x3, visual verification x2 viewports)
 ```
 
 ## What changed and why
@@ -85,9 +85,10 @@ Dev-only visual scenarios: `?scenario=showcase` (mid-game with plants, hazards, 
 - Drawing an event disc plays one short reveal (wooden disc with the event's icon, name and track progress); island tracks show event icons on their discs. `EventIconSvg` / `EventDiscSvg` live in `WoodenPiecesSvg.tsx`.
 - The trade dialog uses tappable cards on every tab (supply, harbors, players) with buttons that spell out the trade ("Give 4 lumber, get 1 brick", "Offer 2 steel for 1 food"); covered by `src/ui/__tests__/trade-modal.test.tsx`.
 - Forest, mountain and pasture tiles were redrawn (layered conifers, faceted peaks with snow and scree, sheep with heads).
+- **Development cards are finished on the board**: Road Construction highlights connected paths (first road stays as a ghost; "Just one road" or a second path), Clean Up asks "move the inspector" or "remove a hazard" and then you click the hex/hazard; a "Take a card from…" chooser appears only when there is more than one victim. Research Grant uses the card picker. Escape cancels. State lives in `TabletopApp` (`devTargeting`, `stealPrompt`); covered by `e2e/dev-cards.spec.ts`.
 
 ## Suggested next steps
 1. Hills, fields and desert tiles could get the same illustration pass as forest/mountains/pasture.
 2. Online (PeerJS) play has no lobby UI beyond the room code field; the multi-tab BroadcastChannel path works.
 3. Bots could explain their choices in the activity feed (e.g. "Pink built a renewable plant to lower its footprint").
-4. The dev-card play dialog (`DevCardPlayModal`) is restyled but still button-heavy; it could reuse the card pickers.
+4. High Yield always harvests the first three eligible hexes; letting the player pick which three (when they have more) would be a small rules-UX win.

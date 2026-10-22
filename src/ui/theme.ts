@@ -364,31 +364,31 @@ export const DEV_CARD_METADATA: Record<
     subtitle: 'Environment Action',
     color: '#2e8540',
     description:
-      'Move the Inspector & steal 1 card from an adjacent player, OR remove 1 Hazard & steal 1 card from a player with >= your LF.',
+      'Move the inspector and take a card from a player with a building there, or remove a hazard and take a card from a player whose footprint is at least yours.',
   },
   roadConstruction: {
     title: 'Road Construction',
     subtitle: 'Progress Card',
     color: '#b65c3b',
-    description: 'Build up to 2 Roads for free connected to your network.',
+    description: 'Build up to two roads for free, connected to your network.',
   },
   highYield: {
     title: 'High Yield',
     subtitle: 'Progress Card',
     color: '#dfb441',
-    description: 'Collect 1 resource from up to 3 different hexes where you have Renewable Power Plants.',
+    description: 'Collect one resource from each of up to three hexes where you have a renewable power plant.',
   },
   researchGrant: {
     title: 'Research Grant',
     subtitle: 'Progress Card',
     color: '#3676c8',
-    description: 'Take any 2 Resource or Science cards of your choice from the supply.',
+    description: 'Take any two resource or science cards from the supply.',
   },
   victoryPoint: {
     title: 'Victory Point',
     subtitle: '+1 Victory Point',
     color: '#f0b418',
-    description: 'Keep hidden until you can reveal it on your turn to reach 10 Victory Points and win!',
+    description: 'Keep it hidden. Reveal it on your turn when it takes you to 10 points.',
   },
 };
 

@@ -17,10 +17,13 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { BotDifficulty, chooseBotAction, getActingPlayerId } from '../ai/bot';
 import { legalActions } from '../engine/actions';
 import { getEventDiscDrawCount } from '../engine/config';
-import { getDevCardType } from '../engine/dev-cards';
+import { getDevCardType, isEdgeConnectedToPlayerNetwork } from '../engine/dev-cards';
+import { getEligibleStealVictims, getHandSizeForSeven } from '../engine/production';
 import { applyAction } from '../engine/reducer';
 import { createInitialGameState, StartingPlacement } from '../engine/setup';
 import {
+  CleanupOption,
+  DevCardPlayParams,
   DevelopmentCardType,
   EdgeId,
   EventDiscType,
@@ -44,6 +47,7 @@ import {
   PendingDecisionBanner,
   PrivacyCurtainModal,
   SeatConfig,
+  StealChooserModal,
   TradeModal,
   VictoryModal,
 } from './Modals';
@@ -61,6 +65,12 @@ const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 5;
 const TOAST_MS = 3400;
 const EVENT_REVEAL_MS = 1900;
+
+/** A development card being finished on the board (paths, a hex, or a hazard to pick). */
+type DevTargeting =
+  | { cardId: string; kind: 'road'; first: EdgeId | null }
+  | { cardId: string; kind: 'inspector' }
+  | { cardId: string; kind: 'hazard' };
 
 interface EventReveal {
   id: number;
@@ -342,6 +352,12 @@ export function TabletopApp() {
     cardId: string;
     cardType: DevelopmentCardType;
   } | null>(null);
+  const [devTargeting, setDevTargeting] = useState<DevTargeting | null>(null);
+  const [stealPrompt, setStealPrompt] = useState<{
+    cardId: string;
+    option: CleanupOption;
+    victims: PlayerId[];
+  } | null>(null);
   const [dismissedVictoryModal, setDismissedVictoryModal] = useState(false);
   const [selectedEventInfo, setSelectedEventInfo] = useState<EventDiscType | null>(null);
   const [privacyCurtainForPlayer, setPrivacyCurtainForPlayer] = useState<PlayerId | null>(null);
@@ -430,15 +446,17 @@ export function TabletopApp() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  // Escape leaves a placement mode without building anything
+  // Escape leaves a placement mode (or a card being played on the board) without doing anything
   useEffect(() => {
-    if (!activeBuildMode) return;
+    if (!activeBuildMode && !devTargeting) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setActiveBuildMode(null);
+      if (e.key !== 'Escape') return;
+      setActiveBuildMode(null);
+      setDevTargeting(null);
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [activeBuildMode]);
+  }, [activeBuildMode, devTargeting]);
 
   const actingPlayerId = getActingPlayerId(gameState) ?? gameState.activePlayerId;
   const isActingPlayerBot = lobbyConfig.seats[actingPlayerId]?.controller === 'bot';
@@ -469,6 +487,8 @@ export function TabletopApp() {
       setHistory((prev) => [...prev.slice(-24), gameState]);
       setGameState(next);
       setActiveBuildMode(null);
+      setDevTargeting(null);
+      setStealPrompt(null);
       setHoveredNodeId(null);
       setHoveredEdgeId(null);
       setToast(describeAction(action, gameState, next));
@@ -591,6 +611,24 @@ export function TabletopApp() {
 
       if (isActingPlayerBot) return result;
 
+      // 0. A development card being finished on the board
+      if (devTargeting) {
+        const board = gameState.board;
+        if (devTargeting.kind === 'road') {
+          for (const e of board.edges) {
+            if (e.road !== null || e.id === devTargeting.first) continue;
+            const prior = devTargeting.first === null ? [] : [devTargeting.first];
+            if (isEdgeConnectedToPlayerNetwork(board, actingPlayerId, e.id, prior)) edges.add(e.id);
+          }
+        } else if (devTargeting.kind === 'inspector') {
+          for (const h of board.hexes) if (!h.hasHazard && !h.hasInspector) hexes.add(h.id);
+        } else {
+          for (const h of board.hexes) if (h.hasHazard) hexes.add(h.id);
+          for (const n of board.intersections) if (n.hasHazard) nodes.add(n.id);
+        }
+        return result;
+      }
+
       // 1. Pending decision highlights
       if (headDecision && headDecision.playerId === actingPlayerId) {
         if (headDecision.type === 'SETUP_PLACE_SETTLEMENT') {
@@ -647,7 +685,15 @@ export function TabletopApp() {
       }
 
       return result;
-    }, [isActingPlayerBot, headDecision, actingPlayerId, currentLegalActions, activeBuildMode, gameState.board]);
+    }, [
+      isActingPlayerBot,
+      devTargeting,
+      headDecision,
+      actingPlayerId,
+      currentLegalActions,
+      activeBuildMode,
+      gameState.board,
+    ]);
 
   // Ghost piece previews while hovering a legal spot
   const previewNode = useMemo(() => {
@@ -662,15 +708,76 @@ export function TabletopApp() {
 
   const previewEdge = useMemo(() => {
     if (hoveredEdgeId === null || !highlightedEdgeIds.has(hoveredEdgeId)) return null;
-    if (headDecision?.type === 'SETUP_PLACE_ROAD' || activeBuildMode === 'BUILD_ROAD') {
+    if (
+      headDecision?.type === 'SETUP_PLACE_ROAD' ||
+      activeBuildMode === 'BUILD_ROAD' ||
+      devTargeting?.kind === 'road'
+    ) {
       return { edgeId: hoveredEdgeId, playerId: actingPlayerId };
     }
     return null;
-  }, [hoveredEdgeId, highlightedEdgeIds, headDecision, activeBuildMode, actingPlayerId]);
+  }, [hoveredEdgeId, highlightedEdgeIds, headDecision, activeBuildMode, devTargeting, actingPlayerId]);
+
+  // Road Construction: the first free road stays on the board as a ghost while the second is picked
+  const pinnedEdges =
+    devTargeting?.kind === 'road' && devTargeting.first !== null
+      ? [{ edgeId: devTargeting.first, playerId: actingPlayerId }]
+      : [];
+
+  const startDevCard = (cardId: string, cardType: DevelopmentCardType) => {
+    setActiveBuildMode(null);
+    if (cardType === 'roadConstruction') {
+      setDevTargeting({ cardId, kind: 'road', first: null });
+    } else {
+      setDevCardPrompt({ cardId, cardType });
+    }
+  };
+
+  const playDevCard = (cardId: string, params: DevCardPlayParams) =>
+    dispatchAction({ type: 'PLAY_DEV_CARD', playerId: actingPlayerId, cardId, params });
+
+  /** Finish a Clean Up card: steal straight away, or ask whom to steal from when there is a choice. */
+  const finishCleanup = (cardId: string, option: CleanupOption, victims: PlayerId[]) => {
+    setDevTargeting(null);
+    if (victims.length > 1) {
+      setStealPrompt({ cardId, option, victims });
+      return;
+    }
+    playDevCard(cardId, {
+      cardType: 'cleanup',
+      option: victims[0] ? { ...option, targetPlayerId: victims[0] } : option,
+    });
+  };
+
+  const footprintVictims = (): PlayerId[] => {
+    const mine = gameState.players[actingPlayerId]!.localFootprint;
+    return gameState.playerOrder.filter(
+      (pid) =>
+        pid !== actingPlayerId &&
+        gameState.players[pid]!.localFootprint >= mine &&
+        getHandSizeForSeven(gameState.players[pid]!) > 0
+    );
+  };
 
   // Board click handlers
   const handleHexClick = (hexId: HexId) => {
     if (isActingPlayerBot || dragRef.current?.moved) return;
+    if (devTargeting && highlightedHexIds.has(hexId)) {
+      if (devTargeting.kind === 'inspector') {
+        finishCleanup(
+          devTargeting.cardId,
+          { type: 'INSPECTOR_MOVE_STEAL', newHexId: hexId },
+          getEligibleStealVictims(gameState, hexId)
+        );
+      } else if (devTargeting.kind === 'hazard') {
+        finishCleanup(
+          devTargeting.cardId,
+          { type: 'REMOVE_HAZARD_STEAL', hazardTarget: { kind: 'hex', id: hexId } },
+          footprintVictims()
+        );
+      }
+      return;
+    }
     if (headDecision?.type === 'MOVE_INSPECTOR' && highlightedHexIds.has(hexId)) {
       dispatchAction({
         type: 'RESOLVE_PENDING_DECISION',
@@ -693,6 +800,14 @@ export function TabletopApp() {
   const handleNodeClick = (nodeId: NodeId) => {
     if (isActingPlayerBot || dragRef.current?.moved) return;
     if (!highlightedNodeIds.has(nodeId)) return;
+    if (devTargeting?.kind === 'hazard') {
+      finishCleanup(
+        devTargeting.cardId,
+        { type: 'REMOVE_HAZARD_STEAL', hazardTarget: { kind: 'node', id: nodeId } },
+        footprintVictims()
+      );
+      return;
+    }
     if (headDecision?.type === 'SETUP_PLACE_SETTLEMENT') {
       dispatchAction({
         type: headDecision.round === 1 ? 'SETUP_BUILD_TOWN' : 'SETUP_BUILD_CITY',
@@ -727,6 +842,21 @@ export function TabletopApp() {
   const handleEdgeClick = (edgeId: EdgeId) => {
     if (isActingPlayerBot || dragRef.current?.moved) return;
     if (!highlightedEdgeIds.has(edgeId)) return;
+    if (devTargeting?.kind === 'road') {
+      const roadsLeft = gameState.players[actingPlayerId]!.roadsInReserve;
+      if (devTargeting.first === null && roadsLeft >= 2) {
+        setDevTargeting({ ...devTargeting, first: edgeId });
+      } else if (devTargeting.first === null) {
+        playDevCard(devTargeting.cardId, { cardType: 'roadConstruction', edge1: edgeId });
+      } else {
+        playDevCard(devTargeting.cardId, {
+          cardType: 'roadConstruction',
+          edge1: devTargeting.first,
+          edge2: edgeId,
+        });
+      }
+      return;
+    }
     if (headDecision?.type === 'SETUP_PLACE_ROAD') {
       dispatchAction({ type: 'SETUP_BUILD_ROAD', playerId: actingPlayerId, edgeId });
     } else if (activeBuildMode === 'BUILD_ROAD') {
@@ -947,6 +1077,47 @@ export function TabletopApp() {
             setIsDragging(false);
           }}
         >
+          {devTargeting && (
+            <div className="tt-ink tt-board-prompt" data-testid="dev-card-board-prompt" role="status">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <strong>
+                  {devTargeting.kind === 'road'
+                    ? devTargeting.first === null
+                      ? 'Road Construction: place your first free road'
+                      : 'Place your second free road'
+                    : devTargeting.kind === 'inspector'
+                      ? 'Clean Up: move the inspector'
+                      : 'Clean Up: remove a hazard'}
+                </strong>
+                <span>
+                  {devTargeting.kind === 'road'
+                    ? devTargeting.first === null
+                      ? 'Click a glowing path connected to your roads, towns or cities.'
+                      : 'Click another glowing path, or keep just the one.'
+                    : devTargeting.kind === 'inspector'
+                      ? 'Click a glowing hex. Then you take a card from a player there.'
+                      : 'Click a hazard on a hex or building.'}
+                </span>
+              </div>
+              {devTargeting.kind === 'road' && devTargeting.first !== null && (
+                <button
+                  type="button"
+                  className="tt-icon-btn"
+                  data-testid="road-construction-just-one"
+                  onClick={() =>
+                    devTargeting.first !== null &&
+                    playDevCard(devTargeting.cardId, { cardType: 'roadConstruction', edge1: devTargeting.first })
+                  }
+                >
+                  Just one road
+                </button>
+              )}
+              <button type="button" className="tt-icon-btn" onClick={() => setDevTargeting(null)}>
+                Cancel
+              </button>
+            </div>
+          )}
+
           <div className="tt-board-overlay-top">
             <div
               data-testid="live-action-banner"
@@ -1007,6 +1178,7 @@ export function TabletopApp() {
               producingHexIds={producingHexIds}
               previewNode={previewNode}
               previewEdge={previewEdge}
+              pinnedEdges={pinnedEdges}
               onHexClick={handleHexClick}
               onNodeClick={handleNodeClick}
               onEdgeClick={handleEdgeClick}
@@ -1109,7 +1281,7 @@ export function TabletopApp() {
         onBuyDevCard={() => dispatchAction({ type: 'BUY_DEV_CARD', playerId: actingPlayerId })}
         onBuildWarehouse={() => dispatchAction({ type: 'BUILD_WAREHOUSE', playerId: actingPlayerId })}
         onOpenEnergyBuyCardModal={() => setShowEnergyCardModal(true)}
-        onPlayDevCardPrompt={(cardId, cardType) => setDevCardPrompt({ cardId, cardType })}
+        onPlayDevCardPrompt={startDevCard}
         onRevealVpCards={(cardIds) => dispatchAction({ type: 'REVEAL_VP_CARDS', playerId: actingPlayerId, cardIds })}
         onInspect={(pid) => setInspectedPlayerId(pid)}
         primary={primary}
@@ -1151,7 +1323,7 @@ export function TabletopApp() {
                 onBuildWarehouse={() => dispatchAction({ type: 'BUILD_WAREHOUSE', playerId: actingPlayerId })}
                 onBuyDevCard={() => dispatchAction({ type: 'BUY_DEV_CARD', playerId: actingPlayerId })}
                 onOpenEnergyBuyCardModal={() => setShowEnergyCardModal(true)}
-                onPlayDevCardPrompt={(cardId, cardType) => setDevCardPrompt({ cardId, cardType })}
+                onPlayDevCardPrompt={startDevCard}
                 onRevealVpCards={(cardIds) =>
                   dispatchAction({ type: 'REVEAL_VP_CARDS', playerId: actingPlayerId, cardIds })
                 }
@@ -1184,6 +1356,24 @@ export function TabletopApp() {
           cardType={devCardPrompt.cardType}
           onDispatch={dispatchAction}
           onClose={() => setDevCardPrompt(null)}
+          onStartBoardTargeting={(target) => {
+            const cardId = devCardPrompt.cardId;
+            setDevTargeting(target === 'road' ? { cardId, kind: 'road', first: null } : { cardId, kind: target });
+          }}
+        />
+      )}
+
+      {stealPrompt && (
+        <StealChooserModal
+          state={gameState}
+          victims={stealPrompt.victims}
+          onChoose={(pid) =>
+            playDevCard(stealPrompt.cardId, {
+              cardType: 'cleanup',
+              option: { ...stealPrompt.option, targetPlayerId: pid },
+            })
+          }
+          onCancel={() => setStealPrompt(null)}
         />
       )}
 
