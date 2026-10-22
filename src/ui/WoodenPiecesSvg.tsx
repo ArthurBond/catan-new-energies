@@ -166,6 +166,11 @@ export function PieceDefs() {
         <stop offset="0%" stopColor="#b4b6ba" style={{ stopColor: '#b4b6ba' }} />
         <stop offset="100%" stopColor="#85888d" style={{ stopColor: '#85888d' }} />
       </linearGradient>
+      <pattern id="hex-grain" width="5" height="5" patternUnits="userSpaceOnUse">
+        <circle cx="1" cy="1.2" r="0.45" fill="#ffffff" fillOpacity="0.16" />
+        <circle cx="3.6" cy="3.4" r="0.5" fill="#000000" fillOpacity="0.1" />
+        <circle cx="3.9" cy="0.9" r="0.3" fill="#000000" fillOpacity="0.08" />
+      </pattern>
       <pattern id="hazard-speckle" width="7" height="7" patternUnits="userSpaceOnUse">
         <circle cx="1.2" cy="1.5" r="0.55" fill="#5d6065" />
         <circle cx="4.6" cy="2.4" r="0.45" fill="#d9dbde" />

@@ -285,9 +285,48 @@ function TerrainArtworkSvg({ terrain, hexId }: { terrain: TerrainType; hexId: nu
             />
           </g>
         )}
+
+        {/* Printed-board grain */}
+        <polygon
+          points={getPointyHexPoints(0, 0, innerR)}
+          fill="url(#hex-grain) transparent"
+          pointerEvents="none"
+        />
       </g>
+
+      {/* Cardboard tile bevel: lit upper-left edges, shaded lower-right edges */}
+      <polyline
+        points={bevelPoints(innerR - 1.6, [4, 5, 0, 1])}
+        fill="none"
+        stroke="#ffffff"
+        strokeOpacity={0.38}
+        strokeWidth={2.4}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        pointerEvents="none"
+      />
+      <polyline
+        points={bevelPoints(innerR - 1.6, [1, 2, 3, 4])}
+        fill="none"
+        stroke="#0b1520"
+        strokeOpacity={0.26}
+        strokeWidth={2.4}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        pointerEvents="none"
+      />
     </g>
   );
+}
+
+/** Pointy-top hex vertices (0 = top, clockwise) joined into a polyline for edge shading. */
+function bevelPoints(radius: number, vertexIdx: number[]): string {
+  return vertexIdx
+    .map((i) => {
+      const a = ((60 * i - 90) * Math.PI) / 180;
+      return `${(radius * Math.cos(a)).toFixed(2)},${(radius * Math.sin(a)).toFixed(2)}`;
+    })
+    .join(' ');
 }
 
 /** How long (ms) a freshly placed piece keeps its drop-in animation class. */
