@@ -1439,6 +1439,107 @@ button:not(:disabled):active {
 }
 
 /* ========================================================================== */
+/* Decision dialogs                                                           */
+/* ========================================================================== */
+
+.md-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 21px;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: #ffffff;
+}
+
+.md-sub {
+  font-size: 13px;
+  color: var(--ink-300);
+  line-height: 1.45;
+  margin-top: 4px;
+}
+
+.md-cards {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.md-card-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.md-pick {
+  flex: none;
+  width: 100%;
+  max-width: 72px;
+  height: 80px;
+  cursor: pointer;
+}
+
+.md-pick:disabled {
+  cursor: not-allowed;
+}
+
+.md-pick:not(:disabled):hover {
+  transform: translateY(-4px);
+}
+
+.md-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--ink-950);
+}
+
+.md-stepper button {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: var(--ink-700);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.md-stepper button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.md-stepper span {
+  min-width: 18px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 14px;
+  color: #ffffff;
+}
+
+.md-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--ink-950);
+  margin: 16px 0 14px;
+  overflow: hidden;
+}
+
+.md-progress div {
+  height: 100%;
+  background: var(--volt);
+  border-radius: 999px;
+  transition: width 240ms var(--ease-out);
+}
+
+/* ========================================================================== */
 /* New game sheet (lobby)                                                     */
 /* ========================================================================== */
 

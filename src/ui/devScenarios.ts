@@ -4,6 +4,9 @@
  * Builds a mid-game table from the First Game layout so every kind of component
  * (both plant types, hazards on hexes and buildings, a moved inspector, a full hand)
  * is visible at once for screenshots and visual checks. Not reachable from the lobby.
+ *
+ * Variants: `showcase` (action phase), `discard` (roll of 7 discard prompt),
+ * `cardchoice` (Climate Conference reward prompt), `victory` (game over summary).
  */
 
 import { computePlayerLF, computeTrueTotalLF, clampGF } from '../engine/footprint';
@@ -71,5 +74,36 @@ export function applyShowcaseScenario(input: GameState): GameState {
   state.phase = 'ActionPhase';
   state.lastDiceRoll = [5, 3];
   state.log.push({ timestamp: state.log.length, message: 'Showcase scenario loaded.' });
+  return state;
+}
+
+export type DevScenario = 'showcase' | 'discard' | 'cardchoice' | 'victory';
+
+export function applyDevScenario(input: GameState, scenario: string): GameState {
+  if (!['showcase', 'discard', 'cardchoice', 'victory'].includes(scenario)) return input;
+  const state = applyShowcaseScenario(input);
+  if (scenario === 'discard') {
+    state.phase = 'ProductionPhase';
+    state.lastDiceRoll = [3, 4];
+    state.pendingDecisions = [
+      { id: 'dev-discard', type: 'DISCARD_ON_SEVEN', playerId: 'orange', cardsToDiscard: 6 },
+    ];
+  } else if (scenario === 'cardchoice') {
+    state.phase = 'EventPhase';
+    state.pendingDecisions = [
+      {
+        id: 'dev-card-choice',
+        type: 'EVENT_CARD_CHOICE',
+        playerId: 'orange',
+        event: 'ClimateConferenceReward',
+        cardCount: 1,
+        isOptional: false,
+      },
+    ];
+  } else if (scenario === 'victory') {
+    state.players.orange!.victoryPoints = 10;
+    state.winner = 'orange';
+    state.phase = 'GameEnd';
+  }
   return state;
 }

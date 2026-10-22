@@ -32,7 +32,8 @@ import {
 } from '../engine/types';
 import { BroadcastChannelTransport } from '../network/transport';
 import { ActionDock, PrimaryAction } from './ActionDock';
-import { applyShowcaseScenario } from './devScenarios';
+import { applyDevScenario } from './devScenarios';
+import { eventName, humanizeLog } from './gameView';
 import { IslandBoardSvg } from './IslandBoardSvg';
 import { Icon } from './Icons';
 import {
@@ -169,7 +170,7 @@ function createGameFromConfig(cfg: LobbyConfig, scenario = ''): GameState {
       blue: cfg.seats.blue.name,
     },
   });
-  return scenario === 'showcase' ? applyShowcaseScenario(state) : state;
+  return scenario ? applyDevScenario(state, scenario) : state;
 }
 
 function mapDifficulty(d: 'easy' | 'normal' | 'hard'): BotDifficulty {
@@ -187,10 +188,19 @@ interface Toast {
 
 const PLANT_WORD = { BUILD_FOSSIL_PLANT: 'a fossil fuel plant', BUILD_RENEWABLE_PLANT: 'a renewable plant' };
 
+/** The event disc type that left the bag between two states, if any. */
+function drawnDisc(prev: GameState, next: GameState): EventDiscType | null {
+  const counts = new Map<EventDiscType, number>();
+  for (const d of prev.eventBag) counts.set(d, (counts.get(d) ?? 0) + 1);
+  for (const d of next.eventBag) counts.set(d, (counts.get(d) ?? 0) - 1);
+  for (const [d, n] of counts) if (n > 0) return d;
+  return null;
+}
+
 /** Plain-language headline for what just happened at the table. */
 function describeAction(action: GameAction, prev: GameState, next: GameState): Toast {
   const name = next.players[action.playerId]?.name ?? action.playerId;
-  const detail = next.log[next.log.length - 1]?.message ?? '';
+  const detail = humanizeLog(next.log[next.log.length - 1]?.message ?? '');
   const base = { id: Date.now() + Math.random(), playerId: action.playerId, detail };
   switch (action.type) {
     case 'SETUP_ROLL_DICE': {
@@ -213,8 +223,20 @@ function describeAction(action: GameAction, prev: GameState, next: GameState): T
       const d = next.lastDiceRoll;
       return { ...base, title: d ? `${name} rolled ${d[0] + d[1]}` : `${name} rolled` };
     }
-    case 'DRAW_EVENT_DISC':
-      return { ...base, title: `${name} drew an event disc` };
+    case 'DRAW_EVENT_DISC': {
+      const disc = drawnDisc(prev, next);
+      if (!disc) return { ...base, title: `${name} drew an event disc` };
+      const meta = EVENT_TRACK_METADATA[disc];
+      const onTrack = next.eventTracks[disc] ?? 0;
+      return {
+        ...base,
+        title: `${name} drew ${eventName(disc)}`,
+        detail:
+          onTrack === 0
+            ? `The track filled up — ${eventName(disc)} takes effect.`
+            : `${onTrack} of ${meta.capacity} on the track`,
+      };
+    }
     case 'BUILD_ROAD':
       return { ...base, title: `${name} built a road` };
     case 'BUILD_TOWN':

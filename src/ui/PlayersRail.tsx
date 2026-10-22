@@ -5,7 +5,7 @@
 
 import 'preact/compat';
 import { GameState, PlayerId } from '../engine/types';
-import { handCount } from './gameView';
+import { handCount, humanizeLog } from './gameView';
 import { Icon } from './Icons';
 import type { SeatConfig } from './Modals';
 import { PLAYER_THEMES } from './theme';
@@ -135,7 +135,7 @@ export function PlayersRail({ state, seats, inspectedPlayerId, onInspect }: Play
             return (
               <div key={`${entry.timestamp}-${idx}`} className="tt-feed-item">
                 <i style={{ background: who ? PLAYER_THEMES[who.pid].fill : 'var(--card-edge-deep)' }} />
-                <span>{entry.message}</span>
+                <span>{humanizeLog(entry.message)}</span>
               </div>
             );
           })}

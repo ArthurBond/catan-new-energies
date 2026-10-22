@@ -35,7 +35,7 @@ import {
   DEV_CARD_METADATA,
   PLAYER_THEMES,
 } from './theme';
-import { PlayerEmblemSvg } from './WoodenPiecesSvg';
+import { PlayerEmblemSvg, ResourceIconSvg } from './WoodenPiecesSvg';
 
 export type BotStrategyName = 'Balanced' | 'GreenInnovator' | 'IndustrialExpansionist';
 export type BotDifficultyName = 'easy' | 'normal' | 'hard';
@@ -471,9 +471,7 @@ export function TradeModal({
     <div style={MODAL_BACKDROP_STYLE} data-testid="trade-modal">
       <div style={MODAL_CARD_STYLE}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 900, color: 'var(--volt)' }}>
-            Maritime, Supply & Domestic Trade
-          </h3>
+          <h3 className="md-title">Trade</h3>
           <button
             type="button"
             data-testid="close-trade-modal"
@@ -509,7 +507,7 @@ export function TradeModal({
               border: '1px solid rgba(163, 183, 202, 0.28)',
             }}
           >
-            Supply Trade (4:1 / 3:1 Sci / 2:1 ⚡)
+            With the supply
           </button>
           <button
             type="button"
@@ -543,7 +541,7 @@ export function TradeModal({
               border: '1px solid rgba(163, 183, 202, 0.28)',
             }}
           >
-            Domestic P2P Trade
+            With a player
           </button>
         </div>
 
@@ -551,7 +549,7 @@ export function TradeModal({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div>
               <div style={{ fontSize: '12px', fontWeight: 800, marginBottom: '6px', color: 'var(--ink-100)' }}>
-                1. GIVE TO SUPPLY (4 Resource, 3 Science, or 2 Energy):
+                You give: 4 of one resource, 3 science or 2 energy
               </div>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                 {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science', 'energy'] as const).map(
@@ -594,7 +592,7 @@ export function TradeModal({
 
             <div>
               <div style={{ fontSize: '12px', fontWeight: 800, marginBottom: '6px', color: 'var(--ink-100)' }}>
-                2. RECEIVE 1 CARD FROM SUPPLY:
+                You get one card of your choice
               </div>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                 {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science'] as const).map(
@@ -646,7 +644,7 @@ export function TradeModal({
                 cursor: canExecuteSupplyTrade ? 'pointer' : 'not-allowed',
               }}
             >
-              Execute Supply Trade
+              Trade with the supply
             </button>
           </div>
         )}
@@ -655,7 +653,7 @@ export function TradeModal({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {playerHarbors.length === 0 ? (
               <p style={{ color: 'var(--ink-300)', fontSize: '13px' }}>
-                You do not currently have a Town or City on any coastal Harbor intersection.
+                Build a town or city on a harbor to trade there at 3:1 or 2:1.
               </p>
             ) : (
               <>
@@ -683,7 +681,7 @@ export function TradeModal({
                 {selectedHarbor?.type === 'generic' && (
                   <div>
                     <div style={{ fontSize: '12px', fontWeight: 800, marginBottom: '6px' }}>
-                      Give 3 of Resource:
+                      You give
                     </div>
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                       {RESOURCE_TYPES.map((r) => (
@@ -710,7 +708,7 @@ export function TradeModal({
 
                 <div>
                   <div style={{ fontSize: '12px', fontWeight: 800, marginBottom: '6px' }}>
-                    Receive 1 Card:
+                    You get one card
                   </div>
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                     {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science'] as const).map(
@@ -760,7 +758,7 @@ export function TradeModal({
                     cursor: canExecuteHarborTrade ? 'pointer' : 'not-allowed',
                   }}
                 >
-                  Execute Harbor Trade
+                  Trade at the harbor
                 </button>
               </>
             )}
@@ -770,7 +768,7 @@ export function TradeModal({
         {tab === 'domestic' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <span style={{ fontSize: '12px', fontWeight: 800 }}>Trade With Opponent:</span>
+              <span style={{ fontSize: '12px', fontWeight: 800 }}>Trade with</span>
               {state.playerOrder
                 .filter((p) => p !== playerId)
                 .map((pid) => (
@@ -800,7 +798,7 @@ export function TradeModal({
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div style={{ padding: '10px', background: 'rgba(0,0,0,0.25)', borderRadius: '8px' }}>
                 <div style={{ fontSize: '11px', fontWeight: 800, marginBottom: '6px', color: 'var(--volt)' }}>
-                  YOU OFFER:
+                  You offer
                 </div>
                 {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science', 'energy'] as const).map(
                   (k) => {
@@ -843,7 +841,7 @@ export function TradeModal({
 
               <div style={{ padding: '10px', background: 'rgba(0,0,0,0.25)', borderRadius: '8px' }}>
                 <div style={{ fontSize: '11px', fontWeight: 800, marginBottom: '6px', color: '#8ce09a' }}>
-                  YOU REQUEST:
+                  You ask for
                 </div>
                 {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science', 'energy'] as const).map(
                   (k) => {
@@ -902,7 +900,7 @@ export function TradeModal({
                 cursor: 'pointer',
               }}
             >
-              Send Domestic Trade Offer
+              Send offer
             </button>
           </div>
         )}
@@ -929,8 +927,8 @@ export function EnergyBuyCardModal({
   return (
     <div style={MODAL_BACKDROP_STYLE} data-testid="energy-card-modal">
       <div style={{ ...MODAL_CARD_STYLE, maxWidth: '460px' }}>
-        <h3 style={{ fontSize: '17px', fontWeight: 900, color: 'var(--volt)', marginBottom: '8px' }}>
-          Spend 2 Energy Bolts &rarr; Take 1 Card
+        <h3 className="md-title" style={{ marginBottom: '8px' }}>
+          Spend 2 energy for a card
         </h3>
         <p style={{ fontSize: '12.5px', color: 'var(--ink-100)', marginBottom: '14px' }}>
           Choose any 1 Resource or Science card from the global supply:
@@ -1068,7 +1066,7 @@ export function DevCardPlayModal({
     <div style={MODAL_BACKDROP_STYLE} data-testid="dev-card-modal">
       <div style={{ ...MODAL_CARD_STYLE, maxWidth: '540px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 900, color: meta.color }}>
+          <h3 className="md-title" style={{ boxShadow: `inset 0 -3px 0 ${meta.color}`, display: 'inline-block', paddingBottom: '2px' }}>
             Play {meta.title}
           </h3>
           <button
@@ -1468,71 +1466,79 @@ export function PendingDecisionBanner({
   if (decision.type === 'DISCARD_ON_SEVEN') {
     const totalSelected = Object.values(discardCounts).reduce((acc, v) => acc + (v || 0), 0);
     const needed = decision.cardsToDiscard;
+    const limit = player.hasWarehouse ? 10 : 7;
 
     return (
       <div style={MODAL_BACKDROP_STYLE} data-testid="pending-decision-modal">
-        <div style={{ ...MODAL_CARD_STYLE, maxWidth: '480px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 900, color: 'var(--volt)', marginBottom: '6px' }}>
-            Roll of 7 — {player.name} Must Discard {needed} Card{needed > 1 ? 's' : ''}
+        <div style={{ ...MODAL_CARD_STYLE, maxWidth: '560px' }} role="dialog" aria-modal="true" aria-labelledby="discard-title">
+          <h3 className="md-title" id="discard-title">
+            Seven! {player.name} discards {needed} card{needed > 1 ? 's' : ''}
           </h3>
-          <p style={{ fontSize: '12.5px', color: 'var(--ink-100)', marginBottom: '12px' }}>
-            Selected: {totalSelected} / {needed}
+          <p className="md-sub">
+            Anyone holding more than {limit} cards gives up half, rounded down. Tap cards to choose
+            which ones go back to the supply.
           </p>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
-            {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science'] as const).map(
-              (k) => {
-                const held = k === 'science' ? player.science : player.resources[k];
-                if (held === 0) return null;
-                const cur = discardCounts[k] || 0;
-
-                return (
-                  <div
-                    key={k}
+          <div className="md-cards">
+            {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science'] as const).map((k) => {
+              const held = k === 'science' ? player.science : player.resources[k];
+              const cur = discardCounts[k] || 0;
+              const meta = CARD_METADATA[k];
+              const canAdd = cur < held && totalSelected < needed;
+              return (
+                <div key={k} className="md-card-col">
+                  <button
+                    type="button"
+                    className="tt-res-card md-pick"
+                    data-testid={`discard-card-${k}`}
+                    data-empty={held - cur === 0 ? 'true' : 'false'}
+                    disabled={!canAdd}
+                    onClick={() => setDiscardCounts({ ...discardCounts, [k]: Math.min(held, cur + 1) })}
+                    aria-label={`Discard one ${meta.label} (${held - cur} left in hand)`}
                     style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '6px 10px',
-                      background: 'rgba(255,255,255,0.05)',
-                      borderRadius: '8px',
+                      ['--res-fill' as string]: meta.cardFill,
+                      ['--res-border' as string]: meta.border,
+                      ['--res-text' as string]: meta.textColor,
                     }}
                   >
-                    <span style={{ fontWeight: 800, fontSize: '13px' }}>
-                      {CARD_METADATA[k].label} (In hand: {held})
-                    </span>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setDiscardCounts({ ...discardCounts, [k]: Math.max(0, cur - 1) })
-                        }
-                        style={{ padding: '3px 10px', cursor: 'pointer', fontWeight: 900 }}
-                      >
-                        -
-                      </button>
-                      <span style={{ fontWeight: 900, minWidth: '20px', textAlign: 'center' }}>
-                        {cur}
-                      </span>
-                      <button
-                        type="button"
-                        disabled={cur >= held || totalSelected >= needed}
-                        onClick={() =>
-                          setDiscardCounts({ ...discardCounts, [k]: Math.min(held, cur + 1) })
-                        }
-                        style={{ padding: '3px 10px', cursor: 'pointer', fontWeight: 900 }}
-                      >
-                        +
-                      </button>
-                    </div>
+                    <svg width="32" height="32" viewBox="-14 -14 28 28" aria-hidden="true" style={{ marginTop: '-8px' }}>
+                      <circle r="12" fill={meta.bg} opacity={0.32} />
+                      <ResourceIconSvg type={k} scale={1.05} />
+                    </svg>
+                    <span className="tt-res-label">{meta.shortLabel}</span>
+                    <span className="tt-res-count">{held - cur}</span>
+                  </button>
+                  <div className="md-stepper">
+                    <button
+                      type="button"
+                      aria-label={`Keep one ${meta.label}`}
+                      disabled={cur === 0}
+                      onClick={() => setDiscardCounts({ ...discardCounts, [k]: Math.max(0, cur - 1) })}
+                    >
+                      −
+                    </button>
+                    <span aria-live="polite">{cur}</span>
+                    <button
+                      type="button"
+                      aria-label={`Discard one ${meta.label}`}
+                      disabled={!canAdd}
+                      onClick={() => setDiscardCounts({ ...discardCounts, [k]: Math.min(held, cur + 1) })}
+                    >
+                      +
+                    </button>
                   </div>
-                );
-              }
-            )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="md-progress" aria-hidden="true">
+            <div style={{ width: `${(totalSelected / needed) * 100}%` }} />
           </div>
 
           <button
             type="button"
+            className="tt-cta"
             data-testid="confirm-discard-btn"
             disabled={totalSelected !== needed}
             onClick={() => {
@@ -1544,18 +1550,10 @@ export function PendingDecisionBanner({
               });
               setDiscardCounts({});
             }}
-            style={{
-              width: '100%',
-              padding: '10px',
-              borderRadius: '8px',
-              fontWeight: 900,
-              background: totalSelected === needed ? '#c93b2b' : 'var(--ink-700)',
-              color: '#ffffff',
-              border: 'none',
-              cursor: totalSelected === needed ? 'pointer' : 'not-allowed',
-            }}
           >
-            Confirm Discard ({totalSelected}/{needed})
+            {totalSelected === needed
+              ? `Discard ${needed} card${needed > 1 ? 's' : ''}`
+              : `Choose ${needed - totalSelected} more`}
           </button>
         </div>
       </div>
@@ -1566,18 +1564,38 @@ export function PendingDecisionBanner({
   if (decision.type === 'EVENT_CARD_CHOICE') {
     const isPenalty = decision.event === 'ClimateConferencePenalty';
     const isGov = decision.event === 'GovernmentFunding';
+    const copy: Record<typeof decision.event, { title: string; body: string }> = {
+      ClimateConferenceReward: {
+        title: `Climate Conference: ${player.name} is rewarded`,
+        body: 'Lowest local footprint at the table. Take one free card from the supply.',
+      },
+      ClimateConferencePenalty: {
+        title: `Climate Conference: ${player.name} pays up`,
+        body: 'Highest local footprint at the table. Discard one card from your hand.',
+      },
+      GovernmentFunding: {
+        title: `Government Funding for ${player.name}`,
+        body: 'Lowest local footprint at the table. Take a free development card.',
+      },
+      SustainableProduction: {
+        title: `Sustainable Production: ${player.name} benefits`,
+        body: 'Most renewable power plants at the table. Take one free card from the supply.',
+      },
+    };
 
     return (
       <div style={MODAL_BACKDROP_STYLE} data-testid="pending-decision-modal">
-        <div style={{ ...MODAL_CARD_STYLE, maxWidth: '480px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 900, color: 'var(--volt)', marginBottom: '8px' }}>
-            Event Decision — {player.name} ({decision.event})
+        <div style={{ ...MODAL_CARD_STYLE, maxWidth: '520px' }} role="dialog" aria-modal="true" aria-labelledby="event-choice-title">
+          <h3 className="md-title" id="event-choice-title">
+            {copy[decision.event].title}
           </h3>
+          <p className="md-sub">{copy[decision.event].body}</p>
 
           {isGov ? (
             <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
               <button
                 type="button"
+                className="tt-cta"
                 data-testid="decision-take-dev-card"
                 onClick={() =>
                   onDispatch({
@@ -1587,22 +1605,14 @@ export function PendingDecisionBanner({
                     response: { take: true },
                   })
                 }
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  borderRadius: '8px',
-                  background: 'var(--leaf)',
-                  color: '#ffffff',
-                  fontWeight: 900,
-                  border: 'none',
-                  cursor: 'pointer',
-                }}
               >
-                Take 1 Free Development Card
+                Take a development card
               </button>
               {decision.isOptional && (
                 <button
                   type="button"
+                  className="tt-icon-btn"
+                  style={{ height: 'auto' }}
                   onClick={() =>
                     onDispatch({
                       type: 'RESOLVE_PENDING_DECISION',
@@ -1611,15 +1621,6 @@ export function PendingDecisionBanner({
                       response: { pass: true },
                     })
                   }
-                  style={{
-                    padding: '10px 16px',
-                    borderRadius: '8px',
-                    background: 'var(--ink-700)',
-                    color: '#ffffff',
-                    fontWeight: 700,
-                    border: 'none',
-                    cursor: 'pointer',
-                  }}
                 >
                   Pass
                 </button>
@@ -1627,27 +1628,24 @@ export function PendingDecisionBanner({
             </div>
           ) : (
             <>
-              <p style={{ fontSize: '12.5px', color: 'var(--ink-100)', marginBottom: '12px' }}>
-                {isPenalty
-                  ? 'Climate Conference Penalty: Choose 1 card from your hand to discard:'
-                  : 'Choose 1 free card from the global supply:'}
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '12px' }}>
-                {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science'] as const).map(
-                  (k) => {
-                    const count = isPenalty
-                      ? k === 'science'
-                        ? player.science
-                        : player.resources[k]
-                      : k === 'science'
-                        ? state.supply.science
-                        : state.supply.resources[k];
+              <div className="md-cards">
+                {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science'] as const).map((k) => {
+                  const count = isPenalty
+                    ? k === 'science'
+                      ? player.science
+                      : player.resources[k]
+                    : k === 'science'
+                      ? state.supply.science
+                      : state.supply.resources[k];
+                  const meta = CARD_METADATA[k];
 
-                    return (
+                  return (
+                    <div key={k} className="md-card-col">
                       <button
-                        key={k}
                         type="button"
+                        className="tt-res-card md-pick"
                         data-testid={`decision-card-${k}`}
+                        data-empty={count <= 0 ? 'true' : 'false'}
                         disabled={count <= 0}
                         onClick={() =>
                           onDispatch({
@@ -1657,25 +1655,32 @@ export function PendingDecisionBanner({
                             response: { cardType: k },
                           })
                         }
+                        aria-label={`${isPenalty ? 'Discard' : 'Take'} ${meta.label} (${count} ${isPenalty ? 'in hand' : 'in supply'})`}
                         style={{
-                          padding: '10px 8px',
-                          borderRadius: '8px',
-                          fontWeight: 800,
-                          background: count > 0 ? CARD_METADATA[k].bg : 'var(--ink-700)',
-                          color: count > 0 ? CARD_METADATA[k].textColor : 'var(--ink-300)',
-                          border: '1px solid rgba(163, 183, 202, 0.28)',
-                          cursor: count > 0 ? 'pointer' : 'not-allowed',
+                          ['--res-fill' as string]: meta.cardFill,
+                          ['--res-border' as string]: meta.border,
+                          ['--res-text' as string]: meta.textColor,
                         }}
                       >
-                        {CARD_METADATA[k].shortLabel} ({count})
+                        <svg width="32" height="32" viewBox="-14 -14 28 28" aria-hidden="true" style={{ marginTop: '-8px' }}>
+                          <circle r="12" fill={meta.bg} opacity={0.32} />
+                          <ResourceIconSvg type={k} scale={1.05} />
+                        </svg>
+                        <span className="tt-res-label">{meta.shortLabel}</span>
+                        <span className="tt-res-count">{count}</span>
                       </button>
-                    );
-                  }
-                )}
+                    </div>
+                  );
+                })}
               </div>
+              <p className="md-sub" style={{ marginTop: '10px' }}>
+                {isPenalty ? 'Numbers show the cards in your hand.' : 'Numbers show what is left in the supply.'}
+              </p>
               {decision.isOptional && (
                 <button
                   type="button"
+                  className="tt-icon-btn"
+                  style={{ width: '100%', height: '38px', marginTop: '8px' }}
                   onClick={() =>
                     onDispatch({
                       type: 'RESOLVE_PENDING_DECISION',
@@ -1684,16 +1689,6 @@ export function PendingDecisionBanner({
                       response: { pass: true },
                     })
                   }
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    borderRadius: '8px',
-                    background: 'var(--ink-700)',
-                    color: '#ffffff',
-                    fontWeight: 700,
-                    border: 'none',
-                    cursor: 'pointer',
-                  }}
                 >
                   Pass
                 </button>
@@ -1710,8 +1705,8 @@ export function PendingDecisionBanner({
     return (
       <div style={MODAL_BACKDROP_STYLE} data-testid="pending-decision-modal">
         <div style={{ ...MODAL_CARD_STYLE, maxWidth: '420px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 900, color: 'var(--volt)', marginBottom: '10px' }}>
-            Environmental Inspector — Choose Steal Victim
+          <h3 className="md-title" style={{ marginBottom: '10px' }}>
+            Take a card from…
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {decision.candidatePlayerIds.map((vid) => (
@@ -1752,8 +1747,8 @@ export function PendingDecisionBanner({
     return (
       <div style={MODAL_BACKDROP_STYLE} data-testid="pending-decision-modal">
         <div style={{ ...MODAL_CARD_STYLE, maxWidth: '460px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 900, color: 'var(--volt)', marginBottom: '8px' }}>
-            Trade Offer for {player.name} from {offerer.name}
+          <h3 className="md-title" style={{ marginBottom: '8px' }}>
+            {offerer.name} offers {player.name} a trade
           </h3>
           <p style={{ fontSize: '13px', color: 'var(--ink-100)', marginBottom: '12px' }}>
             {offerer.name} offers:{' '}
@@ -1937,8 +1932,8 @@ export function PrivacyCurtainModal({
             <PlayerEmblemSvg playerId={nextPlayerId} cx={0} cy={0} r={10} />
           </svg>
         </div>
-        <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#ffffff', marginBottom: '8px' }}>
-          Pass Device to {nextPlayerName}
+        <h2 className="md-title" style={{ fontSize: '26px', marginBottom: '8px' }}>
+          Pass the device to {nextPlayerName}
         </h2>
         <p style={{ fontSize: '13px', color: 'var(--ink-300)', marginBottom: '18px' }}>
           Private Resource, Science, and Development cards are hidden until you are ready.
@@ -1982,131 +1977,167 @@ export function VictoryModal({
   const emptyBagEval = evaluateEmptyBagVictory(state);
   const isCollapse = state.winner === 'collapse';
   const isEmptyBagEnd = state.eventBag.length === 0;
+  const winners: PlayerId[] = Array.isArray(state.winner)
+    ? state.winner
+    : state.winner && state.winner !== 'collapse'
+      ? [state.winner]
+      : [];
 
-  let headline = 'Victory!';
+  let headline = 'Game over';
   let subheadline = '';
-
   if (isCollapse) {
-    headline = 'Total Environmental Collapse!';
+    headline = 'Environmental collapse';
     subheadline =
-      'The Event Bag emptied while no player had more Renewable Power Plants than Fossil Fuel Power Plants. All players lose!';
-  } else if (Array.isArray(state.winner)) {
-    const names = state.winner.map((id) => state.players[id]?.name).join(' & ');
-    headline = `Shared Sustainable Victory: ${names}!`;
-    subheadline = 'The Event Bag emptied and tied players triumphed on Renewable Energy Balance!';
-  } else if (state.winner && state.winner !== 'collapse') {
-    const wPlayer = state.players[state.winner]!;
-    headline = `${wPlayer.name} Wins CATAN: New Energies!`;
+      'The event bag ran out while nobody had more renewable than fossil fuel plants. Everyone loses.';
+  } else if (winners.length > 1) {
+    headline = `${winners.map((id) => state.players[id]?.name).join(' & ')} share the win`;
+    subheadline = 'The event bag ran out and they tied on the best clean-energy balance.';
+  } else if (winners.length === 1) {
+    const w = state.players[winners[0]!]!;
+    headline = `${w.name} wins!`;
     subheadline = isEmptyBagEnd
-      ? `${wPlayer.name} triumphed via Sustainable Renewable Energy Balance when the Event Bag emptied!`
-      : `${wPlayer.name} achieved ${wPlayer.victoryPoints} Victory Points on their turn!`;
+      ? `The event bag ran out and ${w.name} had the best balance of renewable over fossil fuel plants.`
+      : `${w.name} reached ${w.victoryPoints} victory points on their turn.`;
   }
+
+  const band = winners.length === 1 ? PLAYER_THEMES[winners[0]!] : null;
+  const standings = [...state.playerOrder].sort(
+    (a, b) => emptyBagEval.details.scores[b]!.totalVp - emptyBagEval.details.scores[a]!.totalVp
+  );
+  const topVp = Math.max(10, ...standings.map((pid) => emptyBagEval.details.scores[pid]!.totalVp));
 
   return (
     <div style={MODAL_BACKDROP_STYLE} data-testid="victory-modal">
-      <div style={MODAL_CARD_STYLE}>
-        <h2
+      <div
+        style={{ ...MODAL_CARD_STYLE, maxWidth: '600px', padding: 0, overflow: 'hidden' }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="victory-title"
+      >
+        <div
           style={{
-            fontSize: '24px',
-            fontWeight: 900,
-            color: isCollapse ? '#ff6b6b' : 'var(--volt)',
-            marginBottom: '6px',
+            padding: '22px 24px 18px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '16px',
+            background: isCollapse
+              ? 'linear-gradient(135deg, #5b2a22, #3a1d1a)'
+              : band
+                ? `linear-gradient(135deg, ${band.fill}, ${band.sideFill})`
+                : 'linear-gradient(135deg, var(--leaf), var(--leaf-deep))',
+            color: band ? band.textOnFill : '#ffffff',
           }}
         >
-          {headline}
-        </h2>
-        <p style={{ fontSize: '13.5px', color: 'var(--ink-100)', marginBottom: '16px' }}>
-          {subheadline}
-        </p>
+          <svg width="56" height="56" viewBox="-28 -28 56 56" aria-hidden="true" style={{ flexShrink: 0 }}>
+            <circle r="26" fill="rgba(255,255,255,0.22)" />
+            {isCollapse ? (
+              <path
+                d="M -13 6 C -18 6, -20 1, -17 -3 C -17 -9, -10 -12, -6 -9 C -3 -15, 7 -15, 9 -8 C 15 -9, 19 -3, 16 3 C 18 6, 15 9, 11 9 Z"
+                fill="#9aa0a6"
+                stroke="#3a3d42"
+                strokeWidth="2"
+              />
+            ) : (
+              <g>
+                <path d="M -12 -15 L 12 -15 L 10 2 C 8 9, -8 9, -10 2 Z" fill="#ffc83a" stroke="#6b4b00" strokeWidth="2" strokeLinejoin="round" />
+                <path d="M -12 -11 C -20 -11, -20 -1, -10 0 M 12 -11 C 20 -11, 20 -1, 10 0" fill="none" stroke="#6b4b00" strokeWidth="2.2" />
+                <rect x="-3" y="7" width="6" height="7" fill="#e3a312" stroke="#6b4b00" strokeWidth="1.6" />
+                <rect x="-9" y="14" width="18" height="5" rx="1.5" fill="#ffc83a" stroke="#6b4b00" strokeWidth="1.8" />
+                <path d="M -1.5 -10 L 4 -10 L 0.5 -4 L 4.5 -4 L -3.5 5 L -1 -1.5 L -4.5 -1.5 Z" fill="#fffdf7" />
+              </g>
+            )}
+          </svg>
+          <div style={{ minWidth: 0 }}>
+            <h2
+              id="victory-title"
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: '30px',
+                fontWeight: 800,
+                letterSpacing: '-0.03em',
+                lineHeight: 1.05,
+              }}
+            >
+              {headline}
+            </h2>
+            <p style={{ fontSize: '13.5px', marginTop: '6px', lineHeight: 1.4, opacity: 0.9 }}>{subheadline}</p>
+          </div>
+        </div>
 
-        {/* Comparison Table */}
-        <table
-          style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            marginBottom: '18px',
-            fontSize: '12.5px',
-          }}
-        >
-          <thead>
-            <tr style={{ borderBottom: '2px solid rgba(163, 183, 202, 0.22)', color: 'var(--ink-300)', textAlign: 'left' }}>
-              <th style={{ padding: '8px' }}>Player</th>
-              <th style={{ padding: '8px' }}>Total VP</th>
-              <th style={{ padding: '8px' }}>Renewables</th>
-              <th style={{ padding: '8px' }}>Fossil</th>
-              <th style={{ padding: '8px' }}>Net Eco</th>
-              <th style={{ padding: '8px' }}>Footprint (LF)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {state.playerOrder.map((pid) => {
+        <div style={{ padding: '16px 24px 20px' }}>
+          <div role="table" aria-label="Final standings" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {standings.map((pid, idx) => {
               const p = state.players[pid]!;
               const sc = emptyBagEval.details.scores[pid]!;
               const pTheme = PLAYER_THEMES[pid];
-
+              const isWinner = winners.includes(pid);
               return (
-                <tr key={pid} style={{ borderBottom: '1px solid var(--ink-700)' }}>
-                  <td style={{ padding: '8px', fontWeight: 800, color: pTheme.fill }}>
-                    {p.name}
-                  </td>
-                  <td style={{ padding: '8px', fontWeight: 900 }}>{sc.totalVp} VP</td>
-                  <td style={{ padding: '8px', color: '#8ce09a', fontWeight: 800 }}>
-                    {sc.renewableBuilt}
-                  </td>
-                  <td style={{ padding: '8px', color: '#d09b72', fontWeight: 800 }}>
-                    {sc.fossilBuilt}
-                  </td>
-                  <td
-                    style={{
-                      padding: '8px',
-                      fontWeight: 900,
-                      color: sc.netRenewable > 0 ? '#8ce09a' : '#fc8181',
-                    }}
+                <div
+                  key={pid}
+                  role="row"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '22px 1fr 210px auto',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '8px 12px',
+                    borderRadius: '12px',
+                    background: isWinner ? 'rgba(255, 200, 58, 0.1)' : 'rgba(255,255,255,0.04)',
+                    boxShadow: `inset 4px 0 0 ${pTheme.fill}`,
+                  }}
+                >
+                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--ink-300)' }}>{idx + 1}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                    <svg width="22" height="22" viewBox="-11 -11 22 22" aria-hidden="true">
+                      <circle r="10" fill={pTheme.fill} stroke={pTheme.stroke} strokeWidth="1.2" />
+                      <PlayerEmblemSvg playerId={pid} cx={0} cy={0} r={5.6} />
+                    </svg>
+                    <span style={{ fontWeight: 700, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {p.name}
+                    </span>
+                  </span>
+                  <span role="cell" title={`${sc.totalVp} victory points`}>
+                    <span style={{ display: 'block', height: '6px', borderRadius: '999px', background: 'var(--ink-950)', overflow: 'hidden' }}>
+                      <span
+                        style={{
+                          display: 'block',
+                          height: '100%',
+                          width: `${Math.min(100, (sc.totalVp / topVp) * 100)}%`,
+                          background: pTheme.fill,
+                          borderRadius: '999px',
+                        }}
+                      />
+                    </span>
+                    <span style={{ display: 'block', fontSize: '11.5px', color: 'var(--ink-300)', marginTop: '3px' }}>
+                      {sc.renewableBuilt} renewable · {sc.fossilBuilt} fossil · footprint {sc.localFootprint}
+                    </span>
+                  </span>
+                  <span
+                    role="cell"
+                    style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '22px', color: '#ffffff', textAlign: 'right' }}
                   >
-                    {sc.netRenewable > 0 ? `+${sc.netRenewable}` : sc.netRenewable}
-                  </td>
-                  <td style={{ padding: '8px' }}>{sc.localFootprint} LF</td>
-                </tr>
+                    {sc.totalVp}
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink-300)', marginLeft: '3px' }}>VP</span>
+                  </span>
+                </div>
               );
             })}
-          </tbody>
-        </table>
+          </div>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button
-            type="button"
-            data-testid="victory-inspect-board-btn"
-            onClick={onInspectBoard}
-            style={{
-              flex: 1,
-              padding: '10px',
-              borderRadius: '8px',
-              background: 'var(--ink-700)',
-              color: '#ffffff',
-              fontWeight: 800,
-              border: '1px solid rgba(163, 183, 202, 0.28)',
-              cursor: 'pointer',
-            }}
-          >
-            Inspect Final Board
-          </button>
-          <button
-            type="button"
-            data-testid="victory-new-game-btn"
-            onClick={onOpenLobby}
-            style={{
-              flex: 1,
-              padding: '10px',
-              borderRadius: '8px',
-              background: 'var(--leaf)',
-              color: '#ffffff',
-              fontWeight: 900,
-              border: 'none',
-              cursor: 'pointer',
-            }}
-          >
-            New Tabletop Game
-          </button>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>
+            <button
+              type="button"
+              className="tt-icon-btn"
+              data-testid="victory-inspect-board-btn"
+              onClick={onInspectBoard}
+              style={{ height: '50px', flex: '0 0 auto', padding: '0 18px' }}
+            >
+              Look at the board
+            </button>
+            <button type="button" className="tt-cta is-ready" data-testid="victory-new-game-btn" onClick={onOpenLobby}>
+              New game
+            </button>
+          </div>
         </div>
       </div>
     </div>

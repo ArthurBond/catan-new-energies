@@ -319,3 +319,50 @@ export function vpCardIdsOf(state: GameState, playerId: PlayerId): string[] {
     (cid) => getDevCardType(cid) === 'victoryPoint'
   );
 }
+
+// ============================================================================
+// Human-readable log lines
+// ============================================================================
+
+const EVENT_NAMES: Record<string, string> = {
+  climateConference: 'Climate Conference',
+  rainAndFlooding: 'Rain & Flooding',
+  airPollution: 'Air Pollution',
+  productionIncrease: 'Production Increase',
+  environmentalPollution: 'Environmental Pollution',
+  sustainableProduction: 'Sustainable Production',
+  governmentFunding: 'Government Funding',
+};
+
+/**
+ * Rewrites engine log lines for people: event ids become names, board ids (intersection 12,
+ * path 26, hex 3) are dropped, and bookkeeping lines are phrased plainly.
+ */
+export function humanizeLog(message: string): string {
+  let m = message;
+  for (const [id, name] of Object.entries(EVENT_NAMES)) {
+    m = m.split(id).join(name);
+  }
+  m = m
+    .replace(/\ba (Air|Environmental)\b/g, 'an $1')
+    .replace(/natural_fiber/g, 'fiber')
+    .replace(/\bhex \d+ \((\w+) #(\d+|null)\)/g, (_, terrain: string, num: string) =>
+      num === 'null' ? `the ${terrain}` : `the ${terrain} ${num}`
+    )
+    .replace(/ (on|at) (intersection|node|path) \d+( facing hex \d+)?/g, '')
+    .replace(/ on hex \d+/g, '')
+    .replace(/ on (node|hex) \d+\./g, '.')
+    .replace(/^Triggering event resolver for: (.+)$/, '$1 takes effect')
+    .replace(/^Event draw count locked at (\d+) disc\(s\) \(Clamped GF: (\d+)\)\.$/, (_, n: string, gf: string) =>
+      `Global footprint ${gf}: ${n} event disc${n === '1' ? '' : 's'} this turn.`
+    )
+    .replace(/^Event Phase completed\. Entering Production Phase for (.+)\.$/, '$1 moves on to production.')
+    .replace(/ Discs returned to box; event triggers!/, ' The event happens.')
+    .replace(/\(\d+\/\d+\)\.$/, '.')
+    .replace(/ \(\+1 net VP, \+1 net LF\)| \(\+1 VP, \+1 LF\)/g, '');
+  return m;
+}
+
+export function eventName(type: string): string {
+  return EVENT_NAMES[type] ?? type;
+}
