@@ -92,8 +92,182 @@ export function PlayerEmblemSvg({
   );
 }
 
+// ============================================================================
+// Piece geometry
+// ============================================================================
+
 /**
- * 3D Wooden Town piece with 1 concave circular power-plant socket that rotates to lock around the attached Power Plant
+ * Power plants sit in the hex corner next to their Town/City: the disc centre is
+ * PLANT_SOCKET_DIST board units from the intersection toward the hex centre, and every
+ * Town/City notch is an arc around that same centre, so plants nest exactly in the cutouts.
+ */
+export const PLANT_SOCKET_DIST = 15.5;
+export const PLANT_RADIUS = 7;
+
+const TOWN_RADIUS = 11.5;
+const CITY_APOTHEM = 13;
+const TOWN_DEPTH = 3.5;
+const CITY_DEPTH = 6;
+
+function polar(radius: number, deg: number): [number, number] {
+  const rad = (deg * Math.PI) / 180;
+  return [Math.cos(rad) * radius, Math.sin(rad) * radius];
+}
+
+function fmt([x, y]: [number, number]): string {
+  return `${x.toFixed(2)} ${y.toFixed(2)}`;
+}
+
+/**
+ * Builds a hexagonal piece outline whose edge facing each angle in `notchDegs` is replaced by a
+ * concave arc centred on the plant socket in that direction. Edges facing the roads stay flat.
+ */
+function notchedHexPath(circumradius: number, notchDegs: number[]): string {
+  const apothem = circumradius * Math.cos(Math.PI / 6);
+  const halfEdge = circumradius / 2;
+  const notchRadius = Math.hypot(PLANT_SOCKET_DIST - apothem, halfEdge);
+  const cmds: string[] = [];
+  for (let i = 0; i < 6; i++) {
+    const edgeDeg = i * 60;
+    const start = polar(circumradius, edgeDeg - 30);
+    const end = polar(circumradius, edgeDeg + 30);
+    if (i === 0) cmds.push(`M ${fmt(start)}`);
+    if (notchDegs.includes(edgeDeg)) {
+      cmds.push(`A ${notchRadius.toFixed(2)} ${notchRadius.toFixed(2)} 0 0 0 ${fmt(end)}`);
+    } else {
+      cmds.push(`L ${fmt(end)}`);
+    }
+  }
+  cmds.push('Z');
+  return cmds.join(' ');
+}
+
+const TOWN_PATH_D = notchedHexPath(TOWN_RADIUS, [0]);
+const CITY_PATH_D = notchedHexPath(CITY_APOTHEM / Math.cos(Math.PI / 6), [0, 120, 240]);
+
+/**
+ * Shared gradients & textures for pieces and tokens. Render once inside any <svg> that draws
+ * pieces; every consumer also passes a plain fallback colour so pieces still render without it.
+ */
+export function PieceDefs() {
+  return (
+    <defs>
+      {(Object.keys(PLAYER_THEMES) as PlayerId[]).map((pid) => {
+        const t = PLAYER_THEMES[pid];
+        return (
+          <linearGradient key={pid} id={`piece-top-${pid}`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={t.highlight} style={{ stopColor: t.highlight }} />
+            <stop offset="55%" stopColor={t.fill} style={{ stopColor: t.fill }} />
+            <stop offset="100%" stopColor={t.fill} style={{ stopColor: t.fill }} />
+          </linearGradient>
+        );
+      })}
+      <linearGradient id="hazard-top" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#b4b6ba" style={{ stopColor: '#b4b6ba' }} />
+        <stop offset="100%" stopColor="#85888d" style={{ stopColor: '#85888d' }} />
+      </linearGradient>
+      <pattern id="hazard-speckle" width="7" height="7" patternUnits="userSpaceOnUse">
+        <circle cx="1.2" cy="1.5" r="0.55" fill="#5d6065" />
+        <circle cx="4.6" cy="2.4" r="0.45" fill="#d9dbde" />
+        <circle cx="2.8" cy="5.2" r="0.5" fill="#6b6e73" />
+        <circle cx="6.1" cy="5.9" r="0.4" fill="#cfd1d4" />
+        <circle cx="5.4" cy="0.6" r="0.35" fill="#74777c" />
+      </pattern>
+    </defs>
+  );
+}
+
+/** Stacks copies of a shape downward to fake the side walls of a thick wooden/cardboard piece. */
+function Extrusion({
+  d,
+  depth,
+  fill,
+  stroke,
+  rotateDeg,
+  fillRule,
+}: {
+  d: string;
+  depth: number;
+  fill: string;
+  stroke: string;
+  rotateDeg: number;
+  fillRule?: 'evenodd' | 'nonzero';
+}) {
+  const layers: number[] = [];
+  for (let y = depth; y > 0; y -= 1) layers.push(y);
+  return (
+    <g>
+      {layers.map((y, idx) => (
+        <g key={y} transform={`translate(0, ${y.toFixed(2)})`}>
+          <path
+            d={d}
+            transform={`rotate(${rotateDeg})`}
+            fill={fill}
+            fillRule={fillRule}
+            stroke={idx === 0 ? stroke : fill}
+            strokeWidth={idx === 0 ? 1.2 : 1}
+            strokeLinejoin="round"
+          />
+        </g>
+      ))}
+    </g>
+  );
+}
+
+function WoodenPiece({
+  playerId,
+  d,
+  depth,
+  rotateDeg,
+  emblemR,
+  showEmblem,
+}: {
+  playerId: PlayerId;
+  d: string;
+  depth: number;
+  rotateDeg: number;
+  emblemR: number;
+  showEmblem: boolean;
+}) {
+  const p = PLAYER_THEMES[playerId];
+  return (
+    <g>
+      {/* Soft contact shadow on the board */}
+      <path
+        d={d}
+        transform={`translate(2.4, ${(depth + 2.6).toFixed(2)}) rotate(${rotateDeg})`}
+        fill="rgba(10, 14, 20, 0.34)"
+        stroke="rgba(10, 14, 20, 0.18)"
+        strokeWidth={3}
+        strokeLinejoin="round"
+      />
+      <Extrusion d={d} depth={depth} fill={p.sideFill} stroke={p.stroke} rotateDeg={rotateDeg} />
+      {/* Top face with wood-grain light falloff */}
+      <path
+        d={d}
+        transform={`rotate(${rotateDeg})`}
+        fill={`url(#piece-top-${playerId}) ${p.fill}`}
+        stroke={p.stroke}
+        strokeWidth={1.2}
+        strokeLinejoin="round"
+      />
+      {/* Bevel: bright upper rim, keeps dark pieces readable on dark terrain */}
+      <path
+        d={d}
+        transform={`rotate(${rotateDeg}) scale(0.86)`}
+        fill="none"
+        stroke={p.highlight}
+        strokeOpacity={0.55}
+        strokeWidth={1}
+        strokeLinejoin="round"
+      />
+      {showEmblem && <PlayerEmblemSvg playerId={playerId} cx={0} cy={0} r={emblemR} />}
+    </g>
+  );
+}
+
+/**
+ * Wooden Town: a low hexagon with one concave edge that faces its (possible) power plant.
  */
 export function TownPieceSvg({
   playerId,
@@ -110,99 +284,23 @@ export function TownPieceSvg({
   showEmblem?: boolean;
   cutoutAngleDeg?: number;
 }) {
-  const p = PLAYER_THEMES[playerId];
-  // In local coordinates, the concave socket is centered at (13.5, 0) with radius 8.0
-  // so a Power Plant cylinder (r=7.6) at distance 13.5 along cutoutAngleDeg locks snugly into the crescent notch.
-  const pathD =
-    'M 9.3 -6.8 A 8.0 8.0 0 0 0 9.3 6.8 L 1.5 11.8 L -9.5 9.2 L -12.2 0 L -9.5 -9.2 L 1.5 -11.8 Z';
   return (
-    <g transform={`translate(${cx}, ${cy}) scale(${scale})`}>
-      <g transform={`rotate(${cutoutAngleDeg})`}>
-        {/* Drop shadow */}
-        <path d={pathD} transform="translate(1.8, 2.8)" fill="rgba(0,0,0,0.36)" />
-        {/* High-contrast outer halo for dark pieces */}
-        <path
-          d={pathD}
-          transform="translate(0, 1.2)"
-          fill={p.sideFill}
-          stroke={p.outerHalo}
-          strokeWidth={2.2}
-          strokeLinejoin="round"
-        />
-        {/* 3D Side Extrusion */}
-        <path
-          d={pathD}
-          transform="translate(0, 1.8)"
-          fill={p.sideFill}
-          stroke={p.stroke}
-          strokeWidth={1.3}
-          strokeLinejoin="round"
-        />
-        {/* Top Wooden Face */}
-        <path
-          d={pathD}
-          fill={p.fill}
-          stroke={p.stroke}
-          strokeWidth={1.3}
-          strokeLinejoin="round"
-        />
-        {/* Top Bevel Highlight */}
-        <path
-          d="M -7.5 -7.2 L 1 -9.5 L 6.8 -6"
-          fill="none"
-          stroke={p.highlight}
-          strokeWidth={1.4}
-          strokeLinecap="round"
-        />
-      </g>
-      {showEmblem && <PlayerEmblemSvg playerId={playerId} cx={-1.5} cy={0} r={4.1} />}
+    <g transform={`translate(${cx}, ${cy}) scale(${scale})`} data-piece="town">
+      <WoodenPiece
+        playerId={playerId}
+        d={TOWN_PATH_D}
+        depth={TOWN_DEPTH}
+        rotateDeg={cutoutAngleDeg}
+        emblemR={3.9}
+        showEmblem={showEmblem}
+      />
     </g>
   );
 }
 
 /**
- * Builds the 3-lobed City path with 3 deep semicircular apple-bite cutouts spaced at exact 120-degree intervals (0°, 120°, 240°),
- * each centered at distance 13.5 from (0,0) with socket radius 8.35 so up to 3 Power Plants fit and lock snugly inside.
- */
-const CITY_120_PATH_D = (() => {
-  const R_OUTER = 16.5;
-  const D_CENTER = 13.5;
-  const R_BITE = 8.35;
-  const cosPhi =
-    (R_OUTER * R_OUTER + D_CENTER * D_CENTER - R_BITE * R_BITE) / (2 * R_OUTER * D_CENTER);
-  const phi = Math.acos(Math.max(-1, Math.min(1, cosPhi)));
-
-  const cmds: string[] = [];
-  for (let i = 0; i < 3; i++) {
-    const cRad = (i * 120 * Math.PI) / 180;
-    const nextCRad = (((i + 1) % 3) * 120 * Math.PI) / 180;
-
-    const sx1 = Math.cos(cRad - phi) * R_OUTER;
-    const sy1 = Math.sin(cRad - phi) * R_OUTER;
-    const sx2 = Math.cos(cRad + phi) * R_OUTER;
-    const sy2 = Math.sin(cRad + phi) * R_OUTER;
-
-    const nextSx1 = Math.cos(nextCRad - phi) * R_OUTER;
-    const nextSy1 = Math.sin(nextCRad - phi) * R_OUTER;
-
-    if (i === 0) {
-      cmds.push(`M ${sx1.toFixed(2)} ${sy1.toFixed(2)}`);
-    }
-    // Deep semicircular apple bite curving inward toward the city center (sweep = 0)
-    cmds.push(
-      `A ${R_BITE.toFixed(2)} ${R_BITE.toFixed(2)} 0 0 0 ${sx2.toFixed(2)} ${sy2.toFixed(2)}`
-    );
-    // Full rounded architectural outer lobe between the apple bites (sweep = 1)
-    cmds.push(
-      `A ${R_OUTER.toFixed(2)} ${R_OUTER.toFixed(2)} 0 0 1 ${nextSx1.toFixed(2)} ${nextSy1.toFixed(2)}`
-    );
-  }
-  cmds.push('Z');
-  return cmds.join(' ');
-})();
-
-/**
- * 3D Wooden City piece with 3 concave power-plant sockets at exact 120° intervals
+ * Wooden City: a tall hexagon with three concave edges at 120° that face the three adjacent hexes,
+ * so up to three power plants lock in; roads meet its flat edges.
  */
 export function CityPieceSvg({
   playerId,
@@ -219,57 +317,22 @@ export function CityPieceSvg({
   showEmblem?: boolean;
   cutoutAngleDeg?: number;
 }) {
-  const p = PLAYER_THEMES[playerId];
-  const pathD = CITY_120_PATH_D;
   return (
-    <g transform={`translate(${cx}, ${cy}) scale(${scale})`}>
-      <g transform={`rotate(${cutoutAngleDeg})`}>
-        {/* Drop shadow */}
-        <path d={pathD} transform="translate(2.2, 3.2)" fill="rgba(0,0,0,0.38)" />
-        {/* High-contrast outer halo */}
-        <path
-          d={pathD}
-          transform="translate(0, 1.4)"
-          fill={p.sideFill}
-          stroke={p.outerHalo}
-          strokeWidth={2.4}
-          strokeLinejoin="round"
-        />
-        {/* 3D Side Extrusion */}
-        <path
-          d={pathD}
-          transform="translate(0, 2.0)"
-          fill={p.sideFill}
-          stroke={p.stroke}
-          strokeWidth={1.4}
-          strokeLinejoin="round"
-        />
-        {/* Top Wooden Face */}
-        <path
-          d={pathD}
-          fill={p.fill}
-          stroke={p.stroke}
-          strokeWidth={1.4}
-          strokeLinejoin="round"
-        />
-        {/* Inner roof turret ring */}
-        <circle
-          cx={0}
-          cy={0}
-          r={5.8}
-          fill={p.highlight}
-          fillOpacity={0.28}
-          stroke={p.stroke}
-          strokeWidth={0.8}
-        />
-      </g>
-      {showEmblem && <PlayerEmblemSvg playerId={playerId} cx={0} cy={0} r={4.5} />}
+    <g transform={`translate(${cx}, ${cy}) scale(${scale})`} data-piece="city">
+      <WoodenPiece
+        playerId={playerId}
+        d={CITY_PATH_D}
+        depth={CITY_DEPTH}
+        rotateDeg={cutoutAngleDeg}
+        emblemR={4.8}
+        showEmblem={showEmblem}
+      />
     </g>
   );
 }
 
 /**
- * 3D Wooden Power Plant Cylinder (Fossil dark-brown or Renewable bright-green) with yellow lightning bolt
+ * Wooden power plant disc (dark fossil or green renewable) with a yellow lightning bolt.
  */
 export function PowerPlantCylinderSvg({
   type,
@@ -285,19 +348,16 @@ export function PowerPlantCylinderSvg({
   hasGreenDiscUnderneath?: boolean;
 }) {
   const style = type === 'fossil' ? TABLETOP_THEME.plants.fossil : TABLETOP_THEME.plants.renewable;
+  const depth = r * 0.34;
+  const bolt = `${-r * 0.12},${-r * 0.62} ${r * 0.38},${-r * 0.62} ${r * 0.06},${-r * 0.1} ${r * 0.42},${-r * 0.1} ${-r * 0.3},${r * 0.62} ${-r * 0.04},${r * 0.04} ${-r * 0.4},${r * 0.04}`;
 
   return (
-    <g transform={`translate(${cx}, ${cy})`}>
-      {/* Optional Green Event Disc underneath (on player mat renewable slots) */}
+    <g transform={`translate(${cx}, ${cy})`} data-piece={`plant-${type}`}>
+      {/* Optional green event disc underneath (player mat renewable slots) */}
       {hasGreenDiscUnderneath && (
         <g transform="translate(-1.5, 2.2)">
           <circle r={r * 1.18} fill="rgba(0,0,0,0.28)" cx={1.5} cy={2} />
-          <circle
-            r={r * 1.16}
-            fill="#88b858"
-            stroke="#d8ecc2"
-            strokeWidth={1.4}
-          />
+          <circle r={r * 1.16} fill="#88b858" stroke="#d8ecc2" strokeWidth={1.4} />
           <circle
             r={r * 0.96}
             fill="none"
@@ -308,116 +368,102 @@ export function PowerPlantCylinderSvg({
         </g>
       )}
 
-      {/* Cylinder Shadow */}
-      <ellipse cx={1.8} cy={3.2} rx={r} ry={r * 0.92} fill="rgba(0,0,0,0.38)" />
-
-      {/* Cylinder 3D Body */}
+      <ellipse cx={r * 0.22} cy={depth + r * 0.24} rx={r} ry={r * 0.94} fill="rgba(10,14,20,0.34)" />
+      {/* Disc side wall */}
+      <ellipse cx={0} cy={depth} rx={r} ry={r * 0.94} fill={style.fill} stroke="#14100c" strokeWidth={1} />
+      <rect x={-r} y={0} width={r * 2} height={depth} fill={style.fill} />
+      <line x1={-r} y1={0} x2={-r} y2={depth} stroke="#14100c" strokeWidth={1} />
+      <line x1={r} y1={0} x2={r} y2={depth} stroke="#14100c" strokeWidth={1} />
+      {/* Top face */}
+      <ellipse cx={0} cy={0} rx={r} ry={r * 0.94} fill={style.topFill} stroke={style.stroke} strokeWidth={1.1} />
       <ellipse
-        cx={0}
-        cy={2}
-        rx={r}
-        ry={r * 0.92}
-        fill={style.fill}
-        stroke="#1a1410"
-        strokeWidth={1.2}
+        cx={-r * 0.12}
+        cy={-r * 0.14}
+        rx={r * 0.78}
+        ry={r * 0.72}
+        fill="none"
+        stroke="#ffffff"
+        strokeOpacity={0.14}
+        strokeWidth={1}
       />
-
-      {/* Cylinder Top Face */}
-      <ellipse
-        cx={0}
-        cy={-0.8}
-        rx={r}
-        ry={r * 0.9}
-        fill={style.topFill}
-        stroke={style.stroke}
-        strokeWidth={1.3}
-      />
-
-      {/* Yellow Lightning Bolt */}
       <polygon
-        points={`${-r * 0.15},${-r * 0.65} ${r * 0.35},${-r * 0.65} ${r * 0.05},${-r * 0.08} ${r * 0.42},${-r * 0.08} ${-r * 0.28},${r * 0.58} ${-r * 0.05},${0.05} ${-r * 0.38},${0.05}`}
+        points={bolt}
         fill={style.bolt}
-        stroke="#261c00"
-        strokeWidth={0.7}
+        stroke="#3d2c00"
+        strokeWidth={r * 0.07}
         strokeLinejoin="round"
       />
     </g>
   );
 }
 
+const HAZARD_TEETH = 8;
+
+/** Cog outline (8 rounded teeth) plus a centre hole, drawn with the even-odd rule. */
+function hazardCogPath(outer: number, root: number, hole: number): string {
+  const pitch = 360 / HAZARD_TEETH;
+  const pts: string[] = [];
+  for (let k = 0; k < HAZARD_TEETH; k++) {
+    const a = k * pitch;
+    pts.push(fmt(polar(root, a - pitch * 0.5)));
+    pts.push(fmt(polar(root, a - pitch * 0.27)));
+    pts.push(fmt(polar(outer, a - pitch * 0.17)));
+    pts.push(fmt(polar(outer, a + pitch * 0.17)));
+    pts.push(fmt(polar(root, a + pitch * 0.27)));
+  }
+  const h = hole.toFixed(2);
+  return (
+    `M ${pts.join(' L ')} Z ` +
+    `M ${h} 0 A ${h} ${h} 0 1 0 -${h} 0 A ${h} ${h} 0 1 0 ${h} 0 Z`
+  );
+}
+
 /**
- * Natural Hazard Token — Glossy Crude Oil Spill / Toxic Pollution Slick (replaces old gear icon)
+ * Hazard token — the grey cardboard cog from the box, with a hole in the middle so the number
+ * disc (on a hex) or the player's piece (on a town/city) shows through it.
+ * `r` is the outer tooth radius; `holeRatio` sizes the centre hole.
  */
 export function HazardCogSvg({
   cx,
   cy,
   r = 14,
+  holeRatio = 0.42,
 }: {
   cx: number;
   cy: number;
   r?: number;
+  holeRatio?: number;
 }) {
-  const s = r / 14;
-  // Organic wavy multi-lobed oil spill puddle path
-  const spillPath =
-    'M -3 -13.5 C 2 -15, 6 -11, 9.5 -12 C 13 -13, 15.5 -8.5, 13 -4.5 C 11 -1.5, 15.5 2, 14 6.5 C 12.5 11, 7.5 10.5, 4.5 13.5 C 1.5 16.5, -3.5 14, -7 12.5 C -10.5 11, -14.5 12, -14.5 7 C -14.5 3, -11.5 0.5, -13.5 -3.5 C -15.5 -7.5, -11.5 -12.5, -7.5 -11.5 C -5 -11, -5.5 -12.5, -3 -13.5 Z';
-
+  const d = hazardCogPath(r, r * 0.8, r * holeRatio);
+  const depth = Math.max(1.5, r * 0.13);
   return (
-    <g transform={`translate(${cx}, ${cy}) scale(${s})`}>
-      {/* Soft dark outer oil stain shadow */}
-      <path d={spillPath} transform="translate(1.4, 2.0)" fill="rgba(0, 0, 0, 0.48)" />
-
-      {/* Main glossy pitch-black crude oil puddle */}
+    <g transform={`translate(${cx}, ${cy})`} data-token="hazard">
       <path
-        d={spillPath}
-        fill="#14171f"
-        stroke="#3b4252"
-        strokeWidth={1.3}
+        d={d}
+        fillRule="evenodd"
+        transform={`translate(${(r * 0.12).toFixed(2)}, ${(depth + r * 0.12).toFixed(2)})`}
+        fill="rgba(10, 14, 20, 0.38)"
+      />
+      <Extrusion d={d} depth={depth} fill="#63666b" stroke="#3f4247" rotateDeg={0} fillRule="evenodd" />
+      <path
+        d={d}
+        fillRule="evenodd"
+        fill="url(#hazard-top) #96989d"
+        stroke="#4a4d52"
+        strokeWidth={Math.max(0.8, r * 0.06)}
         strokeLinejoin="round"
       />
-
-      {/* Iridescent petrol-slick rainbow sheen bands (teal / violet / amber oil film) */}
+      {/* Pressed-felt speckle texture */}
+      <path d={d} fillRule="evenodd" fill="url(#hazard-speckle) transparent" opacity={0.85} />
+      {/* Rim light along the upper-left teeth */}
       <path
-        d="M -8 -8 C -3 -11, 5 -9, 9 -5 C 11 -2, 8 3, 10 6 C 7 9, 1 11, -5 9 C -10 7, -11 1, -8 -8 Z"
-        fill="none"
-        stroke="#4fd1c5"
-        strokeWidth={1.3}
-        strokeOpacity={0.65}
-        strokeLinecap="round"
-      />
-      <path
-        d="M -6 -5 C -1 -8, 6 -6, 7 -1 C 8 4, 3 8, -3 7 C -8 6, -9 0, -6 -5 Z"
-        fill="none"
-        stroke="#b794f4"
-        strokeWidth={1.2}
-        strokeOpacity={0.6}
-        strokeLinecap="round"
-      />
-
-      {/* Specular liquid gloss highlights */}
-      <path
-        d="M -7 -7.5 Q -2 -10.5, 4 -8"
+        d={hazardCogPath(r * 0.9, r * 0.72, r * holeRatio * 1.12)}
+        fillRule="evenodd"
         fill="none"
         stroke="#ffffff"
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        opacity={0.75}
-      />
-      <circle cx={8.5} cy={-6.5} r={1.3} fill="#ffffff" opacity={0.7} />
-
-      {/* Satellite oil splatter droplets around the puddle perimeter */}
-      <circle cx={-14.5} cy={-8.5} r={2.1} fill="#14171f" stroke="#4fd1c5" strokeWidth={0.7} />
-      <circle cx={15.2} cy={-1.2} r={1.8} fill="#14171f" stroke="#b794f4" strokeWidth={0.7} />
-      <circle cx={9.5} cy={12.8} r={2.2} fill="#14171f" stroke="#4fd1c5" strokeWidth={0.7} />
-      <circle cx={-11.8} cy={11.5} r={1.6} fill="#14171f" />
-
-      {/* Translucent center ring so underlying hex number disc remains visible */}
-      <circle
-        r={5.2}
-        fill="rgba(16, 20, 28, 0.52)"
-        stroke="#f6ad55"
-        strokeWidth={1.1}
-        strokeDasharray="2.5 1.8"
+        strokeOpacity={0.22}
+        strokeWidth={Math.max(0.6, r * 0.05)}
+        strokeLinejoin="round"
       />
     </g>
   );

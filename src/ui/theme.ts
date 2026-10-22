@@ -33,17 +33,17 @@ export const TABLETOP_THEME = {
   },
   plants: {
     fossil: {
-      fill: '#3d2b1f',
-      topFill: '#4d3728',
-      stroke: '#8c6239',
-      bolt: '#f5d423',
+      fill: '#1f1712',
+      topFill: '#3a2c22',
+      stroke: '#0e0a07',
+      bolt: '#f7d117',
       label: 'Fossil Fuel Power Plant',
     },
     renewable: {
-      fill: '#1e6b30',
-      topFill: '#2e8540',
-      stroke: '#8ce09a',
-      bolt: '#f5d423',
+      fill: '#17602e',
+      topFill: '#2f9149',
+      stroke: '#0f4420',
+      bolt: '#f7d117',
       label: 'Renewable Power Plant',
     },
   },
@@ -400,6 +400,13 @@ export const HEX_RADIUS = 56; // Pointy-top outer radius in SVG units (board vie
 export const BOARD_CENTER_X = 500;
 export const BOARD_CENTER_Y = 500;
 export const SQRT3 = Math.sqrt(3);
+
+/**
+ * The 19-hex island (with its roads, pieces and harbors) is drawn in HEX_RADIUS units and then
+ * scaled up around the board centre so it fills the sea frame like the printed board does.
+ */
+export const ISLAND_SCALE = 1.17;
+export const ISLAND_TRANSFORM = `translate(${500 * (1 - ISLAND_SCALE)}, ${500 * (1 - ISLAND_SCALE)}) scale(${ISLAND_SCALE})`;
 
 /**
  * Converts discrete integer lattice coordinates (u, v) from `board.ts`

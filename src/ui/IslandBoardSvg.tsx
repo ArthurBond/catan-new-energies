@@ -12,12 +12,14 @@
  */
 
 import 'preact/compat';
+import { useRef } from 'preact/hooks';
 import {
   EdgeId,
   EventDiscType,
   GameState,
   HexId,
   NodeId,
+  PlayerId,
   TerrainType,
 } from '../engine/types';
 import { SeaFrameSvg } from './SeaFrameSvg';
@@ -26,6 +28,7 @@ import {
   getPointyHexPoints,
   HEX_RADIUS,
   hexCoordToSvg,
+  ISLAND_TRANSFORM,
   latticeToSvg,
   PLAYER_THEMES,
   TABLETOP_THEME,
@@ -35,6 +38,9 @@ import {
   CityPieceSvg,
   HazardCogSvg,
   InspectorPawnSvg,
+  PieceDefs,
+  PLANT_RADIUS,
+  PLANT_SOCKET_DIST,
   PowerPlantCylinderSvg,
   TownPieceSvg,
 } from './WoodenPiecesSvg';
@@ -46,10 +52,15 @@ export interface IslandBoardSvgProps {
   highlightedNodeIds?: Set<NodeId>;
   highlightedEdgeIds?: Set<EdgeId>;
   highlightedCutoutSlots?: Set<string>; // Format: `${nodeId}-${hexId}`
+  /** Translucent piece shown where a hovered placement would go */
+  previewNode?: { nodeId: NodeId; type: 'town' | 'city'; playerId: PlayerId } | null;
+  previewEdge?: { edgeId: EdgeId; playerId: PlayerId } | null;
   onHexClick?: (hexId: HexId) => void;
   onNodeClick?: (nodeId: NodeId) => void;
   onEdgeClick?: (edgeId: EdgeId) => void;
   onCutoutClick?: (nodeId: NodeId, hexId: HexId) => void;
+  onNodeHover?: (nodeId: NodeId | null) => void;
+  onEdgeHover?: (edgeId: EdgeId | null) => void;
   onSelectEventTrackInfo?: (track: EventDiscType) => void;
 }
 
@@ -279,6 +290,56 @@ function TerrainArtworkSvg({ terrain, hexId }: { terrain: TerrainType; hexId: nu
   );
 }
 
+/** How long (ms) a freshly placed piece keeps its drop-in animation class. */
+const PLACEMENT_ANIM_MS = 650;
+
+/**
+ * Remembers when each board piece first appeared so newly built pieces can animate in,
+ * without replaying the animation on unrelated re-renders (hover, highlights, etc.).
+ */
+function usePlacementTimes(board: GameState['board']): (key: string) => boolean {
+  const prevRef = useRef<Map<string, string> | null>(null);
+  const placedAtRef = useRef<Map<string, number>>(new Map());
+
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const current = new Map<string, string>();
+  for (const n of board.intersections) {
+    if (n.building) current.set(`n${n.id}`, `${n.building.type}:${n.building.playerId}`);
+    if (n.hasHazard) current.set(`hzn${n.id}`, '1');
+    for (const p of n.powerPlants) current.set(`p${n.id}-${p.hexId}`, `${p.type}:${p.playerId}`);
+  }
+  for (const e of board.edges) {
+    if (e.road) current.set(`e${e.id}`, e.road.playerId);
+  }
+  for (const h of board.hexes) {
+    if (h.hasHazard) current.set(`hzh${h.id}`, '1');
+    if (h.hasInspector) current.set(`insp${h.id}`, '1');
+  }
+
+  const prev = prevRef.current;
+  if (prev) {
+    for (const [key, value] of current) {
+      if (prev.get(key) !== value) placedAtRef.current.set(key, now);
+    }
+  }
+  prevRef.current = current;
+
+  return (key: string) => {
+    const at = placedAtRef.current.get(key);
+    return at !== undefined && now - at < PLACEMENT_ANIM_MS;
+  };
+}
+
+function angleToHexDeg(
+  board: GameState['board'],
+  np: { x: number; y: number },
+  hexId: HexId | undefined
+): number | undefined {
+  if (hexId === undefined) return undefined;
+  const hp = hexCoordToSvg(board.hexes[hexId]!.coord);
+  return (Math.atan2(hp.y - np.y, hp.x - np.x) * 180) / Math.PI;
+}
+
 export function IslandBoardSvg({
   state,
   highlightedHexIds,
@@ -286,13 +347,18 @@ export function IslandBoardSvg({
   highlightedNodeIds,
   highlightedEdgeIds,
   highlightedCutoutSlots,
+  previewNode,
+  previewEdge,
   onHexClick,
   onNodeClick,
   onEdgeClick,
   onCutoutClick,
+  onNodeHover,
+  onEdgeHover,
   onSelectEventTrackInfo,
 }: IslandBoardSvgProps) {
   const { board } = state;
+  const isFresh = usePlacementTimes(board);
 
   return (
     <svg
@@ -308,6 +374,8 @@ export function IslandBoardSvg({
       }}
       data-testid="island-board-svg"
     >
+      <PieceDefs />
+
       {/* 1. Outer Sea Frame, Harbors, VP Track, GF Track & 7 Event Islands */}
       <SeaFrameSvg
         board={board}
@@ -320,6 +388,7 @@ export function IslandBoardSvg({
         onSelectEventTrackInfo={onSelectEventTrackInfo}
       />
 
+      <g transform={ISLAND_TRANSFORM} data-testid="island-layer">
       {/* 2. Continuous White Road Lattice Base Underlay */}
       <g className="white-road-lattice" pointerEvents="none">
         {board.hexes.map((hex) => {
@@ -345,6 +414,11 @@ export function IslandBoardSvg({
           const isProducing = producingHexIds?.has(hex.id) ?? false;
           const isHighProb = hex.numberDisc === 6 || hex.numberDisc === 8;
           const pips = hex.numberDisc ? getNumberDiscPips(hex.numberDisc) : 0;
+          const discInk = hex.hasHazard
+            ? '#6b6f75'
+            : isHighProb
+              ? TABLETOP_THEME.board.numberDiscRed
+              : TABLETOP_THEME.board.numberDiscCharcoal;
 
           return (
             <g
@@ -359,36 +433,39 @@ export function IslandBoardSvg({
                 }
               }}
               role="button"
-              tabIndex={0}
-              aria-label={`Hex ${hex.id}: ${hex.terrain}${hex.numberDisc ? ` number ${hex.numberDisc}` : ''}${hex.hasHazard ? ', has hazard' : ''}${hex.hasInspector ? ', has Environmental Inspector' : ''}`}
-              style={{ cursor: isHighlighted ? 'pointer' : 'default' }}
+              tabIndex={isHighlighted ? 0 : -1}
+              aria-label={`Hex ${hex.id}: ${hex.terrain}${hex.numberDisc ? ` number ${hex.numberDisc}` : ''}${hex.hasHazard ? ', blocked by a hazard' : ''}${hex.hasInspector ? ', has Environmental Inspector' : ''}`}
+              style={{ cursor: isHighlighted ? 'pointer' : 'inherit' }}
             >
               {/* Vector Terrain Illustration */}
               <TerrainArtworkSvg terrain={hex.terrain} hexId={hex.id} />
 
-              {/* Hex Hazard Cog (drawn underneath or framing the number disc so number stays legible) */}
+              {/* A hazard blocks the whole hex: grey the artwork out */}
               {hex.hasHazard && (
-                <g data-testid={`hex-hazard-${hex.id}`}>
-                  <HazardCogSvg cx={0} cy={0} r={24} />
-                </g>
+                <polygon
+                  points={getPointyHexPoints(0, 0, HEX_RADIUS - 4.8)}
+                  fill="rgba(58, 62, 70, 0.42)"
+                  pointerEvents="none"
+                />
               )}
 
-              {/* Cream Circular Number Disc (diameter 34 SVG units -> >= 28px on screen) */}
+              {/* Cream Circular Number Disc */}
               {hex.numberDisc !== null && (
                 <g data-testid={`number-disc-${hex.id}`}>
-                  {/* Drop shadow */}
                   <circle cx={1.5} cy={2.5} r={17} fill="rgba(0,0,0,0.32)" />
-                  {/* Cream disc */}
                   <circle
                     cx={0}
                     cy={0}
                     r={17}
-                    fill={TABLETOP_THEME.board.numberDiscFill}
-                    stroke={isHighProb ? TABLETOP_THEME.board.numberDiscRed : TABLETOP_THEME.board.numberDiscStroke}
+                    fill={hex.hasHazard ? '#d9d6cc' : TABLETOP_THEME.board.numberDiscFill}
+                    stroke={
+                      isHighProb && !hex.hasHazard
+                        ? TABLETOP_THEME.board.numberDiscRed
+                        : TABLETOP_THEME.board.numberDiscStroke
+                    }
                     strokeWidth={isHighProb ? 2 : 1.4}
                   />
-                  {/* Double ring for high-probability 6 and 8 */}
-                  {isHighProb && (
+                  {isHighProb && !hex.hasHazard && (
                     <circle
                       cx={0}
                       cy={0}
@@ -398,22 +475,17 @@ export function IslandBoardSvg({
                       strokeWidth={0.9}
                     />
                   )}
-                  {/* Bold Numeral */}
                   <text
                     x={0}
                     y={3.5}
                     textAnchor="middle"
                     fontSize="15"
-                    fontWeight="900"
-                    fill={
-                      isHighProb
-                        ? TABLETOP_THEME.board.numberDiscRed
-                        : TABLETOP_THEME.board.numberDiscCharcoal
-                    }
+                    fontWeight="800"
+                    fontFamily="'Bricolage Grotesque', 'Segoe UI', sans-serif"
+                    fill={discInk}
                   >
                     {hex.numberDisc}
                   </text>
-                  {/* Probability Pips */}
                   <g transform="translate(0, 9.5)">
                     {Array.from({ length: pips }, (_, pIdx) => {
                       const step = 3.8;
@@ -424,11 +496,7 @@ export function IslandBoardSvg({
                           cx={startX + pIdx * step}
                           cy={0}
                           r={1.35}
-                          fill={
-                            isHighProb
-                              ? TABLETOP_THEME.board.numberDiscRed
-                              : TABLETOP_THEME.board.numberDiscCharcoal
-                          }
+                          fill={discInk}
                         />
                       );
                     })}
@@ -436,53 +504,55 @@ export function IslandBoardSvg({
                 </g>
               )}
 
-              {/* 3D Grey Environmental Inspector Pawn */}
-              {hex.hasInspector && (
-                <InspectorPawnSvg
-                  cx={hex.numberDisc !== null ? 16 : 0}
-                  cy={hex.numberDisc !== null ? -8 : 2}
-                  scale={1.05}
-                />
+              {/* Hazard cog lies on top of the number disc; its hole keeps the number readable */}
+              {hex.hasHazard && (
+                <g
+                  data-testid={`hex-hazard-${hex.id}`}
+                  className={isFresh(`hzh${hex.id}`) ? 'piece-drop' : undefined}
+                >
+                  <HazardCogSvg cx={0} cy={0} r={30} holeRatio={0.5} />
+                </g>
               )}
 
-              {/* Production Roll Highlight Glow */}
-              {isProducing && (
-                <g data-testid={`hex-producing-${hex.id}`} pointerEvents="none">
-                  <polygon
-                    points={getPointyHexPoints(0, 0, HEX_RADIUS - 5)}
-                    fill="rgba(246, 224, 94, 0.28)"
-                    stroke="#f6e05e"
-                    strokeWidth={4}
-                  />
-                  <circle
-                    cx={0}
-                    cy={0}
-                    r={21}
-                    fill="none"
-                    stroke="#f6e05e"
-                    strokeWidth={3}
+              {/* Environmental Inspector */}
+              {hex.hasInspector && (
+                <g className={isFresh(`insp${hex.id}`) ? 'piece-drop' : undefined}>
+                  <InspectorPawnSvg
+                    cx={hex.numberDisc !== null ? 17 : 0}
+                    cy={hex.numberDisc !== null ? -10 : 2}
+                    scale={1.05}
                   />
                 </g>
               )}
 
-              {/* Interactive Hex Highlight Overlay (Move Inspector / Clean Hazard / High Yield) */}
+              {/* Production Roll Highlight Glow */}
+              {isProducing && (
+                <g data-testid={`hex-producing-${hex.id}`} pointerEvents="none" className="hex-producing">
+                  <polygon
+                    points={getPointyHexPoints(0, 0, HEX_RADIUS - 5)}
+                    fill="rgba(255, 214, 80, 0.26)"
+                    stroke="#ffd650"
+                    strokeWidth={4}
+                    strokeLinejoin="round"
+                  />
+                  <circle cx={0} cy={0} r={21} fill="none" stroke="#ffd650" strokeWidth={3} />
+                </g>
+              )}
+
+              {/* Interactive Hex Highlight Overlay (Move Inspector / Clean Hazard) */}
               {isHighlighted && (
                 <g data-testid={`hex-target-${hex.id}`}>
                   <polygon
                     points={getPointyHexPoints(0, 0, HEX_RADIUS - 6)}
-                    fill="rgba(245, 209, 29, 0.22)"
-                    stroke="#f5d11d"
+                    fill="rgba(255, 200, 58, 0.2)"
+                    stroke="#ffc83a"
                     strokeWidth={3.5}
                     strokeDasharray="8 4"
+                    strokeLinejoin="round"
                   />
-                  <circle
-                    cx={0}
-                    cy={0}
-                    r={22}
-                    fill="none"
-                    stroke="#ffffff"
-                    strokeWidth={2.5}
-                  />
+                  <g className="target-pulse">
+                    <circle cx={0} cy={0} r={22} fill="none" stroke="#ffffff" strokeWidth={2.5} />
+                  </g>
                 </g>
               )}
             </g>
@@ -501,13 +571,18 @@ export function IslandBoardSvg({
           const midY = (p1.y + p2.y) / 2;
           const angleDeg = (Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180) / Math.PI;
           const isHighlighted = highlightedEdgeIds?.has(edge.id) ?? false;
+          const ghostPlayer =
+            !edge.road && previewEdge?.edgeId === edge.id ? previewEdge.playerId : null;
+          const roadPlayer = edge.road?.playerId ?? ghostPlayer;
 
           return (
             <g
               key={edge.id}
               data-edge={edge.id}
-              transform={`translate(${midX.toFixed(2)}, ${midY.toFixed(2)}) rotate(${angleDeg.toFixed(2)})`}
+              transform={`translate(${midX.toFixed(2)}, ${midY.toFixed(2)})`}
               onClick={() => onEdgeClick?.(edge.id)}
+              onMouseEnter={isHighlighted ? () => onEdgeHover?.(edge.id) : undefined}
+              onMouseLeave={isHighlighted ? () => onEdgeHover?.(null) : undefined}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
@@ -515,104 +590,104 @@ export function IslandBoardSvg({
                 }
               }}
               role="button"
-              tabIndex={0}
+              tabIndex={isHighlighted ? 0 : -1}
               aria-label={`Path edge ${edge.id} between intersections ${edge.v1} and ${edge.v2}${edge.road ? `, Road owned by ${edge.road.playerId}` : ''}`}
-              style={{ cursor: isHighlighted ? 'pointer' : 'default' }}
+              style={{ cursor: isHighlighted ? 'pointer' : 'inherit' }}
             >
-              {/* Invisible wide hit target for easy clicking */}
-              <rect x={-18} y={-9} width={36} height={18} fill="transparent" />
+              <g transform={`rotate(${angleDeg.toFixed(2)})`}>
+                {/* Invisible wide hit target for easy clicking */}
+                <rect x={-20} y={-11} width={40} height={22} fill="transparent" />
 
-              {/* Built 3D Wooden Road Bar */}
-              {edge.road && (() => {
-                const pTheme = PLAYER_THEMES[edge.road.playerId];
-                return (
-                  <g data-testid={`road-${edge.id}`}>
-                    {/* Shadow */}
-                    <rect x={-14} y={-2.5} width={29} height={8.5} rx={2} fill="rgba(0,0,0,0.35)" />
-                    {/* High-contrast outer halo */}
-                    <rect
-                      x={-15}
-                      y={-4.5}
-                      width={30}
-                      height={9}
-                      rx={2.2}
-                      fill={pTheme.sideFill}
-                      stroke={pTheme.outerHalo}
-                      strokeWidth={2}
-                    />
-                    {/* 3D wooden beam top */}
-                    <rect
-                      x={-14.5}
-                      y={-4}
-                      width={29}
-                      height={7.5}
-                      rx={1.8}
-                      fill={pTheme.fill}
-                      stroke={pTheme.stroke}
-                      strokeWidth={1.2}
-                    />
-                    {/* Bevel highlight line */}
-                    <line
-                      x1={-12}
-                      y1={-2}
-                      x2={12}
-                      y2={-2}
-                      stroke={pTheme.highlight}
-                      strokeWidth={1.3}
-                      strokeLinecap="round"
-                    />
+                {/* Built (or previewed) wooden road */}
+                {roadPlayer &&
+                  (() => {
+                    const pTheme = PLAYER_THEMES[roadPlayer];
+                    return (
+                      <g
+                        data-testid={edge.road ? `road-${edge.id}` : `road-preview-${edge.id}`}
+                        opacity={edge.road ? 1 : 0.6}
+                        className={edge.road && isFresh(`e${edge.id}`) ? 'piece-drop' : undefined}
+                      >
+                        <rect x={-13} y={-1.5} width={29} height={8.5} rx={2} fill="rgba(10,14,20,0.32)" />
+                        <rect
+                          x={-14.5}
+                          y={-3.5}
+                          width={29}
+                          height={9}
+                          rx={2}
+                          fill={pTheme.sideFill}
+                          stroke={pTheme.stroke}
+                          strokeWidth={1.1}
+                        />
+                        <rect
+                          x={-14.5}
+                          y={-4.5}
+                          width={29}
+                          height={7}
+                          rx={1.8}
+                          fill={pTheme.fill}
+                          stroke={pTheme.stroke}
+                          strokeWidth={1.1}
+                        />
+                        <line
+                          x1={-12}
+                          y1={-2.6}
+                          x2={12}
+                          y2={-2.6}
+                          stroke={pTheme.highlight}
+                          strokeWidth={1.2}
+                          strokeLinecap="round"
+                        />
+                      </g>
+                    );
+                  })()}
+
+                {/* Legal road placement */}
+                {isHighlighted && !ghostPlayer && (
+                  <g data-testid={`edge-target-${edge.id}`}>
+                    <g className="target-pulse">
+                      <rect
+                        x={-12}
+                        y={-4.5}
+                        width={24}
+                        height={9}
+                        rx={4.5}
+                        fill="#ffc83a"
+                        stroke="#ffffff"
+                        strokeWidth={2}
+                      />
+                    </g>
                   </g>
-                );
-              })()}
-
-              {/* Interactive Placement Highlight for Legal Road Build */}
-              {isHighlighted && (
-                <rect
-                  data-testid={`edge-target-${edge.id}`}
-                  x={-15}
-                  y={-5.5}
-                  width={30}
-                  height={11}
-                  rx={5.5}
-                  fill="rgba(245, 209, 29, 0.78)"
-                  stroke="#ffffff"
-                  strokeWidth={2}
-                />
-              )}
+                )}
+              </g>
             </g>
           );
         })}
       </g>
 
-      {/* 5. 54 Intersections (Towns & Cities with oriented concave sockets, Hazards & Placement Targets) */}
+      {/* 5. 54 Intersections (Towns & Cities oriented to their plants, hazards & placement targets) */}
       <g className="intersections-layer">
         {board.intersections.map((node) => {
           const np = latticeToSvg(node.u, node.v);
           const isHighlighted = highlightedNodeIds?.has(node.id) ?? false;
 
-          // Compute exact cutout orientation so Town's 1 concave socket faces its attached/target Power Plant,
-          // and City's 3 120°-spaced concave sockets align with all 3 adjacent resource hexes!
-          const firstAdjHexId = node.adjacentHexIds[0];
-          const firstHexAngleDeg =
-            firstAdjHexId !== undefined
-              ? (() => {
-                  const hp = hexCoordToSvg(board.hexes[firstAdjHexId]!.coord);
-                  return (Math.atan2(hp.y - np.y, hp.x - np.x) * 180) / Math.PI;
-                })()
-              : 30;
-
+          // City notches face all three adjacent hexes; a Town's single notch faces its plant
+          // (or the hex being targeted for one, or simply its first hex).
+          const firstHexAngleDeg = angleToHexDeg(board, np, node.adjacentHexIds[0]) ?? 30;
           const townTargetHexId =
             node.powerPlants[0]?.hexId ??
             node.adjacentHexIds.find((hId) => highlightedCutoutSlots?.has(`${node.id}-${hId}`)) ??
-            firstAdjHexId;
-
+            node.adjacentHexIds[0];
           const townCutoutAngleDeg =
-            townTargetHexId !== undefined
-              ? (() => {
-                  const hp = hexCoordToSvg(board.hexes[townTargetHexId]!.coord);
-                  return (Math.atan2(hp.y - np.y, hp.x - np.x) * 180) / Math.PI;
-                })()
-              : firstHexAngleDeg;
+            angleToHexDeg(board, np, townTargetHexId) ?? firstHexAngleDeg;
+
+          const preview =
+            previewNode?.nodeId === node.id &&
+            (!node.building || (previewNode.type === 'city' && node.building.type === 'town'))
+              ? previewNode
+              : null;
+          const shownType = preview ? preview.type : node.building?.type;
+          const shownPlayer = preview ? preview.playerId : node.building?.playerId;
 
           return (
             <g
@@ -620,67 +695,72 @@ export function IslandBoardSvg({
               data-node={node.id}
               transform={`translate(${np.x.toFixed(2)}, ${np.y.toFixed(2)})`}
               onClick={() => onNodeClick?.(node.id)}
+              onMouseEnter={isHighlighted ? () => onNodeHover?.(node.id) : undefined}
+              onMouseLeave={isHighlighted ? () => onNodeHover?.(null) : undefined}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
                   onNodeClick?.(node.id);
                 }
               }}
+              onFocus={isHighlighted ? () => onNodeHover?.(node.id) : undefined}
+              onBlur={isHighlighted ? () => onNodeHover?.(null) : undefined}
               role="button"
-              tabIndex={0}
+              tabIndex={isHighlighted ? 0 : -1}
               aria-label={`Intersection ${node.id}${node.building ? `: ${node.building.type} owned by ${node.building.playerId}` : ''}${node.hasHazard ? ', blocked by Hazard' : ''}`}
-              style={{ cursor: isHighlighted ? 'pointer' : 'default' }}
+              style={{ cursor: isHighlighted ? 'pointer' : 'inherit' }}
             >
               {/* Invisible hit circle */}
-              <circle cx={0} cy={0} r={13} fill="transparent" />
+              <circle cx={0} cy={0} r={isHighlighted ? 19 : 13} fill="transparent" />
 
-              {/* Built Town or City with exact interlocking cutout orientation */}
-              {node.building?.type === 'town' && (
-                <TownPieceSvg
-                  playerId={node.building.playerId}
-                  cx={0}
-                  cy={0}
-                  scale={0.96}
-                  cutoutAngleDeg={townCutoutAngleDeg}
-                />
-              )}
-              {node.building?.type === 'city' && (
-                <CityPieceSvg
-                  playerId={node.building.playerId}
-                  cx={0}
-                  cy={0}
-                  scale={1.14}
-                  cutoutAngleDeg={firstHexAngleDeg}
-                />
-              )}
-
-              {/* Building Hazard Oil Spill Overlay */}
-              {node.hasHazard && (
-                <g data-testid={`node-hazard-${node.id}`}>
-                  <HazardCogSvg cx={0} cy={0} r={15.5} />
+              {shownType && shownPlayer && (
+                <g
+                  opacity={preview ? 0.62 : 1}
+                  data-testid={preview ? `node-preview-${node.id}` : undefined}
+                  className={!preview && isFresh(`n${node.id}`) ? 'piece-drop' : undefined}
+                >
+                  {shownType === 'town' ? (
+                    <TownPieceSvg
+                      playerId={shownPlayer}
+                      cx={0}
+                      cy={0}
+                      cutoutAngleDeg={townCutoutAngleDeg}
+                    />
+                  ) : (
+                    <CityPieceSvg
+                      playerId={shownPlayer}
+                      cx={0}
+                      cy={0}
+                      cutoutAngleDeg={firstHexAngleDeg}
+                    />
+                  )}
                 </g>
               )}
 
-              {/* Interactive Placement Highlight Ring */}
-              {isHighlighted && (
+              {/* Hazard cog resting on the building */}
+              {node.hasHazard && (
+                <g
+                  data-testid={`node-hazard-${node.id}`}
+                  className={isFresh(`hzn${node.id}`) ? 'piece-drop' : undefined}
+                >
+                  <HazardCogSvg cx={0} cy={-1} r={node.building?.type === 'city' ? 12 : 10.5} holeRatio={0.38} />
+                </g>
+              )}
+
+              {/* Placement target */}
+              {isHighlighted && !preview && (
                 <g data-testid={`node-target-${node.id}`}>
-                  <circle
-                    cx={0}
-                    cy={0}
-                    r={13}
-                    fill="rgba(245, 209, 29, 0.8)"
-                    stroke="#ffffff"
-                    strokeWidth={2.5}
-                  />
-                  <circle cx={0} cy={0} r={6} fill="#1e2022" />
+                  <g className="target-pulse">
+                    <circle cx={0} cy={0} r={11} fill="rgba(255, 200, 58, 0.28)" stroke="#ffc83a" strokeWidth={1.5} />
+                  </g>
+                  <circle cx={0} cy={0} r={6.5} fill="#ffc83a" stroke="#ffffff" strokeWidth={2.2} />
                 </g>
               )}
             </g>
           );
         })}
       </g>
-
-      {/* 6. Hex-Corner Power Plant Cutout Slots (Locked directly into Town/City concave sockets at dist=13.5) */}
+      {/* 6. Power plant discs, nested in the Town/City notches */}
       <g className="power-plants-cutout-layer">
         {board.intersections.map((node) => {
           const np = latticeToSvg(node.u, node.v);
@@ -691,10 +771,8 @@ export function IslandBoardSvg({
             const dx = hp.x - np.x;
             const dy = hp.y - np.y;
             const dist = Math.hypot(dx, dy) || 1;
-            // Position cutout slot at exact socket center (13.5 units from intersection toward hex center)
-            // so the r=7.5 cylinder locks directly into the r=8.0 concave cutout of the Town or City piece!
-            const slotX = np.x + (dx / dist) * 13.5;
-            const slotY = np.y + (dy / dist) * 13.5;
+            const slotX = np.x + (dx / dist) * PLANT_SOCKET_DIST;
+            const slotY = np.y + (dy / dist) * PLANT_SOCKET_DIST;
 
             const slotKey = `${node.id}-${hexId}`;
             const plant = node.powerPlants.find((p) => p.hexId === hexId) ?? null;
@@ -718,39 +796,34 @@ export function IslandBoardSvg({
                   }
                 }}
                 role="button"
-                tabIndex={0}
+                tabIndex={isHighlighted ? 0 : -1}
                 aria-label={`Power plant cutout at intersection ${node.id} on hex ${hexId}${plant ? `: ${plant.type} plant owned by ${plant.playerId}` : ' (available)'}`}
-                style={{ cursor: isHighlighted ? 'pointer' : 'default' }}
+                style={{ cursor: isHighlighted ? 'pointer' : 'inherit' }}
               >
                 {plant && (
-                  <PowerPlantCylinderSvg
-                    type={plant.type}
-                    cx={slotX}
-                    cy={slotY}
-                    r={7.5}
-                  />
+                  <g className={isFresh(`p${slotKey}`) ? 'piece-drop' : undefined}>
+                    <PowerPlantCylinderSvg type={plant.type} cx={slotX} cy={slotY} r={PLANT_RADIUS} />
+                  </g>
                 )}
 
                 {isHighlighted && (
-                  <g data-testid={`plant-target-${slotKey}`}>
-                    <circle
-                      cx={slotX}
-                      cy={slotY}
-                      r={9.5}
-                      fill="rgba(46, 184, 87, 0.72)"
-                      stroke="#ffffff"
-                      strokeWidth={2.2}
-                    />
-                    <polygon
-                      points={`${slotX - 1},${slotY - 4.5} ${slotX + 2.8},${slotY - 4.5} ${slotX},${slotY} ${slotX + 3.2},${slotY} ${slotX - 2.2},${slotY + 5} ${slotX - 0.5},${slotY + 0.5} ${slotX - 3.2},${slotY + 0.5}`}
-                      fill="#f5d11d"
-                    />
+                  <g data-testid={`plant-target-${slotKey}`} transform={`translate(${slotX}, ${slotY})`}>
+                    <circle r={13} fill="transparent" />
+                    <g className="target-pulse">
+                      <circle r={8.5} fill="rgba(47, 154, 83, 0.85)" stroke="#ffffff" strokeWidth={2} />
+                      <polygon
+                        points="-1,-4.5 2.8,-4.5 0,0 3.2,0 -2.2,5 -0.5,0.5 -3.2,0.5"
+                        fill="#ffc83a"
+                      />
+                    </g>
                   </g>
                 )}
               </g>
             );
           });
         })}
+      </g>
+
       </g>
     </svg>
   );

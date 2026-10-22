@@ -20,6 +20,7 @@ import {
 import {
   BOARD_CENTER_X,
   BOARD_CENTER_Y,
+  ISLAND_TRANSFORM,
   EVENT_TRACK_METADATA,
   latticeToSvg,
   PLAYER_THEMES,
@@ -227,6 +228,7 @@ export function SeaFrameSvg({
 
       {/* Wide Sandy Coastal Shelf around the Central 19-Hex Island (matching BGG board) */}
       <circle
+        transform={ISLAND_TRANSFORM}
         cx={BOARD_CENTER_X}
         cy={BOARD_CENTER_Y}
         r={286}
@@ -236,7 +238,7 @@ export function SeaFrameSvg({
       />
 
       {/* Subtle Wave Contour Ripples & Whitecaps */}
-      {[316, 352, 386, 424, 450].map((r, idx) => (
+      {[372, 400, 428, 452].map((r, idx) => (
         <circle
           key={r}
           cx={BOARD_CENTER_X}
@@ -275,24 +277,25 @@ export function SeaFrameSvg({
       <g data-testid="ocean-whales" aria-label={`Ocean whales (${playerCount}-player game indicator pod)`}>
         {/* Official Rulebook Global Footprint Whale Pod (3 whales in 3P, 4 whales in 4P) */}
         <g data-testid="gf-whale-pod">
-          <OceanWhaleSvg cx={576} cy={168} scale={0.92} rotate={26} showSpout={true} />
-          <OceanWhaleSvg cx={612} cy={200} scale={0.82} rotate={34} showSpout={false} />
-          <OceanWhaleSvg cx={768} cy={308} scale={0.88} rotate={44} showSpout={true} />
+          <OceanWhaleSvg cx={586} cy={128} scale={0.8} rotate={22} showSpout={true} />
+          <OceanWhaleSvg cx={636} cy={146} scale={0.72} rotate={30} showSpout={false} />
+          <OceanWhaleSvg cx={846} cy={396} scale={0.76} rotate={78} showSpout={true} />
           {playerCount === 4 && (
-            <OceanWhaleSvg cx={732} cy={280} scale={0.76} rotate={38} showSpout={false} />
+            <OceanWhaleSvg cx={872} cy={478} scale={0.66} rotate={88} showSpout={false} />
           )}
         </g>
 
         {/* Scenic Whales Swimming in the Outer Blue Sea Channels */}
-        <OceanWhaleSvg cx={256} cy={142} scale={1.08} rotate={-28} showSpout={true} />
-        <OceanWhaleSvg cx={155} cy={386} scale={0.92} rotate={-75} flipX={true} showSpout={true} />
-        <OceanWhaleSvg cx={292} cy={798} scale={1.05} rotate={22} showSpout={true} />
-        <OceanWhaleSvg cx={692} cy={792} scale={0.96} rotate={-24} flipX={true} showSpout={true} />
+        <OceanWhaleSvg cx={330} cy={156} scale={0.9} rotate={-28} showSpout={true} />
+        <OceanWhaleSvg cx={124} cy={392} scale={0.8} rotate={-75} flipX={true} showSpout={true} />
+        <OceanWhaleSvg cx={270} cy={836} scale={0.88} rotate={22} showSpout={true} />
+        <OceanWhaleSvg cx={720} cy={826} scale={0.84} rotate={-24} flipX={true} showSpout={true} />
       </g>
 
       {/* =================================================================== */}
       {/* 1. 9 COASTAL HARBORS                                                */}
       {/* =================================================================== */}
+      <g transform={ISLAND_TRANSFORM}>
       {board.harbors.map((harbor) => {
         const n1 = board.intersections[harbor.nodeIds[0]]!;
         const n2 = board.intersections[harbor.nodeIds[1]]!;
@@ -398,6 +401,8 @@ export function SeaFrameSvg({
           </g>
         );
       })}
+
+      </g>
 
       {/* =================================================================== */}
       {/* 2. TOP 12 O'CLOCK GREEN COASTAL PENINSULA — VICTORY POINTS (1..10)  */}
@@ -555,7 +560,7 @@ export function SeaFrameSvg({
         {/* BGG-Style Horizontal Global Footprint Callout Box ([- cloud] [12] [+ cloud] & Bag Draw Icon) */}
         <g
           data-testid="gf-hud-widget"
-          transform="translate(686, 204)"
+          transform="translate(770, 262) scale(0.9)"
         >
           {/* Drop shadow */}
           <rect x={-48} y={-24} width={96} height={50} rx={7} fill="rgba(0,0,0,0.38)" />
