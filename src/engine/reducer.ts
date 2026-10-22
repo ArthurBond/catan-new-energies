@@ -234,6 +234,8 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           next.phase = 'EventPhase';
           next.currentTurn = 1;
           next.activePlayerId = next.playerOrder[0]!;
+          // The turn-order roll-off is not a production roll; start turn 1 with clear dice
+          next.lastDiceRoll = null;
         }
       }
 

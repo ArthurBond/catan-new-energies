@@ -32,8 +32,17 @@ import {
   TerrainType,
 } from './types';
 
+export type StartingPlacement = 'fixed' | 'draft';
+
 export interface InitialGameOptions {
+  /** Board layout: 'first' = fixed recommended layout, 'standard' = shuffled terrain & discs. */
   setupMode?: 'first' | 'standard';
+  /**
+   * Starting pieces: 'fixed' = First Game recommended positions (First Game board only),
+   * 'draft' = players place their own Town, City and Roads in a snake draft.
+   * Defaults to 'fixed' on the First Game board and 'draft' on the Standard board.
+   */
+  placement?: StartingPlacement;
   playerCount?: 3 | 4;
   seed?: number;
   playerNames?: Partial<Record<PlayerId, string>>;
@@ -209,6 +218,9 @@ export function createInitialGameState(options?: InitialGameOptions): GameState 
   const setupMode = options?.setupMode ?? 'first';
   const playerCount = options?.playerCount ?? 4;
   const seed = options?.seed ?? 42;
+  // Fixed starting positions only exist for the First Game board; any other board is drafted.
+  const placement: StartingPlacement =
+    setupMode === 'first' ? (options?.placement ?? 'fixed') : 'draft';
 
   const prng = new Mulberry32PRNG(seed);
   const supply = createInitialSupply();
@@ -229,25 +241,62 @@ export function createInitialGameState(options?: InitialGameOptions): GameState 
     players[pid] = player;
   });
 
-  let board: Board;
+  // First Game uses the fixed recommended layout; Standard shuffles terrain and spirals the discs.
+  const board: Board =
+    setupMode === 'first' ? createBoard() : createBoard(createVariableHexConfigs(prng));
 
-  if (setupMode === 'first') {
-    // First Game fixed board layout
-    board = createBoard();
+  const baseState = {
+    setupMode,
+    playerCount,
+    playerOrder,
+    activePlayerId: playerOrder[0]!,
+    board,
+    players: players as Record<PlayerId, PlayerState>,
+    eventTracks: {
+      environmentalPollution: 0,
+      rainAndFlooding: 0,
+      airPollution: 0,
+      productionIncrease: 0,
+      climateConference: 0,
+      sustainableProduction: 0,
+      governmentFunding: 0,
+    },
+    lockedDrawCount: null,
+    supply,
+    winner: null,
+    lastDiceRoll: null,
+    turnStats: {
+      powerPlantsBuiltThisTurn: 0,
+      fossilPlantsDemolishedThisTurn: 0,
+      devCardsBoughtThisTurn: [],
+      devCardsPlayedThisTurn: 0,
+    },
+    specialAwards: {
+      longestRoad: { holder: null, length: 0 },
+      cleanestEnvironment: { holder: null, cleanupCount: 0 },
+    },
+    eventDiscsDrawnThisTurn: 0,
+    discardedDevCards: [],
+    devCardsBoughtThisTurn: [],
+    devCardPlayedThisTurn: false,
+    cleanestEnvironmentHolder: null,
+    longestRoadHolder: null,
+  } satisfies Partial<GameState>;
 
+  if (placement === 'fixed') {
     // Place fixed settlements & roads for each player
     playerOrder.forEach((pid) => {
-      const placement = FIRST_GAME_PLACEMENTS[pid]!;
+      const spot = FIRST_GAME_PLACEMENTS[pid]!;
       const player = players[pid]!;
 
       // 1. Place City
-      const cityNode = board.intersections[placement.cityNodeId]!;
+      const cityNode = board.intersections[spot.cityNodeId]!;
       cityNode.building = { playerId: pid, type: 'city' };
       player.citiesBuilt = 1;
       player.citiesInReserve = 3;
 
       // 2. Place Town
-      const townNode = board.intersections[placement.townNodeId]!;
+      const townNode = board.intersections[spot.townNodeId]!;
       townNode.building = { playerId: pid, type: 'town' };
       player.townsBuilt = 1;
       player.townsInReserve = 4;
@@ -291,28 +340,12 @@ export function createInitialGameState(options?: InitialGameOptions): GameState 
     const clampedGF = clampGF(trueTotalLF, playerCount);
 
     return {
-      setupMode,
-      playerCount,
-      playerOrder,
-      activePlayerId: playerOrder[0]!,
+      ...baseState,
       currentTurn: 1,
       phase: 'EventPhase',
-      board,
-      players: players as Record<PlayerId, PlayerState>,
       trueTotalLF,
       clampedGF,
       eventBag: createInitialEventBag(prng),
-      eventTracks: {
-        environmentalPollution: 0,
-        rainAndFlooding: 0,
-        airPollution: 0,
-        productionIncrease: 0,
-        climateConference: 0,
-        sustainableProduction: 0,
-        governmentFunding: 0,
-      },
-      lockedDrawCount: null,
-      supply,
       pendingDecisions: [],
       prng: prng.getState(),
       log: [
@@ -321,126 +354,60 @@ export function createInitialGameState(options?: InitialGameOptions): GameState 
           message: `Game initialized in First Game mode with ${playerCount} players.`,
         },
       ],
-      winner: null,
-      lastDiceRoll: null,
-      turnStats: {
-        powerPlantsBuiltThisTurn: 0,
-        fossilPlantsDemolishedThisTurn: 0,
-        devCardsBoughtThisTurn: [],
-        devCardsPlayedThisTurn: 0,
-      },
-      specialAwards: {
-        longestRoad: { holder: null, length: 0 },
-        cleanestEnvironment: { holder: null, cleanupCount: 0 },
-      },
-      eventDiscsDrawnThisTurn: 0,
-      discardedDevCards: [],
-      devCardsBoughtThisTurn: [],
-      devCardPlayedThisTurn: false,
-      cleanestEnvironmentHolder: null,
-      longestRoadHolder: null,
-    };
-  } else {
-    // Standard Variable Snake Draft Setup
-    // 1. Shuffle 19 terrain tiles
-    const shuffledTerrains = prng.shuffle(STANDARD_TERRAIN_TILES);
-
-    // 2. Spiral number discs A through R skipping Desert
-    let discIdx = 0;
-    const hexConfigs: HexTileConfig[] = [];
-
-    // Pre-allocate configs
-    for (let i = 0; i < 19; i++) {
-      hexConfigs.push({ terrain: 'desert', numberDisc: null });
-    }
-
-    // Assign shuffled terrains to hex 0..18
-    for (let i = 0; i < 19; i++) {
-      hexConfigs[i]!.terrain = shuffledTerrains[i]!;
-    }
-
-    // Traverse in spiral order to assign discs
-    for (const hId of SPIRAL_HEX_ORDER) {
-      const terrain = hexConfigs[hId]!.terrain;
-      if (terrain === 'desert') {
-        hexConfigs[hId]!.numberDisc = null;
-      } else {
-        hexConfigs[hId]!.numberDisc = SPIRAL_DISCS[discIdx]!;
-        discIdx++;
-      }
-    }
-
-    board = createBoard(hexConfigs);
-
-    // Players start with 0 pieces built
-    playerOrder.forEach((pid) => {
-      const player = players[pid]!;
-      player.victoryPoints = 0;
-      player.localFootprint = 0;
-    });
-
-    const shouldRollForSetup = options?.setupRoll === true;
-
-    const initialDecision: PendingDecision = {
-      id: 'setup-0',
-      type: 'SETUP_PLACE_SETTLEMENT',
-      playerId: playerOrder[0]!,
-      round: 1,
-    };
-
-    return {
-      setupMode,
-      playerCount,
-      playerOrder,
-      activePlayerId: playerOrder[0]!,
-      currentTurn: 0,
-      phase: shouldRollForSetup ? 'SetupRoll' : 'SetupDraft',
-      board,
-      players: players as Record<PlayerId, PlayerState>,
-      trueTotalLF: 0,
-      clampedGF: 0,
-      eventBag: createInitialEventBag(prng),
-      eventTracks: {
-        environmentalPollution: 0,
-        rainAndFlooding: 0,
-        airPollution: 0,
-        productionIncrease: 0,
-        climateConference: 0,
-        sustainableProduction: 0,
-        governmentFunding: 0,
-      },
-      lockedDrawCount: null,
-      supply,
-      pendingDecisions: shouldRollForSetup ? [] : [initialDecision],
-      setupRolls: shouldRollForSetup ? {} : undefined,
-      setupRollWinner: null,
-      prng: prng.getState(),
-      log: [
-        {
-          timestamp: 0,
-          message: shouldRollForSetup
-            ? `Game initialized. Each player rolls 2 dice to choose who places a settlement first (highest roll goes first).`
-            : `Game initialized in Standard Variable Draft mode with ${playerCount} players.`,
-        },
-      ],
-      winner: null,
-      lastDiceRoll: null,
-      turnStats: {
-        powerPlantsBuiltThisTurn: 0,
-        fossilPlantsDemolishedThisTurn: 0,
-        devCardsBoughtThisTurn: [],
-        devCardsPlayedThisTurn: 0,
-      },
-      specialAwards: {
-        longestRoad: { holder: null, length: 0 },
-        cleanestEnvironment: { holder: null, cleanupCount: 0 },
-      },
-      eventDiscsDrawnThisTurn: 0,
-      discardedDevCards: [],
-      devCardsBoughtThisTurn: [],
-      devCardPlayedThisTurn: false,
-      cleanestEnvironmentHolder: null,
-      longestRoadHolder: null,
     };
   }
+
+  // Snake draft: every player places their own starting Town (round 1) and City (round 2).
+  const shouldRollForSetup = options?.setupRoll === true;
+  const boardLabel = setupMode === 'first' ? 'First Game board' : 'Standard Variable board';
+
+  const initialDecision: PendingDecision = {
+    id: 'setup-0',
+    type: 'SETUP_PLACE_SETTLEMENT',
+    playerId: playerOrder[0]!,
+    round: 1,
+  };
+
+  return {
+    ...baseState,
+    currentTurn: 0,
+    phase: shouldRollForSetup ? 'SetupRoll' : 'SetupDraft',
+    trueTotalLF: 0,
+    clampedGF: 0,
+    eventBag: createInitialEventBag(prng),
+    pendingDecisions: shouldRollForSetup ? [] : [initialDecision],
+    setupRolls: shouldRollForSetup ? {} : undefined,
+    setupRollWinner: null,
+    prng: prng.getState(),
+    log: [
+      {
+        timestamp: 0,
+        message: shouldRollForSetup
+          ? `Game initialized on the ${boardLabel}. Each player rolls 2 dice to choose who places a settlement first (highest roll goes first).`
+          : `Game initialized on the ${boardLabel} with ${playerCount} players. Place your starting pieces.`,
+      },
+    ],
+  };
+}
+
+/**
+ * Standard Game board: shuffle the 19 terrain tiles and lay number discs A..R along the spiral,
+ * skipping the Desert.
+ */
+function createVariableHexConfigs(prng: Mulberry32PRNG): HexTileConfig[] {
+  const shuffledTerrains = prng.shuffle(STANDARD_TERRAIN_TILES);
+  const hexConfigs: HexTileConfig[] = shuffledTerrains.map((terrain) => ({
+    terrain,
+    numberDisc: null,
+  }));
+
+  let discIdx = 0;
+  for (const hId of SPIRAL_HEX_ORDER) {
+    if (hexConfigs[hId]!.terrain !== 'desert') {
+      hexConfigs[hId]!.numberDisc = SPIRAL_DISCS[discIdx]!;
+      discIdx++;
+    }
+  }
+
+  return hexConfigs;
 }

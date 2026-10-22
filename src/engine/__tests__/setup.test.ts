@@ -211,6 +211,62 @@ describe('Game Setup & Footprint — SET-01..SET-04, GF-01, GF-02', () => {
       expect(state.currentTurn).toBe(1);
       expect(state.activePlayerId).toBe(firstPlayer);
     });
+
+    it('lets players draft their own starting pieces on the fixed First Game board', () => {
+      const fixed = createInitialGameState({ setupMode: 'first', playerCount: 4, seed: 9 });
+      let state = createInitialGameState({
+        setupMode: 'first',
+        placement: 'draft',
+        setupRoll: true,
+        playerCount: 4,
+        seed: 9,
+      });
+
+      // Same recommended terrain & number layout, but an empty board waiting for the roll-off
+      expect(state.board.hexes.map((h) => [h.terrain, h.numberDisc])).toEqual(
+        fixed.board.hexes.map((h) => [h.terrain, h.numberDisc])
+      );
+      expect(state.phase).toBe('SetupRoll');
+      expect(state.board.intersections.every((n) => n.building === null)).toBe(true);
+      expect(state.board.edges.every((e) => e.road === null)).toBe(true);
+      expect(state.playerOrder.every((pid) => state.players[pid]!.victoryPoints === 0)).toBe(true);
+
+      while (state.phase === 'SetupRoll') {
+        state = applyAction(state, legalActions(state, state.activePlayerId)[0]!);
+      }
+
+      // Drive the full snake draft: 4 towns clockwise, then 4 cities anticlockwise
+      let placements = 0;
+      while (state.phase === 'SetupDraft') {
+        const actor = state.pendingDecisions[0]!.playerId;
+        state = applyAction(state, legalActions(state, actor)[0]!);
+        placements++;
+      }
+
+      expect(placements).toBe(16);
+      expect(state.phase).toBe('EventPhase');
+      for (const pid of state.playerOrder) {
+        const p = state.players[pid]!;
+        expect(p.townsBuilt).toBe(1);
+        expect(p.citiesBuilt).toBe(1);
+        expect(p.roadsBuilt).toBe(2);
+        expect(p.victoryPoints).toBe(3);
+        expect(p.science).toBe(1);
+      }
+      // Every pair of buildings respects the distance rule
+      const built = state.board.intersections.filter((n) => n.building !== null).map((n) => n.id);
+      for (const a of built) {
+        for (const b of built) {
+          if (a !== b) expect(getDistanceBetweenNodes(state.board, a, b)).toBeGreaterThanOrEqual(2);
+        }
+      }
+    });
+
+    it('ignores fixed placement on the Standard board (always drafted)', () => {
+      const state = createInitialGameState({ setupMode: 'standard', placement: 'fixed', seed: 3 });
+      expect(state.phase).toBe('SetupDraft');
+      expect(state.board.intersections.every((n) => n.building === null)).toBe(true);
+    });
   });
 
   describe('SET-03: Starting Hand Resource & Science Rules', () => {
