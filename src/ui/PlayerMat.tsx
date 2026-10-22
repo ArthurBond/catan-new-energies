@@ -667,10 +667,10 @@ export function PlayerMat({
                   {/* Active Warehouse: <= 10 Hand Limit Badge */}
                   <rect x={12} y={24} width={80} height={38} rx={4} fill="#2e8540" />
                   <text x={52} y={42} textAnchor="middle" fontSize="14" fontWeight="900" fill="#ffffff">
-                    &le; 10 CARDS
+                    &le; 10 cards
                   </text>
                   <text x={52} y={55} textAnchor="middle" fontSize="8.5" fontWeight="700" fill="#d9f2e1">
-                    WAREHOUSE ACTIVE
+                    Warehouse built
                   </text>
                 </>
               )}

@@ -444,10 +444,9 @@ export function SeaFrameSvg({
             textAnchor="middle"
             fontSize="7.2"
             fontWeight="800"
-            letterSpacing="0.7"
             fill="#f0f8ff"
           >
-            VICTORY POINTS (10 TO WIN)
+            Victory points · 10 to win
           </text>
         </g>
 

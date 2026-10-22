@@ -1787,10 +1787,22 @@ export function VictoryModal({
   }
 
   const band = winners.length === 1 ? PLAYER_THEMES[winners[0]!] : null;
-  const standings = [...state.playerOrder].sort(
-    (a, b) => emptyBagEval.details.scores[b]!.totalVp - emptyBagEval.details.scores[a]!.totalVp
-  );
-  const topVp = Math.max(10, ...standings.map((pid) => emptyBagEval.details.scores[pid]!.totalVp));
+  const scores = emptyBagEval.details.scores;
+  // When the bag runs out the game is decided by renewable-over-fossil balance, not points
+  const decidedByBalance =
+    isCollapse || (isEmptyBagEnd && !winners.some((pid) => scores[pid]!.totalVp >= 10));
+  const rankKey = (pid: PlayerId): number[] => [
+    winners.includes(pid) ? 1 : 0,
+    ...(decidedByBalance ? [scores[pid]!.netRenewable, scores[pid]!.totalVp] : [scores[pid]!.totalVp]),
+  ];
+  const standings = [...state.playerOrder].sort((a, b) => {
+    const ka = rankKey(a);
+    const kb = rankKey(b);
+    for (let i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return kb[i]! - ka[i]!;
+    return 0;
+  });
+  const topVp = Math.max(10, ...standings.map((pid) => scores[pid]!.totalVp));
+  const topNet = Math.max(1, ...standings.map((pid) => Math.abs(scores[pid]!.netRenewable)));
 
   return (
     <div style={MODAL_BACKDROP_STYLE} data-testid="victory-modal">
@@ -1882,19 +1894,25 @@ export function VictoryModal({
                       {p.name}
                     </span>
                   </span>
-                  <span role="cell" title={`${sc.totalVp} victory points`}>
+                  <span role="cell" title={`${sc.totalVp} victory points, ${sc.netRenewable} clean-energy balance`}>
                     <span style={{ display: 'block', height: '6px', borderRadius: '999px', background: 'var(--ink-950)', overflow: 'hidden' }}>
                       <span
                         style={{
                           display: 'block',
                           height: '100%',
-                          width: `${Math.min(100, (sc.totalVp / topVp) * 100)}%`,
+                          width: `${Math.min(
+                            100,
+                            decidedByBalance
+                              ? (Math.max(0, sc.netRenewable) / topNet) * 100
+                              : (sc.totalVp / topVp) * 100
+                          )}%`,
                           background: pTheme.fill,
                           borderRadius: '999px',
                         }}
                       />
                     </span>
                     <span style={{ display: 'block', fontSize: '11.5px', color: 'var(--ink-300)', marginTop: '3px' }}>
+                      {decidedByBalance ? `${sc.totalVp} VP · ` : ''}
                       {sc.renewableBuilt} renewable · {sc.fossilBuilt} fossil · footprint {sc.localFootprint}
                     </span>
                   </span>
@@ -1902,8 +1920,10 @@ export function VictoryModal({
                     role="cell"
                     style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '22px', color: '#ffffff', textAlign: 'right' }}
                   >
-                    {sc.totalVp}
-                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink-300)', marginLeft: '3px' }}>VP</span>
+                    {decidedByBalance ? `${sc.netRenewable > 0 ? '+' : ''}${sc.netRenewable}` : sc.totalVp}
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink-300)', marginLeft: '3px' }}>
+                      {decidedByBalance ? 'balance' : 'VP'}
+                    </span>
                   </span>
                 </div>
               );
