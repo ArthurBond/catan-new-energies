@@ -258,8 +258,14 @@ function describeAction(action: GameAction, prev: GameState, next: GameState): T
   const base = { id: Date.now() + Math.random(), playerId: action.playerId, detail };
   switch (action.type) {
     case 'SETUP_ROLL_DICE': {
-      const r = next.setupRolls?.[action.playerId] ?? next.lastDiceRoll;
-      return { ...base, title: r ? `${name} rolled ${r[0] + r[1]}` : `${name} rolled` };
+      const r = next.lastDiceRoll;
+      const rolled = r ? `${name} rolled ${r[0] + r[1]}` : `${name} rolled`;
+      if (prev.phase === 'SetupRoll' && next.phase === 'SetupDraft' && next.setupRollWinner) {
+        const first = next.players[next.setupRollWinner]!.name;
+        return { ...base, playerId: next.setupRollWinner, title: `${first} goes first`, detail: `${rolled}. Place a starting town.` };
+      }
+      const rerolling = prev.phase === 'SetupRoll' && Object.keys(next.setupRolls ?? {}).length < Object.keys(prev.setupRolls ?? {}).length + 1;
+      return { ...base, title: rolled, detail: rerolling ? 'Tie for highest — tied players roll again.' : '' };
     }
     case 'SETUP_BUILD_TOWN':
       return { ...base, title: `${name} placed a starting town` };
