@@ -14,6 +14,7 @@
  *    Undo Stack, and URL Query Parameter Autostart (`/?seed=42&setup=first&players=4&autostart=1`).
  */
 
+import 'preact/compat';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import {
   BotDifficulty,
@@ -860,11 +861,11 @@ export function TabletopApp() {
         style={{
           flex: '1 1 auto',
           display: 'grid',
-          gridTemplateColumns: '230px 1fr 230px',
+          gridTemplateColumns: '214px minmax(0, 1fr) 214px',
           minHeight: 0,
           position: 'relative',
-          padding: '8px 12px',
-          gap: '10px',
+          padding: '6px 10px',
+          gap: '8px',
         }}
       >
         {/* ----------------------------------------------------------------- */}
@@ -1142,12 +1143,14 @@ export function TabletopApp() {
                   position: 'absolute',
                   ...cornerStyles[idx],
                   zIndex: 40,
-                  width: '185px',
+                  width: '166px',
                   background: 'rgba(18, 22, 28, 0.92)',
+                  backdropFilter: 'blur(4px)',
                   border: `2px solid ${isTurn || isInspected ? pTheme.fill : '#3c424d'}`,
                   borderRadius: '10px',
-                  padding: '6px 9px',
+                  padding: '5px 8px',
                   cursor: 'pointer',
+                  fontVariantNumeric: 'tabular-nums',
                   boxShadow: isTurn
                     ? `0 0 12px ${pTheme.fill}`
                     : '0 4px 12px rgba(0,0,0,0.55)',
@@ -1213,14 +1216,20 @@ export function TabletopApp() {
 
           {/* Pan & Zoom Circular Board Container */}
           <div
+            data-testid="tabletop-board"
             style={{
-              width: 'min(100%, 54vh)',
-              height: 'min(100%, 54vh)',
-              minWidth: '340px',
-              minHeight: '340px',
+              height: '100%',
+              maxHeight: '100%',
+              maxWidth: '100%',
+              aspectRatio: '1 / 1',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
               transformOrigin: 'center center',
-              transition: isDraggingRef.current ? 'none' : 'transform 0.08s ease-out',
+              transition: isDraggingRef.current
+                ? 'none'
+                : 'transform 0.14s cubic-bezier(0.22, 1, 0.36, 1)',
             }}
           >
             <IslandBoardSvg

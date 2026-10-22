@@ -1,3 +1,4 @@
+import 'preact/compat';
 import { render } from 'preact';
 import { TabletopApp } from './ui/TabletopApp';
 

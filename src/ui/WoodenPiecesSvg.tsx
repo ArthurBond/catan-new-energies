@@ -2,6 +2,7 @@
  * CATAN: New Energies — Shared 3D Wooden Pieces, Resource Icons & Accessibility Badges
  */
 
+import 'preact/compat';
 import { PlayerId, PowerPlantType, ResourceType } from '../engine/types';
 import { PLAYER_THEMES, TABLETOP_THEME } from './theme';
 

@@ -11,6 +11,7 @@
  * 7. Victory / Environmental Collapse Summary Modal (`[data-testid="victory-modal"]`)
  */
 
+import 'preact/compat';
 import { useState } from 'preact/hooks';
 import { getHarborsForPlayer } from '../engine/board';
 import { RESOURCE_TYPES } from '../engine/config';

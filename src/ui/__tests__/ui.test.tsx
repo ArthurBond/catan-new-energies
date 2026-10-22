@@ -1,3 +1,4 @@
+import 'preact/compat';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -171,5 +172,61 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
       const turnPill = container.querySelector('[data-testid="active-turn-pill"]');
       expect(turnPill?.textContent).toContain('Purple');
     }
+  });
+
+  it('renders ocean whales, whale pod (3 in 3P, 4 in 4P), and correct GF track spaces', () => {
+    // 1. Assert 4-player game rendering
+    const state4P = createInitialGameState({
+      setupMode: 'first',
+      playerCount: 4,
+      seed: 42,
+    });
+
+    act(() => {
+      render(<IslandBoardSvg state={state4P} />, container);
+    });
+
+    // Assert [data-testid="ocean-whales"] exists and renders
+    const oceanWhales4P = container.querySelector('[data-testid="ocean-whales"]');
+    expect(oceanWhales4P).not.toBeNull();
+
+    // Assert [data-testid="gf-whale-pod"] renders exactly 4 whales in a 4-player game
+    const gfPod4P = container.querySelector('[data-testid="gf-whale-pod"]');
+    expect(gfPod4P).not.toBeNull();
+    const whales4P = gfPod4P!.querySelectorAll('.ocean-whale-animated');
+    expect(whales4P.length).toBe(4);
+
+    // Assert all GF track spaces render (0..28 in 4P game)
+    for (let val = 0; val <= 28; val++) {
+      expect(container.querySelector(`[data-testid="gf-space-${val}"]`)).not.toBeNull();
+    }
+    expect(container.querySelector('[data-testid="gf-space-29"]')).toBeNull();
+
+    // 2. Assert 3-player game rendering
+    const state3P = createInitialGameState({
+      setupMode: 'first',
+      playerCount: 3,
+      seed: 42,
+    });
+
+    act(() => {
+      render(<IslandBoardSvg state={state3P} />, container);
+    });
+
+    // Assert [data-testid="ocean-whales"] exists and renders
+    const oceanWhales3P = container.querySelector('[data-testid="ocean-whales"]');
+    expect(oceanWhales3P).not.toBeNull();
+
+    // Assert [data-testid="gf-whale-pod"] renders exactly 3 whales in a 3-player game
+    const gfPod3P = container.querySelector('[data-testid="gf-whale-pod"]');
+    expect(gfPod3P).not.toBeNull();
+    const whales3P = gfPod3P!.querySelectorAll('.ocean-whale-animated');
+    expect(whales3P.length).toBe(3);
+
+    // Assert all GF track spaces render (0..21 in 3P game)
+    for (let val = 0; val <= 21; val++) {
+      expect(container.querySelector(`[data-testid="gf-space-${val}"]`)).not.toBeNull();
+    }
+    expect(container.querySelector('[data-testid="gf-space-22"]')).toBeNull();
   });
 });

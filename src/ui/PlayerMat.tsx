@@ -6,6 +6,7 @@
  * Tabletop Resource & Science Card Organiser Tray (`[data-testid="resource-organiser"]`).
  */
 
+import 'preact/compat';
 import { getDevCardType } from '../engine/dev-cards';
 import {
   DevelopmentCardType,
@@ -158,20 +159,20 @@ export function PlayerMat({
     { x: 204, y: 382 },
   ];
 
-  // Renewable Power Plant slots (9 slots: 2 columns of 3 + rightmost column of 4, matching player-mat-reference.png!)
+  // Renewable Power Plant slots (3x3 grid at bottom-right with generous clearance below City Cost Strip)
   const renewableSlotPositions = [
-    // Left column of 2/3
+    // Left column of 3
+    { x: 616, y: 246 },
     { x: 616, y: 314 },
     { x: 616, y: 382 },
     // Middle column of 3
-    { x: 696, y: 246 },
-    { x: 696, y: 314 },
-    { x: 696, y: 382 },
-    // Rightmost column of 4 (extending up to top-right under the city cost bar)
-    { x: 774, y: 178 },
-    { x: 774, y: 246 },
-    { x: 774, y: 314 },
-    { x: 774, y: 382 },
+    { x: 694, y: 246 },
+    { x: 694, y: 314 },
+    { x: 694, y: 382 },
+    // Rightmost column of 3
+    { x: 772, y: 246 },
+    { x: 772, y: 314 },
+    { x: 772, y: 382 },
   ];
 
   const totalResourceHand =
@@ -227,21 +228,21 @@ export function PlayerMat({
         >
           <defs>
             <linearGradient id={`matSkyGrad-${player.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#263d66" />
-              <stop offset="65%" stopColor="#324c78" />
-              <stop offset="100%" stopColor="#485d87" />
+              <stop offset="0%" stopColor="#263d66" style={{ stopColor: '#263d66' }} />
+              <stop offset="65%" stopColor="#324c78" style={{ stopColor: '#324c78' }} />
+              <stop offset="100%" stopColor="#485d87" style={{ stopColor: '#485d87' }} />
             </linearGradient>
 
             <linearGradient id={`bridgeTwilight-${player.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#2c4570" />
-              <stop offset="55%" stopColor="#565278" />
-              <stop offset="100%" stopColor="#8c6f85" />
+              <stop offset="0%" stopColor="#2c4570" style={{ stopColor: '#2c4570' }} />
+              <stop offset="55%" stopColor="#565278" style={{ stopColor: '#565278' }} />
+              <stop offset="100%" stopColor="#8c6f85" style={{ stopColor: '#8c6f85' }} />
             </linearGradient>
 
             <linearGradient id={`meadowGreen-${player.id}`} x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#7aa646" />
-              <stop offset="50%" stopColor="#6b9c3e" />
-              <stop offset="100%" stopColor="#528732" />
+              <stop offset="0%" stopColor="#7aa646" style={{ stopColor: '#7aa646' }} />
+              <stop offset="50%" stopColor="#6b9c3e" style={{ stopColor: '#6b9c3e' }} />
+              <stop offset="100%" stopColor="#528732" style={{ stopColor: '#528732' }} />
             </linearGradient>
 
             <clipPath id={`matShapeClip-${player.id}`}>
@@ -261,6 +262,7 @@ export function PlayerMat({
           {/* Main Clipped Artwork Interior */}
           <g clipPath={`url(#matShapeClip-${player.id})`}>
             {/* 1. Top Navy/Twilight Sky Backdrop */}
+            <rect x={10} y={12} width={840} height={270} fill="#324c78" />
             <rect x={10} y={12} width={840} height={270} fill={`url(#matSkyGrad-${player.id})`} />
 
             {/* Left & Right Sky Clouds */}
@@ -278,7 +280,7 @@ export function PlayerMat({
             {/* 2. Upper-Left Angled Development Card Frame (1 Food, 1 Fiber, 1 Steel) */}
             <g
               data-testid="mat-buy-dev-card"
-              transform="translate(150, 148) rotate(-8)"
+              transform="translate(148, 168) rotate(-6)"
               onClick={() => {
                 if (canAffordDevCard) onBuyDevCard?.();
               }}
@@ -288,25 +290,25 @@ export function PlayerMat({
               aria-label="Buy Development Card (Cost: 1 Food, 1 Natural Fiber, 1 Steel)"
             >
               <rect
-                x={-48}
-                y={-46}
-                width={102}
-                height={96}
+                x={-44}
+                y={-40}
+                width={92}
+                height={82}
                 rx={8}
                 fill="#f2f0e6"
                 stroke={canAffordDevCard ? '#f5d11d' : '#9c9688'}
                 strokeWidth={canAffordDevCard ? 3 : 1.5}
               />
               {/* 3 Cost Icons on Left of Card */}
-              <ResourceIconSvg type="food" cx={-28} cy={-24} scale={1.05} />
-              <ResourceIconSvg type="natural_fiber" cx={-28} cy={0} scale={1.05} />
-              <ResourceIconSvg type="steel" cx={-28} cy={24} scale={1.05} />
+              <ResourceIconSvg type="food" cx={-26} cy={-21} scale={0.95} />
+              <ResourceIconSvg type="natural_fiber" cx={-26} cy={1} scale={0.95} />
+              <ResourceIconSvg type="steel" cx={-26} cy={23} scale={0.95} />
 
               {/* Sunrise-over-Lake Dev Card Art */}
-              <rect x={-6} y={-34} width={48} height={74} rx={4} fill="#7ac1e4" stroke="#ffffff" strokeWidth={1.5} />
-              <circle cx={18} cy={-4} r={12} fill="#f5d76e" />
-              <path d="M -6 8 Q 10 0, 26 6 L 42 4 L 42 40 L -6 40 Z" fill="#3a6b4c" />
-              <path d="M -6 20 L 42 20 L 42 40 L -6 40 Z" fill="#2c5e8a" />
+              <rect x={-6} y={-30} width={44} height={64} rx={4} fill="#7ac1e4" stroke="#ffffff" strokeWidth={1.5} />
+              <circle cx={16} cy={-4} r={10} fill="#f5d76e" />
+              <path d="M -6 6 Q 10 -2, 24 4 L 38 2 L 38 34 L -6 34 Z" fill="#3a6b4c" />
+              <path d="M -6 17 L 38 17 L 38 34 L -6 34 Z" fill="#2c5e8a" />
             </g>
 
             {/* 3. Center Twilight Highway Bridge Frame (Road Cost: 1 Lumber, 1 Brick) */}
@@ -466,12 +468,12 @@ export function PlayerMat({
             {/* 8. TOP BAR: 5 TOWN SLOTS (LEFT) & 4 CITY SLOTS (RIGHT)          */}
             {/* =============================================================== */}
             {/* Left Town Cost Strip (1 Lumber, 1 Brick, 1 Food, 1 Fiber) */}
-            <g transform="translate(62, 18)">
-              <rect x={0} y={0} width={38} height={88} rx={6} fill="#ebe8df" stroke="#b8b4a6" strokeWidth={1} />
-              <ResourceIconSvg type="lumber" cx={19} cy={13} scale={1.05} />
-              <ResourceIconSvg type="brick" cx={19} cy={34} scale={1.05} />
-              <ResourceIconSvg type="food" cx={19} cy={55} scale={1.05} />
-              <ResourceIconSvg type="natural_fiber" cx={19} cy={76} scale={1.05} />
+            <g transform="translate(56, 16)">
+              <rect x={0} y={0} width={36} height={84} rx={6} fill="#ebe8df" stroke="#b8b4a6" strokeWidth={1} />
+              <ResourceIconSvg type="lumber" cx={18} cy={13} scale={1.0} />
+              <ResourceIconSvg type="brick" cx={18} cy={33} scale={1.0} />
+              <ResourceIconSvg type="food" cx={18} cy={53} scale={1.0} />
+              <ResourceIconSvg type="natural_fiber" cx={18} cy={73} scale={1.0} />
             </g>
 
             {/* 5 Town Recessed Slots */}
@@ -552,13 +554,13 @@ export function PlayerMat({
             })}
 
             {/* Right City Cost Strip (2 Food, 3 Steel) */}
-            <g transform="translate(756, 18)">
-              <rect x={0} y={0} width={40} height={116} rx={6} fill="#ebe8df" stroke="#b8b4a6" strokeWidth={1} />
-              <ResourceIconSvg type="food" cx={20} cy={14} scale={1.05} />
-              <ResourceIconSvg type="food" cx={20} cy={35} scale={1.05} />
-              <ResourceIconSvg type="steel" cx={20} cy={58} scale={1.05} />
-              <ResourceIconSvg type="steel" cx={20} cy={80} scale={1.05} />
-              <ResourceIconSvg type="steel" cx={20} cy={102} scale={1.05} />
+            <g transform="translate(756, 16)">
+              <rect x={0} y={0} width={38} height={106} rx={6} fill="#ebe8df" stroke="#b8b4a6" strokeWidth={1} />
+              <ResourceIconSvg type="food" cx={19} cy={13} scale={1.0} />
+              <ResourceIconSvg type="food" cx={19} cy={33} scale={1.0} />
+              <ResourceIconSvg type="steel" cx={19} cy={53} scale={1.0} />
+              <ResourceIconSvg type="steel" cx={19} cy={73} scale={1.0} />
+              <ResourceIconSvg type="steel" cx={19} cy={93} scale={1.0} />
             </g>
 
             {/* =============================================================== */}
@@ -592,18 +594,18 @@ export function PlayerMat({
                   <circle
                     cx={0}
                     cy={0}
-                    r={25}
+                    r={22}
                     fill="rgba(34, 42, 34, 0.45)"
                     stroke={isFossilMode && hasPlantInReserve ? '#f5d11d' : 'rgba(255,255,255,0.75)'}
                     strokeWidth={isFossilMode && hasPlantInReserve ? 3 : 1.5}
                     strokeDasharray={hasPlantInReserve ? undefined : '4 3'}
                   />
                   {/* Underlying +1 Pollution Cloud */}
-                  <FootprintCloudIconSvg type="plus" cx={0} cy={1} scale={1.25} />
+                  <FootprintCloudIconSvg type="plus" cx={0} cy={1} scale={1.15} />
 
                   {/* 3D Dark-Brown Fossil Plant Cylinder */}
                   {hasPlantInReserve && (
-                    <PowerPlantCylinderSvg type="fossil" cx={0} cy={0} r={22} />
+                    <PowerPlantCylinderSvg type="fossil" cx={0} cy={0} r={19.5} />
                   )}
                 </g>
               );
@@ -863,14 +865,14 @@ export function PlayerMat({
                   <circle
                     cx={0}
                     cy={0}
-                    r={25}
+                    r={22}
                     fill="rgba(26, 56, 32, 0.45)"
                     stroke={isRenewableMode && hasPlantInReserve ? '#f5d11d' : 'rgba(255,255,255,0.75)'}
                     strokeWidth={isRenewableMode && hasPlantInReserve ? 3 : 1.5}
                     strokeDasharray={hasPlantInReserve ? undefined : '4 3'}
                   />
                   {/* Underlying -1 Clean Cloud Icon */}
-                  <FootprintCloudIconSvg type="minus" cx={0} cy={1} scale={1.25} />
+                  <FootprintCloudIconSvg type="minus" cx={0} cy={1} scale={1.15} />
 
                   {/* Face-Down Green Event Disc + 3D Dark-Green Renewable Plant Cylinder */}
                   {hasPlantInReserve && (
@@ -878,7 +880,7 @@ export function PlayerMat({
                       type="renewable"
                       cx={0}
                       cy={0}
-                      r={22}
+                      r={19.5}
                       hasGreenDiscUnderneath={true}
                     />
                   )}

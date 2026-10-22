@@ -11,6 +11,7 @@
  * - 54 intersection nodes (`[data-node="0"]`..`53`) with 3D wooden Towns, Cities & Hazard overlays
  */
 
+import 'preact/compat';
 import {
   EdgeId,
   EventDiscType,
@@ -229,6 +230,7 @@ export function IslandBoardSvg({
       width="100%"
       height="100%"
       style={{
+        display: 'block',
         maxWidth: '100%',
         maxHeight: '100%',
         userSelect: 'none',
