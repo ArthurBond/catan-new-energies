@@ -80,8 +80,13 @@ Dev-only visual scenarios: `?scenario=showcase` (mid-game with plants, hazards, 
 - The e2e visual spec rewrites `docs/ui-after-*.png` on every run — commit them when the UI changes intentionally.
 - Bots act from a `useEffect` timer keyed on `gameState`; anything that should pause them must be added to that effect's guard.
 
+### 7. Later polish in this session
+- Hex tiles got a cardboard bevel and a fine printed grain.
+- Drawing an event disc plays one short reveal (wooden disc with the event's icon, name and track progress); island tracks show event icons on their discs. `EventIconSvg` / `EventDiscSvg` live in `WoodenPiecesSvg.tsx`.
+- The trade dialog's supply tab uses tappable cards (give / get) with a button that spells out the trade; tabs are a segmented control.
+
 ## Suggested next steps
-1. Terrain hex artwork is still flat vector art; a printed-board texture pass (subtle pattern, richer illustrations per terrain) would close the remaining gap to the reference photo.
-2. Event disc draws could get a dedicated reveal (disc flipping out of the bag onto its island track).
-3. Trade dialog is restyled but structurally unchanged; a card-based give/get picker like the discard dialog would match the rest.
-4. Online (PeerJS) play has no lobby UI beyond the room code field; the multi-tab BroadcastChannel path works.
+1. Terrain illustrations themselves are still simple vector scenes; richer per-terrain art (denser forest canopy, rocky mountain faces, field furrows) would close the remaining gap to the printed board.
+2. The harbor and player-to-player trade tabs are restyled but still use button lists; moving them to the same `TradeCard` picker as the supply tab would finish the dialog.
+3. Online (PeerJS) play has no lobby UI beyond the room code field; the multi-tab BroadcastChannel path works.
+4. Bots could explain their choices in the activity feed (e.g. "Pink built a renewable plant to lower its footprint").

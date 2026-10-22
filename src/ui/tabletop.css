@@ -1561,6 +1561,11 @@ button:not(:disabled):active {
   transform: translateY(-4px);
 }
 
+.md-pick[data-selected='true'] {
+  transform: translateY(-4px);
+  box-shadow: 0 0 0 3px var(--volt), 0 6px 12px -4px rgba(0, 0, 0, 0.5);
+}
+
 .md-stepper {
   display: inline-flex;
   align-items: center;

@@ -35,7 +35,7 @@ import {
   DEV_CARD_METADATA,
   PLAYER_THEMES,
 } from './theme';
-import { PlayerEmblemSvg, ResourceIconSvg } from './WoodenPiecesSvg';
+import { EnergyBoltSvg, PlayerEmblemSvg, ResourceIconSvg } from './WoodenPiecesSvg';
 
 export type BotStrategyName = 'Balanced' | 'GreenInnovator' | 'IndustrialExpansionist';
 export type BotDifficultyName = 'easy' | 'normal' | 'hard';
@@ -406,6 +406,63 @@ export function LobbyModal({
 // 2. TRADE & SUPPLY / HARBOR / DOMESTIC P2P MODAL
 // ============================================================================
 
+type TradeKind = ResourceType | 'science' | 'energy';
+
+const ENERGY_CARD_STYLE = { cardFill: '#fff6cf', border: '#b8900a', textColor: '#3d2c00', bg: '#ffc83a' };
+
+function tradeLabel(kind: TradeKind): string {
+  if (kind === 'energy') return 'energy';
+  return CARD_METADATA[kind].shortLabel.toLowerCase();
+}
+
+/** A tappable resource / science / energy card used to compose trades. */
+function TradeCard({
+  kind,
+  badge,
+  caption,
+  selected,
+  disabled,
+  onClick,
+  testId,
+}: {
+  kind: TradeKind;
+  badge: string;
+  caption: string;
+  selected: boolean;
+  disabled: boolean;
+  onClick: () => void;
+  testId: string;
+}) {
+  const meta = kind === 'energy' ? { ...ENERGY_CARD_STYLE, shortLabel: 'Energy' } : CARD_METADATA[kind];
+  return (
+    <div className="md-card-col">
+      <button
+        type="button"
+        className="tt-res-card md-pick"
+        data-testid={testId}
+        data-selected={selected ? 'true' : 'false'}
+        data-empty={disabled ? 'true' : 'false'}
+        disabled={disabled}
+        aria-pressed={selected}
+        onClick={onClick}
+        style={{
+          ['--res-fill' as string]: meta.cardFill,
+          ['--res-border' as string]: meta.border,
+          ['--res-text' as string]: meta.textColor,
+        }}
+      >
+        <svg width="32" height="32" viewBox="-14 -14 28 28" aria-hidden="true" style={{ marginTop: '-8px' }}>
+          <circle r="12" fill={meta.bg} opacity={0.32} />
+          {kind === 'energy' ? <EnergyBoltSvg scale={0.62} /> : <ResourceIconSvg type={kind} scale={1.05} />}
+        </svg>
+        <span className="tt-res-label">{meta.shortLabel}</span>
+        <span className="tt-res-count">{badge}</span>
+      </button>
+      <span style={{ fontSize: '11px', color: 'var(--ink-300)' }}>{caption}</span>
+    </div>
+  );
+}
+
 export function TradeModal({
   state,
   onDispatch,
@@ -420,8 +477,16 @@ export function TradeModal({
   const playerHarbors = getHarborsForPlayer(state.board, playerId);
 
   const [tab, setTab] = useState<'supply' | 'harbor' | 'domestic'>('supply');
-  const [supplyGiveType, setSupplyGiveType] = useState<ResourceType | 'science' | 'energy'>('lumber');
-  const [supplyReceiveType, setSupplyReceiveType] = useState<ResourceType | 'science'>('science');
+  // Start on something the player can actually afford to give, and a different card to get
+  const [supplyGiveType, setSupplyGiveType] = useState<ResourceType | 'science' | 'energy'>(
+    () =>
+      (['lumber', 'brick', 'natural_fiber', 'food', 'steel'] as ResourceType[]).find(
+        (r) => player.resources[r] >= 4
+      ) ?? (player.science >= 3 ? 'science' : player.energy >= 2 ? 'energy' : 'lumber')
+  );
+  const [supplyReceiveType, setSupplyReceiveType] = useState<ResourceType | 'science'>(() =>
+    supplyGiveType === 'science' ? 'lumber' : 'science'
+  );
 
   const [selectedHarborId, setSelectedHarborId] = useState<number>(
     playerHarbors[0]?.id ?? 0
@@ -470,161 +535,91 @@ export function TradeModal({
   return (
     <div style={MODAL_BACKDROP_STYLE} data-testid="trade-modal">
       <div style={MODAL_CARD_STYLE}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', gap: '12px' }}>
           <h3 className="md-title">Trade</h3>
-          <button
-            type="button"
-            data-testid="close-trade-modal"
-            onClick={onClose}
-            style={{
-              padding: '5px 12px',
-              borderRadius: '8px',
-              background: 'var(--ink-700)',
-              color: '#ffffff',
-              border: '1px solid rgba(163, 183, 202, 0.28)',
-              cursor: 'pointer',
-              fontWeight: 700,
-            }}
-          >
+          <div className="lb-segment" role="tablist" aria-label="Trade with" style={{ marginLeft: 'auto' }}>
+            {(
+              [
+                ['supply', 'Supply'],
+                ['harbor', `Harbors${playerHarbors.length ? ` (${playerHarbors.length})` : ''}`],
+                ['domestic', 'Players'],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={tab === key}
+                data-testid={`trade-tab-${key}`}
+                data-selected={tab === key ? 'true' : 'false'}
+                onClick={() => setTab(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <button type="button" className="tt-icon-btn" data-testid="close-trade-modal" onClick={onClose}>
             Close
           </button>
         </div>
 
-        {/* Mode Tabs */}
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
-          <button
-            type="button"
-            data-testid="trade-tab-supply"
-            onClick={() => setTab('supply')}
-            style={{
-              flex: 1,
-              padding: '8px',
-              borderRadius: '8px',
-              fontWeight: 800,
-              cursor: 'pointer',
-              background: tab === 'supply' ? 'var(--sea)' : 'var(--ink-700)',
-              color: '#ffffff',
-              border: '1px solid rgba(163, 183, 202, 0.28)',
-            }}
-          >
-            With the supply
-          </button>
-          <button
-            type="button"
-            data-testid="trade-tab-harbor"
-            onClick={() => setTab('harbor')}
-            style={{
-              flex: 1,
-              padding: '8px',
-              borderRadius: '8px',
-              fontWeight: 800,
-              cursor: 'pointer',
-              background: tab === 'harbor' ? 'var(--sea)' : 'var(--ink-700)',
-              color: '#ffffff',
-              border: '1px solid rgba(163, 183, 202, 0.28)',
-            }}
-          >
-            Harbors ({playerHarbors.length})
-          </button>
-          <button
-            type="button"
-            data-testid="trade-tab-domestic"
-            onClick={() => setTab('domestic')}
-            style={{
-              flex: 1,
-              padding: '8px',
-              borderRadius: '8px',
-              fontWeight: 800,
-              cursor: 'pointer',
-              background: tab === 'domestic' ? 'var(--sea)' : 'var(--ink-700)',
-              color: '#ffffff',
-              border: '1px solid rgba(163, 183, 202, 0.28)',
-            }}
-          >
-            With a player
-          </button>
-        </div>
-
         {tab === 'supply' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div>
-              <div style={{ fontSize: '12px', fontWeight: 800, marginBottom: '6px', color: 'var(--ink-100)' }}>
-                You give: 4 of one resource, 3 science or 2 energy
-              </div>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science', 'energy'] as const).map(
-                  (key) => {
-                    const req = key === 'energy' ? 2 : key === 'science' ? 3 : 4;
-                    const held =
-                      key === 'energy'
-                        ? player.energy
-                        : key === 'science'
-                          ? player.science
-                          : player.resources[key];
-                    const label =
-                      key === 'energy' ? 'Energy ⚡' : CARD_METADATA[key].shortLabel;
-
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        data-testid={`supply-give-${key}`}
-                        onClick={() => setSupplyGiveType(key)}
-                        style={{
-                          padding: '8px 10px',
-                          borderRadius: '8px',
-                          fontWeight: 800,
-                          fontSize: '12px',
-                          cursor: 'pointer',
-                          background: supplyGiveType === key ? 'var(--leaf)' : 'var(--ink-700)',
-                          color: held >= req ? '#ffffff' : 'var(--ink-300)',
-                          border:
-                            supplyGiveType === key ? '2px solid var(--volt)' : '1px solid rgba(163, 183, 202, 0.28)',
-                        }}
-                      >
-                        {req}x {label} (Have {held})
-                      </button>
-                    );
-                  }
-                )}
-              </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <p className="md-sub" style={{ marginTop: 0, fontWeight: 700, color: '#ffffff' }}>
+              You give
+              <span style={{ fontWeight: 400, color: 'var(--ink-300)' }}>
+                {' '}
+                — 4 of one resource, 3 science or 2 energy
+              </span>
+            </p>
+            <div className="md-cards" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', marginTop: '8px' }}>
+              {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science', 'energy'] as const).map((key) => {
+                const req = key === 'energy' ? 2 : key === 'science' ? 3 : 4;
+                const held =
+                  key === 'energy' ? player.energy : key === 'science' ? player.science : player.resources[key];
+                return (
+                  <TradeCard
+                    key={key}
+                    kind={key}
+                    testId={`supply-give-${key}`}
+                    badge={`${req}×`}
+                    caption={`have ${held}`}
+                    selected={supplyGiveType === key}
+                    disabled={held < req}
+                    onClick={() => setSupplyGiveType(key)}
+                  />
+                );
+              })}
             </div>
 
-            <div>
-              <div style={{ fontSize: '12px', fontWeight: 800, marginBottom: '6px', color: 'var(--ink-100)' }}>
-                You get one card of your choice
-              </div>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science'] as const).map(
-                  (key) => (
-                    <button
-                      key={key}
-                      type="button"
-                      data-testid={`supply-receive-${key}`}
-                      onClick={() => setSupplyReceiveType(key)}
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: '8px',
-                        fontWeight: 800,
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        background: supplyReceiveType === key ? 'var(--sea)' : 'var(--ink-700)',
-                        color: '#ffffff',
-                        border:
-                          supplyReceiveType === key ? '2px solid var(--volt)' : '1px solid rgba(163, 183, 202, 0.28)',
-                      }}
-                    >
-                      1x {CARD_METADATA[key].label}
-                    </button>
-                  )
-                )}
-              </div>
+            <p className="md-sub" style={{ marginTop: '14px', fontWeight: 700, color: '#ffffff' }}>
+              You get
+              <span style={{ fontWeight: 400, color: 'var(--ink-300)' }}> — one card of your choice</span>
+            </p>
+            <div className="md-cards" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', marginTop: '8px' }}>
+              {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science'] as const).map((key) => {
+                const left = key === 'science' ? state.supply.science : state.supply.resources[key];
+                return (
+                  <TradeCard
+                    key={key}
+                    kind={key}
+                    testId={`supply-receive-${key}`}
+                    badge="1"
+                    caption={`${left} left`}
+                    selected={supplyReceiveType === key}
+                    disabled={left === 0 || key === supplyGiveType}
+                    onClick={() => setSupplyReceiveType(key)}
+                  />
+                );
+              })}
             </div>
 
             <button
               type="button"
+              className="tt-cta"
               data-testid="execute-supply-trade-btn"
               disabled={!canExecuteSupplyTrade}
+              style={{ marginTop: '16px' }}
               onClick={() => {
                 onDispatch({
                   type: 'TRADE_SUPPLY',
@@ -634,17 +629,12 @@ export function TradeModal({
                 });
                 onClose();
               }}
-              style={{
-                padding: '10px',
-                borderRadius: '8px',
-                fontWeight: 900,
-                background: canExecuteSupplyTrade ? 'var(--leaf)' : 'var(--ink-700)',
-                color: canExecuteSupplyTrade ? '#ffffff' : 'var(--ink-300)',
-                border: '1px solid rgba(163, 183, 202, 0.28)',
-                cursor: canExecuteSupplyTrade ? 'pointer' : 'not-allowed',
-              }}
             >
-              Trade with the supply
+              {canExecuteSupplyTrade
+                ? `Give ${requiredSupplyAmount} ${tradeLabel(supplyGiveType)}, get 1 ${tradeLabel(supplyReceiveType)}`
+                : currentSupplyGiveHeld < requiredSupplyAmount
+                  ? `You need ${requiredSupplyAmount} ${tradeLabel(supplyGiveType)} to trade`
+                  : 'Pick a different card to get'}
             </button>
           </div>
         )}
