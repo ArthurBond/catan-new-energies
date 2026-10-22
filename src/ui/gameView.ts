@@ -358,7 +358,7 @@ export function humanizeLog(message: string): string {
     )
     .replace(/^Event Phase completed\. Entering Production Phase for (.+)\.$/, '$1 moves on to production.')
     .replace(/ Discs returned to box; event triggers!/, ' The event happens.')
-    .replace(/\(\d+\/\d+\)\.$/, '.')
+    .replace(/ \(\d+\/\d+\)\.$/, '.')
     .replace(/ \(\+1 net VP, \+1 net LF\)| \(\+1 VP, \+1 LF\)/g, '');
   return m;
 }

@@ -53,12 +53,21 @@ import { SetupCoach, SetupRollOff } from './SetupCoach';
 import { TableRail } from './TableRail';
 import { DEV_CARD_METADATA, EVENT_TRACK_METADATA, PLAYER_THEMES } from './theme';
 import { TopBar } from './TopBar';
+import { EventDiscSvg, EventIconSvg } from './WoodenPiecesSvg';
 
 const SAVED_GAME_KEY = 'catan_new_energies_saved_game_v2';
 const TABLECLOTH_COLOR_KEY = 'catan_new_energies_tablecloth_color_v1';
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 5;
 const TOAST_MS = 3400;
+const EVENT_REVEAL_MS = 1900;
+
+interface EventReveal {
+  id: number;
+  disc: EventDiscType;
+  onTrack: number;
+  capacity: number;
+}
 
 function parseHexColor(hex: string): [number, number, number] {
   const clean = hex.replace('#', '');
@@ -351,6 +360,7 @@ export function TabletopApp() {
       : null
   );
   const [rollAnimKey, setRollAnimKey] = useState<number | null>(null);
+  const [eventReveal, setEventReveal] = useState<EventReveal | null>(null);
 
   const [tableclothColor, setTableclothColor] = useState<string>(() => {
     try {
@@ -406,6 +416,15 @@ export function TabletopApp() {
   }, [lobbyConfig.roomCode]);
 
   useEffect(() => {
+    if (!eventReveal) return;
+    const timer = setTimeout(
+      () => setEventReveal((r) => (r?.id === eventReveal.id ? null : r)),
+      EVENT_REVEAL_MS
+    );
+    return () => clearTimeout(timer);
+  }, [eventReveal]);
+
+  useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast((t) => (t?.id === toast.id ? null : t)), TOAST_MS);
     return () => clearTimeout(timer);
@@ -455,6 +474,17 @@ export function TabletopApp() {
       setToast(describeAction(action, gameState, next));
       if ((action.type === 'ROLL_DICE' || action.type === 'SETUP_ROLL_DICE') && next.lastDiceRoll) {
         setRollAnimKey(Date.now());
+      }
+      if (action.type === 'DRAW_EVENT_DISC' && lobbyConfig.botSpeed !== 'instant') {
+        const disc = drawnDisc(gameState, next);
+        if (disc) {
+          setEventReveal({
+            id: Date.now(),
+            disc,
+            onTrack: next.eventTracks[disc] ?? 0,
+            capacity: EVENT_TRACK_METADATA[disc].capacity,
+          });
+        }
       }
 
       saveGame(next, lobbyConfig);
@@ -933,6 +963,24 @@ export function TabletopApp() {
             </div>
           </div>
 
+          {eventReveal && (
+            <div className="tt-event-reveal" key={eventReveal.id} data-testid="event-reveal" aria-hidden="true">
+              <svg className="tt-event-reveal-disc" width="132" height="132" viewBox="-33 -33 66 66">
+                <EventDiscSvg
+                  type={eventReveal.disc}
+                  green={EVENT_TRACK_METADATA[eventReveal.disc].category === 'green'}
+                  r={26}
+                />
+              </svg>
+              <div className="tt-event-reveal-name">{eventName(eventReveal.disc)}</div>
+              <div className="tt-event-reveal-sub">
+                {eventReveal.onTrack === 0
+                  ? 'The track is full — it happens now'
+                  : `${eventReveal.onTrack} of ${eventReveal.capacity} on the track`}
+              </div>
+            </div>
+          )}
+
           {gameState.phase === 'SetupRoll' && (
             <SetupRollOff
               state={gameState}
@@ -1006,7 +1054,11 @@ export function TabletopApp() {
           {selectedEventInfo && (
             <div className="tt-ink tt-event-info" data-testid="event-info-popover" role="dialog">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
-                <strong style={{ fontFamily: 'var(--font-display)', fontSize: '15px', color: '#ffffff' }}>
+                <svg width="30" height="30" viewBox="-15 -15 30 30" aria-hidden="true" style={{ flexShrink: 0 }}>
+                  <circle r="14" fill="#fbf6ea" />
+                  <EventIconSvg type={selectedEventInfo} scale={0.95} />
+                </svg>
+                <strong style={{ fontFamily: 'var(--font-display)', fontSize: '15px', color: '#ffffff', flex: 1 }}>
                   {EVENT_TRACK_METADATA[selectedEventInfo].title}
                   <span style={{ fontWeight: 400, color: 'var(--ink-300)', marginLeft: '8px', fontSize: '13px' }}>
                     {gameState.eventTracks[selectedEventInfo] ?? 0} of {EVENT_TRACK_METADATA[selectedEventInfo].capacity} discs

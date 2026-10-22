@@ -71,6 +71,12 @@ export function applyShowcaseScenario(input: GameState): GameState {
   }
   state.trueTotalLF = computeTrueTotalLF(state.players);
   state.clampedGF = clampGF(state.trueTotalLF, state.playerCount);
+  // A few discs already on their island tracks
+  state.eventTracks.airPollution = 2;
+  state.eventTracks.rainAndFlooding = 1;
+  state.eventTracks.governmentFunding = 1;
+  state.eventTracks.climateConference = 2;
+
   state.phase = 'ActionPhase';
   state.lastDiceRoll = [5, 3];
   state.log.push({ timestamp: state.log.length, message: 'Showcase scenario loaded.' });

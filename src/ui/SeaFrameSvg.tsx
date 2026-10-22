@@ -25,7 +25,7 @@ import {
   latticeToSvg,
   PLAYER_THEMES,
 } from './theme';
-import { PlayerEmblemSvg, ResourceIconSvg } from './WoodenPiecesSvg';
+import { EventIconSvg, PlayerEmblemSvg, ResourceIconSvg } from './WoodenPiecesSvg';
 
 export interface SeaFrameSvgProps {
   board: Board;
@@ -822,6 +822,11 @@ export function SeaFrameSvg({
                     strokeWidth={1.2}
                     strokeDasharray={isFilled ? undefined : '2.5 2'}
                   />
+                  {!isFilled && (
+                    <g transform={`translate(${sx}, 0)`} opacity={0.42}>
+                      <EventIconSvg type={trackKey} scale={0.4} />
+                    </g>
+                  )}
 
                   {/* Drawn Event Disc Token when filled */}
                   {isFilled && (
@@ -835,14 +840,10 @@ export function SeaFrameSvg({
                         stroke="#f5f2e6"
                         strokeWidth={1.4}
                       />
-                      <circle
-                        cx={sx}
-                        cy={0}
-                        r={5.2}
-                        fill="none"
-                        stroke="rgba(255,255,255,0.5)"
-                        strokeWidth={0.8}
-                      />
+                      <circle cx={sx} cy={0} r={5.8} fill="#fbf6ea" />
+                      <g transform={`translate(${sx}, 0)`}>
+                        <EventIconSvg type={trackKey} scale={0.4} />
+                      </g>
                     </g>
                   )}
                 </g>

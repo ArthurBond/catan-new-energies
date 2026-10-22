@@ -799,3 +799,111 @@ export function ResourceIconSvg({
       );
   }
 }
+
+/**
+ * Event icons (drawn in a ~20-unit box centred on 0,0) for the seven event tracks.
+ */
+export function EventIconSvg({ type, scale = 1 }: { type: string; scale?: number }) {
+  const ink = '#1f2a33';
+  return (
+    <g transform={`scale(${scale})`} aria-hidden="true">
+      {type === 'airPollution' && (
+        <g>
+          <path
+            d="M -7 5 C -11 5, -11 -1, -7 -1 C -7 -6, 0 -8, 2 -3 C 6 -6, 10 -2, 8 2 C 10 3, 9 6, 6 6 Z"
+            fill="#9aa1a8"
+            stroke={ink}
+            strokeWidth={1.2}
+            strokeLinejoin="round"
+          />
+          <path d="M -4 8 Q -2 10, 0 8 Q 2 6, 4 8" fill="none" stroke={ink} strokeWidth={1.1} strokeLinecap="round" />
+        </g>
+      )}
+      {type === 'environmentalPollution' && (
+        <g>
+          <path d="M 0 -9 C 4 -3, 7 0, 7 3.5 C 7 7.5, 3.5 9.5, 0 9.5 C -3.5 9.5, -7 7.5, -7 3.5 C -7 0, -4 -3, 0 -9 Z" fill="#4b4560" stroke={ink} strokeWidth={1.2} />
+          <path d="M -4 4 Q -2 2, 0 4 Q 2 6, 4 4" fill="none" stroke="#c9b8ff" strokeWidth={1.2} strokeLinecap="round" />
+        </g>
+      )}
+      {type === 'rainAndFlooding' && (
+        <g>
+          <path
+            d="M -7 2 C -11 2, -11 -4, -7 -4 C -7 -9, 0 -10, 2 -6 C 6 -9, 10 -5, 8 -1 C 10 0, 9 3, 6 3 Z"
+            fill="#7fb8e6"
+            stroke={ink}
+            strokeWidth={1.2}
+            strokeLinejoin="round"
+          />
+          {[-5, 0, 5].map((x) => (
+            <path key={x} d={`M ${x} 5 l -1.5 4`} stroke="#1f78c1" strokeWidth={1.8} strokeLinecap="round" />
+          ))}
+        </g>
+      )}
+      {type === 'productionIncrease' && (
+        <g>
+          <path d="M -9 8 L -9 -1 L -4 2 L -4 -1 L 1 2 L 1 -6 L 4 -6 L 5 2 L 9 2 L 9 8 Z" fill="#8c6a4e" stroke={ink} strokeWidth={1.2} strokeLinejoin="round" />
+          <path d="M 2.5 -8 C 2 -10, 5 -11, 6 -9" fill="none" stroke="#9aa1a8" strokeWidth={1.4} strokeLinecap="round" />
+          <path d="M -6 -8 L -6 -3 M -8.5 -5.5 L -6 -8 L -3.5 -5.5" fill="none" stroke="#c9302c" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+        </g>
+      )}
+      {type === 'climateConference' && (
+        <g>
+          <circle r={8.5} fill="#5fb3e8" stroke={ink} strokeWidth={1.2} />
+          <path d="M -6 -3 C -3 -5, -1 -2, -3 1 C -5 3, -2 6, 0 7 M 2 -7 C 5 -5, 3 -2, 6 -1" fill="none" stroke="#2f9a53" strokeWidth={2} strokeLinecap="round" />
+          <ellipse rx={8.5} ry={3.4} fill="none" stroke={ink} strokeWidth={0.8} opacity={0.45} />
+        </g>
+      )}
+      {type === 'sustainableProduction' && (
+        <g>
+          <line x1={0} y1={0} x2={0} y2={10} stroke={ink} strokeWidth={1.6} strokeLinecap="round" />
+          {[-90, 30, 150].map((deg) => (
+            <path
+              key={deg}
+              d="M 0 0 C 2 -2, 2.5 -6, 0 -9.5 C -1.5 -6, -1.5 -2, 0 0 Z"
+              transform={`rotate(${deg + 90})`}
+              fill="#e9f6ee"
+              stroke={ink}
+              strokeWidth={1}
+              strokeLinejoin="round"
+            />
+          ))}
+          <circle r={1.6} fill="#2f9a53" stroke={ink} strokeWidth={0.8} />
+        </g>
+      )}
+      {type === 'governmentFunding' && (
+        <g>
+          <path d="M -9 -3 L 0 -9 L 9 -3 Z" fill="#e8dcc0" stroke={ink} strokeWidth={1.2} strokeLinejoin="round" />
+          {[-6, -2, 2, 6].map((x) => (
+            <rect key={x} x={x - 1} y={-2} width={2} height={8} fill="#e8dcc0" stroke={ink} strokeWidth={0.8} />
+          ))}
+          <rect x={-9.5} y={6} width={19} height={2.6} rx={0.6} fill="#e8dcc0" stroke={ink} strokeWidth={1} />
+        </g>
+      )}
+    </g>
+  );
+}
+
+/** A wooden event disc as drawn from the bag: brown (pollution) or green (sustainable). */
+export function EventDiscSvg({
+  type,
+  green,
+  r = 20,
+}: {
+  type: string;
+  green: boolean;
+  r?: number;
+}) {
+  const face = green ? '#2f8f47' : '#8a5a3a';
+  const side = green ? '#1d6631' : '#5e3a22';
+  const depth = r * 0.22;
+  return (
+    <g data-token="event-disc">
+      <ellipse cx={r * 0.12} cy={depth + r * 0.16} rx={r} ry={r * 0.96} fill="rgba(10,14,20,0.35)" />
+      <ellipse cx={0} cy={depth} rx={r} ry={r * 0.96} fill={side} />
+      <rect x={-r} y={0} width={r * 2} height={depth} fill={side} />
+      <ellipse cx={0} cy={0} rx={r} ry={r * 0.96} fill={face} stroke="rgba(0,0,0,0.35)" strokeWidth={1} />
+      <circle r={r * 0.68} fill="#fbf6ea" stroke="rgba(0,0,0,0.2)" strokeWidth={1} />
+      <EventIconSvg type={type} scale={r / 15} />
+    </g>
+  );
+}
