@@ -541,17 +541,18 @@ export function IslandBoardSvg({
 
               {/* Interactive Hex Highlight Overlay (Move Inspector / Clean Hazard) */}
               {isHighlighted && (
-                <g data-testid={`hex-target-${hex.id}`}>
+                <g data-testid={`hex-target-${hex.id}`} className="hex-target">
                   <polygon
+                    className="hex-target-fill"
                     points={getPointyHexPoints(0, 0, HEX_RADIUS - 6)}
-                    fill="rgba(255, 200, 58, 0.2)"
+                    fill="rgba(255, 200, 58, 0.3)"
                     stroke="#ffc83a"
-                    strokeWidth={3.5}
-                    strokeDasharray="8 4"
+                    strokeWidth={3}
+                    strokeDasharray="7 5"
                     strokeLinejoin="round"
                   />
                   <g className="target-pulse">
-                    <circle cx={0} cy={0} r={22} fill="none" stroke="#ffffff" strokeWidth={2.5} />
+                    <circle cx={0} cy={0} r={23} fill="none" stroke="#ffc83a" strokeWidth={3} />
                   </g>
                 </g>
               )}

@@ -31,7 +31,6 @@ test.describe('CATAN: New Energies — Tabletop E2E Tests', () => {
     // The detailed player board opens in a drawer
     await page.locator('[data-testid="toggle-player-mat-btn"]').click();
     await expect(page.locator('[data-testid="player-mat"]')).toBeVisible();
-    await expect(page.locator('[data-testid="resource-organiser"]')).toBeVisible();
     await expect(page.locator('[data-testid="warehouse-tile"]')).toBeVisible();
     await expect(page.locator('[data-testid="energy-bar"]')).toBeVisible();
   });

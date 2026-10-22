@@ -329,7 +329,7 @@ export function ActionDock({
       ? 'Click a hazard on the board'
       : activeBuildMode === 'DEMOLISH_PLANT'
         ? 'Click one of your fossil plants'
-        : 'Click a glowing spot on the board'
+        : 'Click a glowing spot, or press Esc to cancel'
     : canAct
       ? 'Choose something to build'
       : state.phase === 'ActionPhase' && !isActing

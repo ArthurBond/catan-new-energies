@@ -50,6 +50,8 @@ export interface PlayerMatProps {
   activeBuildMode: ActiveBuildMode;
   redactPrivateCards?: boolean;
   compact?: boolean;
+  /** Show the card organiser tray beside the board (the tabletop dock already shows the hand) */
+  showOrganiser?: boolean;
   onSelectBuildMode?: (mode: ActiveBuildMode) => void;
   onBuildWarehouse?: () => void;
   onBuyDevCard?: () => void;
@@ -69,6 +71,7 @@ export function PlayerMat({
   activeBuildMode,
   redactPrivateCards = false,
   compact = false,
+  showOrganiser = true,
   onSelectBuildMode,
   onBuildWarehouse,
   onBuyDevCard,
@@ -196,6 +199,7 @@ export function PlayerMat({
       style={{
         display: 'flex',
         flexDirection: compact ? 'column' : 'row',
+        justifyContent: showOrganiser ? undefined : 'center',
         gap: '12px',
         alignItems: 'stretch',
         width: '100%',
@@ -211,7 +215,7 @@ export function PlayerMat({
           position: 'relative',
           flex: compact ? '0 0 auto' : '1 1 540px',
           minWidth: compact ? '280px' : '460px',
-          maxWidth: compact ? '420px' : '640px',
+          maxWidth: compact ? '420px' : showOrganiser ? '640px' : '820px',
           background: '#17191c',
           borderRadius: '14px',
           padding: '6px',
@@ -894,7 +898,7 @@ export function PlayerMat({
       {/* =================================================================== */}
       {/* PART B: INTEGRATED RESOURCE & SCIENCE CARD ORGANISER TRAY           */}
       {/* =================================================================== */}
-      {!compact && (
+      {!compact && showOrganiser && (
         <div
           data-testid="resource-organiser"
           style={{

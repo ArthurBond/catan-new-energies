@@ -411,6 +411,16 @@ export function TabletopApp() {
     return () => clearTimeout(timer);
   }, [toast]);
 
+  // Escape leaves a placement mode without building anything
+  useEffect(() => {
+    if (!activeBuildMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setActiveBuildMode(null);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [activeBuildMode]);
+
   const actingPlayerId = getActingPlayerId(gameState) ?? gameState.activePlayerId;
   const isActingPlayerBot = lobbyConfig.seats[actingPlayerId]?.controller === 'bot';
   const hasBots = gameState.playerOrder.some((pid) => lobbyConfig.seats[pid]?.controller === 'bot');
@@ -1084,6 +1094,7 @@ export function TabletopApp() {
                 devCardPlayedThisTurn={gameState.devCardPlayedThisTurn}
                 activeBuildMode={activeBuildMode}
                 redactPrivateCards={shouldRedactDisplayedMat}
+                showOrganiser={false}
                 onSelectBuildMode={(mode) => setActiveBuildMode(mode)}
                 onBuildWarehouse={() => dispatchAction({ type: 'BUILD_WAREHOUSE', playerId: actingPlayerId })}
                 onBuyDevCard={() => dispatchAction({ type: 'BUY_DEV_CARD', playerId: actingPlayerId })}

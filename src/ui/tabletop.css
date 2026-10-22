@@ -1800,6 +1800,17 @@ select.lb-input {
   transform-origin: center;
 }
 
+/* Hex targets stay calm until hovered so the board remains readable */
+.hex-target-fill {
+  fill-opacity: 0;
+  transition: fill-opacity 160ms ease;
+}
+
+[data-hex]:hover .hex-target-fill,
+[data-hex]:focus-visible .hex-target-fill {
+  fill-opacity: 1;
+}
+
 .hex-producing {
   animation: hexGlow 1.4s ease-out 1 both;
 }
