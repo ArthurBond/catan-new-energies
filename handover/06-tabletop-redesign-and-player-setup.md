@@ -9,14 +9,17 @@
 | Dialogs, lobby, victory screen, activity feed in plain language | **done** | `?scenario=discard|cardchoice|victory` for visual checks |
 | Unfinished games survive a page reload | **done** | `ui.test.tsx` "restores an unfinished game after a page reload" |
 
-Verification at hand-off (commit `663ab74` and the handover commit after it):
+Verification at hand-off (latest commit on `goal/04-full-game-ui-bots-multiplayer`):
 ```text
 npm run typecheck   -> exit 0
 npm run lint        -> exit 0
-npm run build       -> dist/assets/index-*.js 289 kB (81 kB gzip), css 29 kB
-npx vitest run      -> 14 files, 174 tests passed
+npm run build       -> dist/assets/index-*.js 297 kB (85 kB gzip), css 30 kB
+npx vitest run      -> 15 files, 177 tests passed
 npx playwright test -> 9 passed (tabletop x2, setup-flow x2, dev-cards x3, visual verification x2 viewports)
 ```
+Also checked by hand in a browser: a full all-bot game to the end (0 console errors), keyboard-only setup
+(Tab to the roll button, focus a glowing corner, Enter to place), reduced-motion mode, and layouts at
+390x844, 1024x768, 1366x768 and 1920x1080.
 
 ## What changed and why
 
