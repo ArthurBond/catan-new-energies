@@ -28,6 +28,7 @@ import {
   PlayerId,
   ResourceType,
 } from '../engine/types';
+import type { StartingPlacement } from '../engine/setup';
 import { evaluateEmptyBagVictory } from '../engine/victory';
 import {
   CARD_METADATA,
@@ -50,7 +51,10 @@ export interface SeatConfig {
 
 export interface LobbyConfig {
   playerCount: 3 | 4;
+  /** Board layout: fixed beginner layout or shuffled terrain & numbers */
   setupMode: 'first' | 'standard';
+  /** Starting pieces: players draft their own, or use the beginner positions (First Game only) */
+  placement: StartingPlacement;
   seed: number;
   botSpeed: BotSpeedMode;
   privacyCurtain: boolean;
@@ -61,8 +65,8 @@ export interface LobbyConfig {
 const MODAL_BACKDROP_STYLE: Record<string, string | number> = {
   position: 'fixed',
   inset: 0,
-  background: 'rgba(10, 14, 20, 0.78)',
-  backdropFilter: 'blur(4px)',
+  background: 'rgba(6, 18, 30, 0.62)',
+  backdropFilter: 'blur(3px)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -71,21 +75,67 @@ const MODAL_BACKDROP_STYLE: Record<string, string | number> = {
 };
 
 const MODAL_CARD_STYLE: Record<string, string | number> = {
-  background: 'linear-gradient(180deg, #232830 0%, #171a20 100%)',
-  border: '2px solid #454d5c',
-  borderRadius: '16px',
+  background: 'var(--ink-800)',
+  border: '1px solid rgba(163, 183, 202, 0.2)',
+  borderRadius: '18px',
   padding: '20px 24px',
-  color: '#f0f4f8',
+  color: 'var(--ink-100)',
   maxWidth: '680px',
   width: '100%',
   maxHeight: '90vh',
   overflowY: 'auto',
-  boxShadow: '0 20px 50px rgba(0,0,0,0.75)',
+  boxShadow: 'var(--shadow-ink)',
+  animation: 'popIn 220ms var(--ease-out)',
 };
 
 // ============================================================================
 // 1. SETUP / LOBBY MODAL
 // ============================================================================
+
+function LobbyOption({
+  testId,
+  selected,
+  disabled,
+  title,
+  description,
+  badge,
+  onSelect,
+}: {
+  testId: string;
+  selected: boolean;
+  disabled?: boolean;
+  title: string;
+  description: string;
+  badge?: string;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="lb-option"
+      data-testid={testId}
+      data-selected={selected ? 'true' : 'false'}
+      disabled={disabled}
+      aria-pressed={selected}
+      onClick={onSelect}
+    >
+      <span className="lb-radio" aria-hidden="true" />
+      <span>
+        <span className="lb-option-title">
+          {title}
+          {badge && <span className="lb-badge">{badge}</span>}
+        </span>
+        <span className="lb-option-desc">{description}</span>
+      </span>
+    </button>
+  );
+}
+
+const STRATEGY_OPTIONS: { value: BotStrategyName; label: string }[] = [
+  { value: 'Balanced', label: 'Balanced' },
+  { value: 'GreenInnovator', label: 'Green innovator' },
+  { value: 'IndustrialExpansionist', label: 'Industrialist' },
+];
 
 export function LobbyModal({
   config,
@@ -104,325 +154,120 @@ export function LobbyModal({
     config.playerCount === 4
       ? ['orange', 'purple', 'pink', 'blue']
       : ['orange', 'purple', 'pink'];
+  const fixedAllowed = config.setupMode === 'first';
+  const placement = fixedAllowed ? config.placement : 'draft';
+  const updateSeat = (pid: PlayerId, patch: Partial<SeatConfig>) =>
+    onChangeConfig({ ...config, seats: { ...config.seats, [pid]: { ...config.seats[pid], ...patch } } });
 
   return (
     <div style={MODAL_BACKDROP_STYLE} data-testid="lobby-modal">
-      <div style={MODAL_CARD_STYLE}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+      <div
+        className="lb-sheet"
+        data-testid="setup-lobby"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="lobby-title"
+      >
+        <div className="lb-head">
           <div>
-            <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#f5d11d', letterSpacing: '0.4px' }}>
-              CATAN: New Energies — Tabletop Setup
-            </h2>
-            <p style={{ fontSize: '12.5px', color: '#a0aec0', marginTop: '2px' }}>
-              Configure players, AI personalities, setup mode, or join a multi-tab room.
-            </p>
+            <h2 id="lobby-title">New game</h2>
+            <p>Choose who is playing and how the island is set up.</p>
           </div>
           {canClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '8px',
-                background: '#2d333d',
-                color: '#e2e8f0',
-                border: '1px solid #4a5260',
-                cursor: 'pointer',
-                fontWeight: 700,
-              }}
-            >
-              Resume Game
+            <button type="button" className="tt-icon-btn" onClick={onClose}>
+              Back to the table
             </button>
           )}
         </div>
 
-        {/* Row 1: Player Count & Setup Mode & Seed */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: '12px',
-            marginBottom: '16px',
-            padding: '12px',
-            background: 'rgba(0,0,0,0.28)',
-            borderRadius: '12px',
-            border: '1px solid #343a44',
-          }}
-        >
-          {/* Player Count */}
-          <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#cbd5e0', marginBottom: '6px' }}>
-              PLAYER COUNT
-            </label>
-            <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="lb-section">
+          <div className="lb-section-head">
+            <h3>Players</h3>
+            <div className="lb-segment" role="group" aria-label="Number of players">
               {([3, 4] as const).map((cnt) => (
                 <button
                   key={cnt}
                   type="button"
                   data-testid={`lobby-player-count-${cnt}`}
+                  data-selected={config.playerCount === cnt ? 'true' : 'false'}
                   onClick={() => onChangeConfig({ ...config, playerCount: cnt })}
-                  style={{
-                    flex: 1,
-                    padding: '7px 10px',
-                    borderRadius: '8px',
-                    fontWeight: 800,
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    background: config.playerCount === cnt ? '#3676c8' : '#262b33',
-                    color: '#ffffff',
-                    border: config.playerCount === cnt ? '2px solid #90cdf4' : '1px solid #4a5260',
-                  }}
                 >
-                  {cnt} Players
+                  {cnt} players
                 </button>
               ))}
             </div>
           </div>
-
-          {/* Setup Mode */}
-          <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#cbd5e0', marginBottom: '6px' }}>
-              BOARD SETUP MODE
-            </label>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                type="button"
-                data-testid="lobby-setup-first"
-                onClick={() => onChangeConfig({ ...config, setupMode: 'first' })}
-                style={{
-                  flex: 1,
-                  padding: '7px 8px',
-                  borderRadius: '8px',
-                  fontWeight: 800,
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                  background: config.setupMode === 'first' ? '#2e8540' : '#262b33',
-                  color: '#ffffff',
-                  border: config.setupMode === 'first' ? '2px solid #8ce09a' : '1px solid #4a5260',
-                }}
-              >
-                First Game (Fixed)
-              </button>
-              <button
-                type="button"
-                data-testid="lobby-setup-standard"
-                onClick={() => onChangeConfig({ ...config, setupMode: 'standard' })}
-                style={{
-                  flex: 1,
-                  padding: '7px 8px',
-                  borderRadius: '8px',
-                  fontWeight: 800,
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                  background: config.setupMode === 'standard' ? '#2e8540' : '#262b33',
-                  color: '#ffffff',
-                  border: config.setupMode === 'standard' ? '2px solid #8ce09a' : '1px solid #4a5260',
-                }}
-              >
-                Variable Draft
-              </button>
-            </div>
-          </div>
-
-          {/* Deterministic Seed */}
-          <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#cbd5e0', marginBottom: '6px' }}>
-              PRNG SEED
-            </label>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <input
-                type="number"
-                data-testid="lobby-seed-input"
-                value={config.seed}
-                onChange={(e) =>
-                  onChangeConfig({
-                    ...config,
-                    seed: parseInt((e.target as HTMLInputElement).value, 10) || 42,
-                  })
-                }
-                style={{
-                  width: '100%',
-                  padding: '6px 10px',
-                  borderRadius: '8px',
-                  background: '#181b20',
-                  border: '1px solid #4a5260',
-                  color: '#ffffff',
-                  fontWeight: 700,
-                }}
-              />
-              <button
-                type="button"
-                onClick={() =>
-                  onChangeConfig({ ...config, seed: Math.floor(Math.random() * 99999) + 1 })
-                }
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: '8px',
-                  background: '#2d333d',
-                  border: '1px solid #4a5260',
-                  color: '#e2e8f0',
-                  cursor: 'pointer',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                }}
-              >
-                Random
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Row 2: Player Seats Configuration */}
-        <div style={{ marginBottom: '16px' }}>
-          <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#cbd5e0', marginBottom: '8px' }}>
-            PLAYER SEATS & AI PERSONALITIES
-          </label>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div className="lb-seats">
             {activeSeatIds.map((pid) => {
               const seat = config.seats[pid];
               const pTheme = PLAYER_THEMES[pid];
-
               return (
                 <div
                   key={pid}
+                  className="lb-seat"
                   data-testid={`lobby-seat-${pid}`}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    padding: '8px 12px',
-                    borderRadius: '10px',
-                    background: 'rgba(255,255,255,0.04)',
-                    border: `1.5px solid ${pTheme.fill}`,
-                    flexWrap: 'wrap',
-                  }}
+                  style={{ ['--player' as string]: pTheme.fill }}
                 >
-                  {/* Color & Emblem */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '110px' }}>
-                    <svg width="22" height="22" viewBox="-11 -11 22 22">
-                      <circle r="10" fill={pTheme.fill} stroke={pTheme.outerHalo} strokeWidth="1.5" />
-                      <PlayerEmblemSvg playerId={pid} cx={0} cy={0} r={4.8} />
-                    </svg>
-                    <input
-                      type="text"
-                      value={seat.name}
-                      onChange={(e) =>
-                        onChangeConfig({
-                          ...config,
-                          seats: {
-                            ...config.seats,
-                            [pid]: { ...seat, name: (e.target as HTMLInputElement).value },
-                          },
-                        })
-                      }
-                      style={{
-                        width: '86px',
-                        padding: '4px 6px',
-                        borderRadius: '6px',
-                        background: '#14171c',
-                        border: '1px solid #3c424d',
-                        color: '#ffffff',
-                        fontWeight: 700,
-                        fontSize: '12px',
-                      }}
-                    />
-                  </div>
-
-                  {/* Human vs Bot Toggle */}
-                  <div style={{ display: 'flex', gap: '4px' }}>
+                  <svg width="26" height="26" viewBox="-13 -13 26 26" aria-hidden="true">
+                    <circle r="12" fill={pTheme.fill} stroke={pTheme.stroke} strokeWidth="1.2" />
+                    <PlayerEmblemSvg playerId={pid} cx={0} cy={0} r={6.5} />
+                  </svg>
+                  <input
+                    type="text"
+                    className="lb-input"
+                    aria-label={`${pTheme.displayColorName} player name`}
+                    value={seat.name}
+                    maxLength={16}
+                    onInput={(e) => updateSeat(pid, { name: (e.target as HTMLInputElement).value })}
+                  />
+                  <div className="lb-segment" role="group" aria-label="Controlled by">
                     {(['human', 'bot'] as const).map((ctrl) => (
                       <button
                         key={ctrl}
                         type="button"
                         data-testid={`lobby-seat-${pid}-${ctrl}`}
-                        onClick={() =>
-                          onChangeConfig({
-                            ...config,
-                            seats: {
-                              ...config.seats,
-                              [pid]: { ...seat, controller: ctrl },
-                            },
-                          })
-                        }
-                        style={{
-                          padding: '4px 10px',
-                          borderRadius: '6px',
-                          fontSize: '11.5px',
-                          fontWeight: 800,
-                          cursor: 'pointer',
-                          background: seat.controller === ctrl ? pTheme.fill : '#252930',
-                          color: seat.controller === ctrl ? pTheme.textOnFill : '#a0aec0',
-                          border: '1px solid #4a5260',
-                        }}
+                        data-selected={seat.controller === ctrl ? 'true' : 'false'}
+                        onClick={() => updateSeat(pid, { controller: ctrl })}
                       >
-                        {ctrl === 'human' ? 'Human' : 'AI Bot'}
+                        {ctrl === 'human' ? 'Human' : 'Bot'}
                       </button>
                     ))}
                   </div>
-
-                  {/* Bot Strategy & Difficulty */}
-                  {seat.controller === 'bot' && (
-                    <div style={{ display: 'flex', gap: '8px', flex: 1, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                  {seat.controller === 'bot' ? (
+                    <div className="lb-bot">
                       <select
+                        className="lb-input"
                         data-testid={`lobby-seat-${pid}-strategy`}
+                        aria-label="Bot strategy"
                         value={seat.botStrategy}
                         onChange={(e) =>
-                          onChangeConfig({
-                            ...config,
-                            seats: {
-                              ...config.seats,
-                              [pid]: {
-                                ...seat,
-                                botStrategy: (e.target as HTMLSelectElement).value as BotStrategyName,
-                              },
-                            },
-                          })
+                          updateSeat(pid, { botStrategy: (e.target as HTMLSelectElement).value as BotStrategyName })
                         }
-                        style={{
-                          padding: '4px 8px',
-                          borderRadius: '6px',
-                          background: '#181b20',
-                          color: '#e2e8f0',
-                          border: '1px solid #4a5260',
-                          fontSize: '11.5px',
-                          fontWeight: 700,
-                        }}
                       >
-                        <option value="Balanced">Balanced</option>
-                        <option value="GreenInnovator">Green Innovator (Eco)</option>
-                        <option value="IndustrialExpansionist">Industrial Expansionist</option>
+                        {STRATEGY_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
                       </select>
-
                       <select
+                        className="lb-input"
                         data-testid={`lobby-seat-${pid}-difficulty`}
+                        aria-label="Bot difficulty"
                         value={seat.botDifficulty}
                         onChange={(e) =>
-                          onChangeConfig({
-                            ...config,
-                            seats: {
-                              ...config.seats,
-                              [pid]: {
-                                ...seat,
-                                botDifficulty: (e.target as HTMLSelectElement).value as BotDifficultyName,
-                              },
-                            },
+                          updateSeat(pid, {
+                            botDifficulty: (e.target as HTMLSelectElement).value as BotDifficultyName,
                           })
                         }
-                        style={{
-                          padding: '4px 8px',
-                          borderRadius: '6px',
-                          background: '#181b20',
-                          color: '#e2e8f0',
-                          border: '1px solid #4a5260',
-                          fontSize: '11.5px',
-                          fontWeight: 700,
-                        }}
                       >
                         <option value="easy">Easy</option>
                         <option value="normal">Normal</option>
                         <option value="hard">Hard</option>
                       </select>
                     </div>
+                  ) : (
+                    <span className="lb-bot lb-muted">Plays on this device</span>
                   )}
                 </div>
               );
@@ -430,123 +275,127 @@ export function LobbyModal({
           </div>
         </div>
 
-        {/* Row 3: Bot Pacing, Privacy Curtain & Multi-Tab Room Sync */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: '12px',
-            marginBottom: '18px',
-            padding: '12px',
-            background: 'rgba(0,0,0,0.28)',
-            borderRadius: '12px',
-            border: '1px solid #343a44',
-          }}
-        >
-          {/* Bot Speed */}
-          <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#cbd5e0', marginBottom: '6px' }}>
-              BOT TURN SPEED
-            </label>
-            <div style={{ display: 'flex', gap: '4px' }}>
-              {(['normal', 'fast', 'instant'] as const).map((spd) => (
-                <button
-                  key={spd}
-                  type="button"
-                  data-testid={`lobby-bot-speed-${spd}`}
-                  onClick={() => onChangeConfig({ ...config, botSpeed: spd })}
-                  style={{
-                    flex: 1,
-                    padding: '5px 6px',
-                    borderRadius: '6px',
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    background: config.botSpeed === spd ? '#3676c8' : '#262b33',
-                    color: '#ffffff',
-                    border: '1px solid #4a5260',
-                    textTransform: 'capitalize',
-                  }}
-                >
-                  {spd}
-                </button>
-              ))}
-            </div>
+        <div className="lb-columns">
+          <div className="lb-section">
+            <h3>Island</h3>
+            <LobbyOption
+              testId="lobby-setup-first"
+              selected={config.setupMode === 'first'}
+              title="Beginner layout"
+              description="The recommended terrain and numbers from the rulebook."
+              onSelect={() => onChangeConfig({ ...config, setupMode: 'first' })}
+            />
+            <LobbyOption
+              testId="lobby-setup-standard"
+              selected={config.setupMode === 'standard'}
+              title="Random island"
+              description="Shuffled terrain, numbers laid along the spiral."
+              onSelect={() => onChangeConfig({ ...config, setupMode: 'standard', placement: 'draft' })}
+            />
           </div>
-
-          {/* Hotseat Privacy Curtain */}
-          <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#cbd5e0', marginBottom: '6px' }}>
-              HOTSEAT PRIVACY CURTAIN
-            </label>
-            <button
-              type="button"
-              data-testid="lobby-privacy-toggle"
-              onClick={() => onChangeConfig({ ...config, privacyCurtain: !config.privacyCurtain })}
-              style={{
-                width: '100%',
-                padding: '6px 10px',
-                borderRadius: '6px',
-                fontSize: '11.5px',
-                fontWeight: 800,
-                cursor: 'pointer',
-                background: config.privacyCurtain ? '#2e8540' : '#262b33',
-                color: '#ffffff',
-                border: '1px solid #4a5260',
-              }}
-            >
-              {config.privacyCurtain ? 'Curtain ON (Pass Device)' : 'Curtain OFF (Open Table)'}
-            </button>
-          </div>
-
-          {/* Multi-Tab / P2P Room Code */}
-          <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#cbd5e0', marginBottom: '6px' }}>
-              MULTI-TAB / ROOM CODE
-            </label>
-            <input
-              type="text"
-              placeholder="Optional (e.g. CATAN1)"
-              value={config.roomCode}
-              onChange={(e) =>
-                onChangeConfig({
-                  ...config,
-                  roomCode: (e.target as HTMLInputElement).value.toUpperCase(),
-                })
+          <div className="lb-section">
+            <h3>Starting pieces</h3>
+            <LobbyOption
+              testId="lobby-placement-draft"
+              selected={placement === 'draft'}
+              title="Players place them"
+              badge="Recommended"
+              description="Roll for order, place a town each, then a city each in reverse."
+              onSelect={() => onChangeConfig({ ...config, placement: 'draft' })}
+            />
+            <LobbyOption
+              testId="lobby-placement-fixed"
+              selected={placement === 'fixed'}
+              disabled={!fixedAllowed}
+              title="Beginner positions"
+              description={
+                fixedAllowed
+                  ? 'Start with the town and city shown in the rulebook.'
+                  : 'Only available on the beginner layout.'
               }
-              style={{
-                width: '100%',
-                padding: '5px 10px',
-                borderRadius: '6px',
-                background: '#181b20',
-                border: '1px solid #4a5260',
-                color: '#ffffff',
-                fontSize: '12px',
-                fontWeight: 700,
-              }}
+              onSelect={() => onChangeConfig({ ...config, placement: 'fixed' })}
             />
           </div>
         </div>
 
-        {/* Start Game Button */}
+        <details className="lb-more">
+          <summary>More options</summary>
+          <div className="lb-more-grid">
+            <div className="lb-field">
+              <span>Bot speed</span>
+              <div className="lb-segment" role="group" aria-label="Bot speed">
+                {(['normal', 'fast', 'instant'] as const).map((spd) => (
+                  <button
+                    key={spd}
+                    type="button"
+                    data-testid={`lobby-bot-speed-${spd}`}
+                    data-selected={config.botSpeed === spd ? 'true' : 'false'}
+                    onClick={() => onChangeConfig({ ...config, botSpeed: spd })}
+                  >
+                    {spd === 'normal' ? 'Relaxed' : spd === 'fast' ? 'Fast' : 'Instant'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="lb-field">
+              <span>Pass-the-device curtain</span>
+              <div className="lb-segment" role="group" aria-label="Privacy curtain">
+                {[false, true].map((on) => (
+                  <button
+                    key={String(on)}
+                    type="button"
+                    data-testid={on ? 'lobby-privacy-toggle' : undefined}
+                    data-selected={config.privacyCurtain === on ? 'true' : 'false'}
+                    onClick={() => onChangeConfig({ ...config, privacyCurtain: on })}
+                  >
+                    {on ? 'Hide hands' : 'Open table'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <label className="lb-field">
+              <span>Seed</span>
+              <span style={{ display: 'flex', gap: '6px' }}>
+                <input
+                  type="number"
+                  className="lb-input"
+                  data-testid="lobby-seed-input"
+                  value={config.seed}
+                  onChange={(e) =>
+                    onChangeConfig({ ...config, seed: parseInt((e.target as HTMLInputElement).value, 10) || 42 })
+                  }
+                />
+                <button
+                  type="button"
+                  className="tt-icon-btn"
+                  onClick={() => onChangeConfig({ ...config, seed: Math.floor(Math.random() * 99999) + 1 })}
+                >
+                  Shuffle
+                </button>
+              </span>
+            </label>
+            <label className="lb-field">
+              <span>Room code for other tabs</span>
+              <input
+                type="text"
+                className="lb-input"
+                placeholder="Optional, e.g. CATAN1"
+                value={config.roomCode}
+                onInput={(e) =>
+                  onChangeConfig({ ...config, roomCode: (e.target as HTMLInputElement).value.toUpperCase() })
+                }
+              />
+            </label>
+          </div>
+        </details>
+
         <button
           type="button"
-          data-testid="lobby-start-btn"
-          onClick={() => onStartGame(config)}
-          style={{
-            width: '100%',
-            padding: '12px',
-            borderRadius: '10px',
-            background: 'linear-gradient(180deg, #f5d11d 0%, #d4a017 100%)',
-            color: '#18150b',
-            fontWeight: 900,
-            fontSize: '15px',
-            border: '2px solid #fff3a1',
-            cursor: 'pointer',
-            boxShadow: '0 6px 18px rgba(245, 209, 29, 0.35)',
-          }}
+          className="tt-cta is-ready"
+          data-testid="start-game-btn"
+          onClick={() => onStartGame({ ...config, placement })}
         >
-          Launch Tabletop Game
+          Start game
         </button>
       </div>
     </div>
@@ -622,7 +471,7 @@ export function TradeModal({
     <div style={MODAL_BACKDROP_STYLE} data-testid="trade-modal">
       <div style={MODAL_CARD_STYLE}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#f5d11d' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: 900, color: 'var(--volt)' }}>
             Maritime, Supply & Domestic Trade
           </h3>
           <button
@@ -632,9 +481,9 @@ export function TradeModal({
             style={{
               padding: '5px 12px',
               borderRadius: '8px',
-              background: '#2d333d',
+              background: 'var(--ink-700)',
               color: '#ffffff',
-              border: '1px solid #4a5260',
+              border: '1px solid rgba(163, 183, 202, 0.28)',
               cursor: 'pointer',
               fontWeight: 700,
             }}
@@ -655,9 +504,9 @@ export function TradeModal({
               borderRadius: '8px',
               fontWeight: 800,
               cursor: 'pointer',
-              background: tab === 'supply' ? '#3676c8' : '#262b33',
+              background: tab === 'supply' ? 'var(--sea)' : 'var(--ink-700)',
               color: '#ffffff',
-              border: '1px solid #4a5260',
+              border: '1px solid rgba(163, 183, 202, 0.28)',
             }}
           >
             Supply Trade (4:1 / 3:1 Sci / 2:1 ⚡)
@@ -672,9 +521,9 @@ export function TradeModal({
               borderRadius: '8px',
               fontWeight: 800,
               cursor: 'pointer',
-              background: tab === 'harbor' ? '#3676c8' : '#262b33',
+              background: tab === 'harbor' ? 'var(--sea)' : 'var(--ink-700)',
               color: '#ffffff',
-              border: '1px solid #4a5260',
+              border: '1px solid rgba(163, 183, 202, 0.28)',
             }}
           >
             Harbors ({playerHarbors.length})
@@ -689,9 +538,9 @@ export function TradeModal({
               borderRadius: '8px',
               fontWeight: 800,
               cursor: 'pointer',
-              background: tab === 'domestic' ? '#3676c8' : '#262b33',
+              background: tab === 'domestic' ? 'var(--sea)' : 'var(--ink-700)',
               color: '#ffffff',
-              border: '1px solid #4a5260',
+              border: '1px solid rgba(163, 183, 202, 0.28)',
             }}
           >
             Domestic P2P Trade
@@ -701,7 +550,7 @@ export function TradeModal({
         {tab === 'supply' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div>
-              <div style={{ fontSize: '12px', fontWeight: 800, marginBottom: '6px', color: '#cbd5e0' }}>
+              <div style={{ fontSize: '12px', fontWeight: 800, marginBottom: '6px', color: 'var(--ink-100)' }}>
                 1. GIVE TO SUPPLY (4 Resource, 3 Science, or 2 Energy):
               </div>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -729,10 +578,10 @@ export function TradeModal({
                           fontWeight: 800,
                           fontSize: '12px',
                           cursor: 'pointer',
-                          background: supplyGiveType === key ? '#2e8540' : '#252930',
-                          color: held >= req ? '#ffffff' : '#718096',
+                          background: supplyGiveType === key ? 'var(--leaf)' : 'var(--ink-700)',
+                          color: held >= req ? '#ffffff' : 'var(--ink-300)',
                           border:
-                            supplyGiveType === key ? '2px solid #f5d11d' : '1px solid #4a5260',
+                            supplyGiveType === key ? '2px solid var(--volt)' : '1px solid rgba(163, 183, 202, 0.28)',
                         }}
                       >
                         {req}x {label} (Have {held})
@@ -744,7 +593,7 @@ export function TradeModal({
             </div>
 
             <div>
-              <div style={{ fontSize: '12px', fontWeight: 800, marginBottom: '6px', color: '#cbd5e0' }}>
+              <div style={{ fontSize: '12px', fontWeight: 800, marginBottom: '6px', color: 'var(--ink-100)' }}>
                 2. RECEIVE 1 CARD FROM SUPPLY:
               </div>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -761,10 +610,10 @@ export function TradeModal({
                         fontWeight: 800,
                         fontSize: '12px',
                         cursor: 'pointer',
-                        background: supplyReceiveType === key ? '#3676c8' : '#252930',
+                        background: supplyReceiveType === key ? 'var(--sea)' : 'var(--ink-700)',
                         color: '#ffffff',
                         border:
-                          supplyReceiveType === key ? '2px solid #f5d11d' : '1px solid #4a5260',
+                          supplyReceiveType === key ? '2px solid var(--volt)' : '1px solid rgba(163, 183, 202, 0.28)',
                       }}
                     >
                       1x {CARD_METADATA[key].label}
@@ -791,9 +640,9 @@ export function TradeModal({
                 padding: '10px',
                 borderRadius: '8px',
                 fontWeight: 900,
-                background: canExecuteSupplyTrade ? '#2e8540' : '#262b33',
-                color: canExecuteSupplyTrade ? '#ffffff' : '#718096',
-                border: '1px solid #4a5260',
+                background: canExecuteSupplyTrade ? 'var(--leaf)' : 'var(--ink-700)',
+                color: canExecuteSupplyTrade ? '#ffffff' : 'var(--ink-300)',
+                border: '1px solid rgba(163, 183, 202, 0.28)',
                 cursor: canExecuteSupplyTrade ? 'pointer' : 'not-allowed',
               }}
             >
@@ -805,7 +654,7 @@ export function TradeModal({
         {tab === 'harbor' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {playerHarbors.length === 0 ? (
-              <p style={{ color: '#a0aec0', fontSize: '13px' }}>
+              <p style={{ color: 'var(--ink-300)', fontSize: '13px' }}>
                 You do not currently have a Town or City on any coastal Harbor intersection.
               </p>
             ) : (
@@ -820,9 +669,9 @@ export function TradeModal({
                         padding: '7px 12px',
                         borderRadius: '8px',
                         fontWeight: 800,
-                        background: selectedHarbor?.id === h.id ? '#3676c8' : '#252930',
+                        background: selectedHarbor?.id === h.id ? 'var(--sea)' : 'var(--ink-700)',
                         color: '#ffffff',
-                        border: '1px solid #4a5260',
+                        border: '1px solid rgba(163, 183, 202, 0.28)',
                         cursor: 'pointer',
                       }}
                     >
@@ -846,9 +695,9 @@ export function TradeModal({
                             padding: '6px 10px',
                             borderRadius: '6px',
                             fontWeight: 800,
-                            background: harborGiveRes === r ? '#2e8540' : '#252930',
+                            background: harborGiveRes === r ? 'var(--leaf)' : 'var(--ink-700)',
                             color: '#ffffff',
-                            border: '1px solid #4a5260',
+                            border: '1px solid rgba(163, 183, 202, 0.28)',
                             cursor: 'pointer',
                           }}
                         >
@@ -874,9 +723,9 @@ export function TradeModal({
                             padding: '6px 10px',
                             borderRadius: '6px',
                             fontWeight: 800,
-                            background: harborReceiveType === k ? '#3676c8' : '#252930',
+                            background: harborReceiveType === k ? 'var(--sea)' : 'var(--ink-700)',
                             color: '#ffffff',
-                            border: '1px solid #4a5260',
+                            border: '1px solid rgba(163, 183, 202, 0.28)',
                             cursor: 'pointer',
                           }}
                         >
@@ -905,9 +754,9 @@ export function TradeModal({
                     padding: '10px',
                     borderRadius: '8px',
                     fontWeight: 900,
-                    background: canExecuteHarborTrade ? '#2e8540' : '#262b33',
-                    color: canExecuteHarborTrade ? '#ffffff' : '#718096',
-                    border: '1px solid #4a5260',
+                    background: canExecuteHarborTrade ? 'var(--leaf)' : 'var(--ink-700)',
+                    color: canExecuteHarborTrade ? '#ffffff' : 'var(--ink-300)',
+                    border: '1px solid rgba(163, 183, 202, 0.28)',
                     cursor: canExecuteHarborTrade ? 'pointer' : 'not-allowed',
                   }}
                 >
@@ -934,12 +783,12 @@ export function TradeModal({
                       borderRadius: '6px',
                       fontWeight: 800,
                       background:
-                        domesticTarget === pid ? PLAYER_THEMES[pid].fill : '#252930',
+                        domesticTarget === pid ? PLAYER_THEMES[pid].fill : 'var(--ink-700)',
                       color:
                         domesticTarget === pid
                           ? PLAYER_THEMES[pid].textOnFill
-                          : '#e2e8f0',
-                      border: '1px solid #4a5260',
+                          : 'var(--ink-100)',
+                      border: '1px solid rgba(163, 183, 202, 0.28)',
                       cursor: 'pointer',
                     }}
                   >
@@ -950,7 +799,7 @@ export function TradeModal({
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div style={{ padding: '10px', background: 'rgba(0,0,0,0.25)', borderRadius: '8px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 800, marginBottom: '6px', color: '#f5d11d' }}>
+                <div style={{ fontSize: '11px', fontWeight: 800, marginBottom: '6px', color: 'var(--volt)' }}>
                   YOU OFFER:
                 </div>
                 {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science', 'energy'] as const).map(
@@ -1047,7 +896,7 @@ export function TradeModal({
                 padding: '10px',
                 borderRadius: '8px',
                 fontWeight: 900,
-                background: '#3676c8',
+                background: 'var(--sea)',
                 color: '#ffffff',
                 border: '1px solid #90cdf4',
                 cursor: 'pointer',
@@ -1080,10 +929,10 @@ export function EnergyBuyCardModal({
   return (
     <div style={MODAL_BACKDROP_STYLE} data-testid="energy-card-modal">
       <div style={{ ...MODAL_CARD_STYLE, maxWidth: '460px' }}>
-        <h3 style={{ fontSize: '17px', fontWeight: 900, color: '#f5d11d', marginBottom: '8px' }}>
+        <h3 style={{ fontSize: '17px', fontWeight: 900, color: 'var(--volt)', marginBottom: '8px' }}>
           Spend 2 Energy Bolts &rarr; Take 1 Card
         </h3>
-        <p style={{ fontSize: '12.5px', color: '#cbd5e0', marginBottom: '14px' }}>
+        <p style={{ fontSize: '12.5px', color: 'var(--ink-100)', marginBottom: '14px' }}>
           Choose any 1 Resource or Science card from the global supply:
         </p>
 
@@ -1110,8 +959,8 @@ export function EnergyBuyCardModal({
                   style={{
                     padding: '10px 8px',
                     borderRadius: '8px',
-                    background: avail > 0 ? CARD_METADATA[key].bg : '#252930',
-                    color: avail > 0 ? CARD_METADATA[key].textColor : '#718096',
+                    background: avail > 0 ? CARD_METADATA[key].bg : 'var(--ink-700)',
+                    color: avail > 0 ? CARD_METADATA[key].textColor : 'var(--ink-300)',
                     border: `2px solid ${CARD_METADATA[key].border}`,
                     fontWeight: 900,
                     fontSize: '12px',
@@ -1132,9 +981,9 @@ export function EnergyBuyCardModal({
             width: '100%',
             padding: '8px',
             borderRadius: '8px',
-            background: '#2d333d',
-            color: '#e2e8f0',
-            border: '1px solid #4a5260',
+            background: 'var(--ink-700)',
+            color: 'var(--ink-100)',
+            border: '1px solid rgba(163, 183, 202, 0.28)',
             cursor: 'pointer',
             fontWeight: 700,
           }}
@@ -1228,9 +1077,9 @@ export function DevCardPlayModal({
             style={{
               padding: '4px 10px',
               borderRadius: '6px',
-              background: '#2d333d',
+              background: 'var(--ink-700)',
               color: '#ffffff',
-              border: '1px solid #4a5260',
+              border: '1px solid rgba(163, 183, 202, 0.28)',
               cursor: 'pointer',
             }}
           >
@@ -1238,7 +1087,7 @@ export function DevCardPlayModal({
           </button>
         </div>
 
-        <p style={{ fontSize: '12.5px', color: '#cbd5e0', marginBottom: '14px' }}>
+        <p style={{ fontSize: '12.5px', color: 'var(--ink-100)', marginBottom: '14px' }}>
           {meta.description}
         </p>
 
@@ -1253,9 +1102,9 @@ export function DevCardPlayModal({
                   padding: '8px',
                   borderRadius: '8px',
                   fontWeight: 800,
-                  background: cleanupMode === 'INSPECTOR' ? '#2e8540' : '#252930',
+                  background: cleanupMode === 'INSPECTOR' ? 'var(--leaf)' : 'var(--ink-700)',
                   color: '#ffffff',
-                  border: '1px solid #4a5260',
+                  border: '1px solid rgba(163, 183, 202, 0.28)',
                   cursor: 'pointer',
                 }}
               >
@@ -1269,9 +1118,9 @@ export function DevCardPlayModal({
                   padding: '8px',
                   borderRadius: '8px',
                   fontWeight: 800,
-                  background: cleanupMode === 'HAZARD' ? '#2e8540' : '#252930',
+                  background: cleanupMode === 'HAZARD' ? 'var(--leaf)' : 'var(--ink-700)',
                   color: '#ffffff',
-                  border: '1px solid #4a5260',
+                  border: '1px solid rgba(163, 183, 202, 0.28)',
                   cursor: 'pointer',
                 }}
               >
@@ -1295,9 +1144,9 @@ export function DevCardPlayModal({
                         borderRadius: '6px',
                         fontSize: '11px',
                         fontWeight: 800,
-                        background: selectedInspectorHex === h.id ? '#3676c8' : '#252930',
+                        background: selectedInspectorHex === h.id ? 'var(--sea)' : 'var(--ink-700)',
                         color: '#ffffff',
-                        border: '1px solid #4a5260',
+                        border: '1px solid rgba(163, 183, 202, 0.28)',
                         cursor: 'pointer',
                       }}
                     >
@@ -1325,7 +1174,7 @@ export function DevCardPlayModal({
                     width: '100%',
                     padding: '10px',
                     borderRadius: '8px',
-                    background: '#2e8540',
+                    background: 'var(--leaf)',
                     color: '#ffffff',
                     fontWeight: 900,
                     border: 'none',
@@ -1353,9 +1202,9 @@ export function DevCardPlayModal({
                         borderRadius: '6px',
                         fontSize: '11px',
                         fontWeight: 800,
-                        background: selectedHazardIdx === idx ? '#3676c8' : '#252930',
+                        background: selectedHazardIdx === idx ? 'var(--sea)' : 'var(--ink-700)',
                         color: '#ffffff',
-                        border: '1px solid #4a5260',
+                        border: '1px solid rgba(163, 183, 202, 0.28)',
                         cursor: 'pointer',
                       }}
                     >
@@ -1392,7 +1241,7 @@ export function DevCardPlayModal({
                     width: '100%',
                     padding: '10px',
                     borderRadius: '8px',
-                    background: '#2e8540',
+                    background: 'var(--leaf)',
                     color: '#ffffff',
                     fontWeight: 900,
                     border: 'none',
@@ -1421,9 +1270,9 @@ export function DevCardPlayModal({
                         padding: '6px 10px',
                         borderRadius: '6px',
                         fontWeight: 800,
-                        background: grantCard1 === k ? '#3676c8' : '#252930',
+                        background: grantCard1 === k ? 'var(--sea)' : 'var(--ink-700)',
                         color: '#ffffff',
-                        border: '1px solid #4a5260',
+                        border: '1px solid rgba(163, 183, 202, 0.28)',
                         cursor: 'pointer',
                       }}
                     >
@@ -1447,9 +1296,9 @@ export function DevCardPlayModal({
                         padding: '6px 10px',
                         borderRadius: '6px',
                         fontWeight: 800,
-                        background: grantCard2 === k ? '#3676c8' : '#252930',
+                        background: grantCard2 === k ? 'var(--sea)' : 'var(--ink-700)',
                         color: '#ffffff',
-                        border: '1px solid #4a5260',
+                        border: '1px solid rgba(163, 183, 202, 0.28)',
                         cursor: 'pointer',
                       }}
                     >
@@ -1475,7 +1324,7 @@ export function DevCardPlayModal({
               style={{
                 padding: '10px',
                 borderRadius: '8px',
-                background: '#3676c8',
+                background: 'var(--sea)',
                 color: '#ffffff',
                 fontWeight: 900,
                 border: 'none',
@@ -1489,7 +1338,7 @@ export function DevCardPlayModal({
 
         {cardType === 'highYield' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ fontSize: '12.5px', color: '#e2e8f0' }}>
+            <div style={{ fontSize: '12.5px', color: 'var(--ink-100)' }}>
               Eligible hexes with your Renewable Power Plants:{' '}
               {renewableHexes.length > 0
                 ? renewableHexes.map((id) => `Hex #${id} (${state.board.hexes[id]!.terrain})`).join(', ')
@@ -1510,7 +1359,7 @@ export function DevCardPlayModal({
               style={{
                 padding: '10px',
                 borderRadius: '8px',
-                background: renewableHexes.length > 0 ? '#dfb441' : '#252930',
+                background: renewableHexes.length > 0 ? '#dfb441' : 'var(--ink-700)',
                 color: '#1e190d',
                 fontWeight: 900,
                 border: 'none',
@@ -1537,9 +1386,9 @@ export function DevCardPlayModal({
                     padding: '5px 8px',
                     borderRadius: '6px',
                     fontWeight: 800,
-                    background: roadEdge1 === eId ? '#b65c3b' : '#252930',
+                    background: roadEdge1 === eId ? '#b65c3b' : 'var(--ink-700)',
                     color: '#ffffff',
-                    border: '1px solid #4a5260',
+                    border: '1px solid rgba(163, 183, 202, 0.28)',
                     cursor: 'pointer',
                   }}
                 >
@@ -1610,44 +1459,9 @@ export function PendingDecisionBanner({
     Partial<Record<ResourceType | 'science', number>>
   >({});
 
-  // Setup placement decisions are handled directly on the board with a clean top banner
+  // Setup placements are guided by the setup coach in the dock and happen on the board
   if (decision.type === 'SETUP_PLACE_SETTLEMENT' || decision.type === 'SETUP_PLACE_ROAD') {
-    const pieceLabel =
-      decision.type === 'SETUP_PLACE_ROAD'
-        ? 'Starting Road'
-        : decision.round === 1
-          ? 'Starting Town (Round 1)'
-          : 'Starting City (Round 2)';
-
-    return (
-      <div
-        data-testid="pending-decision-banner"
-        style={{
-          position: 'fixed',
-          top: '56px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 120,
-          background: 'rgba(20, 25, 34, 0.94)',
-          border: `2px solid ${pTheme.fill}`,
-          borderRadius: '12px',
-          padding: '8px 18px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
-        }}
-      >
-        <svg width="20" height="20" viewBox="-10 -10 20 20">
-          <circle r="9" fill={pTheme.fill} stroke={pTheme.outerHalo} strokeWidth="1.5" />
-          <PlayerEmblemSvg playerId={decision.playerId} cx={0} cy={0} r={4.5} />
-        </svg>
-        <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#ffffff' }}>
-          {player.name}: Click a highlighted spot on the board to place your{' '}
-          <span style={{ color: '#f5d11d' }}>{pieceLabel}</span>
-        </span>
-      </div>
-    );
+    return null;
   }
 
   // DISCARD ON 7 MODAL
@@ -1658,10 +1472,10 @@ export function PendingDecisionBanner({
     return (
       <div style={MODAL_BACKDROP_STYLE} data-testid="pending-decision-modal">
         <div style={{ ...MODAL_CARD_STYLE, maxWidth: '480px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#f5d11d', marginBottom: '6px' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: 900, color: 'var(--volt)', marginBottom: '6px' }}>
             Roll of 7 — {player.name} Must Discard {needed} Card{needed > 1 ? 's' : ''}
           </h3>
-          <p style={{ fontSize: '12.5px', color: '#cbd5e0', marginBottom: '12px' }}>
+          <p style={{ fontSize: '12.5px', color: 'var(--ink-100)', marginBottom: '12px' }}>
             Selected: {totalSelected} / {needed}
           </p>
 
@@ -1735,7 +1549,7 @@ export function PendingDecisionBanner({
               padding: '10px',
               borderRadius: '8px',
               fontWeight: 900,
-              background: totalSelected === needed ? '#c93b2b' : '#262b33',
+              background: totalSelected === needed ? '#c93b2b' : 'var(--ink-700)',
               color: '#ffffff',
               border: 'none',
               cursor: totalSelected === needed ? 'pointer' : 'not-allowed',
@@ -1756,7 +1570,7 @@ export function PendingDecisionBanner({
     return (
       <div style={MODAL_BACKDROP_STYLE} data-testid="pending-decision-modal">
         <div style={{ ...MODAL_CARD_STYLE, maxWidth: '480px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#f5d11d', marginBottom: '8px' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: 900, color: 'var(--volt)', marginBottom: '8px' }}>
             Event Decision — {player.name} ({decision.event})
           </h3>
 
@@ -1777,7 +1591,7 @@ export function PendingDecisionBanner({
                   flex: 1,
                   padding: '10px',
                   borderRadius: '8px',
-                  background: '#2e8540',
+                  background: 'var(--leaf)',
                   color: '#ffffff',
                   fontWeight: 900,
                   border: 'none',
@@ -1800,7 +1614,7 @@ export function PendingDecisionBanner({
                   style={{
                     padding: '10px 16px',
                     borderRadius: '8px',
-                    background: '#2d333d',
+                    background: 'var(--ink-700)',
                     color: '#ffffff',
                     fontWeight: 700,
                     border: 'none',
@@ -1813,7 +1627,7 @@ export function PendingDecisionBanner({
             </div>
           ) : (
             <>
-              <p style={{ fontSize: '12.5px', color: '#cbd5e0', marginBottom: '12px' }}>
+              <p style={{ fontSize: '12.5px', color: 'var(--ink-100)', marginBottom: '12px' }}>
                 {isPenalty
                   ? 'Climate Conference Penalty: Choose 1 card from your hand to discard:'
                   : 'Choose 1 free card from the global supply:'}
@@ -1847,9 +1661,9 @@ export function PendingDecisionBanner({
                           padding: '10px 8px',
                           borderRadius: '8px',
                           fontWeight: 800,
-                          background: count > 0 ? CARD_METADATA[k].bg : '#252930',
-                          color: count > 0 ? CARD_METADATA[k].textColor : '#718096',
-                          border: '1px solid #4a5260',
+                          background: count > 0 ? CARD_METADATA[k].bg : 'var(--ink-700)',
+                          color: count > 0 ? CARD_METADATA[k].textColor : 'var(--ink-300)',
+                          border: '1px solid rgba(163, 183, 202, 0.28)',
                           cursor: count > 0 ? 'pointer' : 'not-allowed',
                         }}
                       >
@@ -1874,7 +1688,7 @@ export function PendingDecisionBanner({
                     width: '100%',
                     padding: '8px',
                     borderRadius: '8px',
-                    background: '#2d333d',
+                    background: 'var(--ink-700)',
                     color: '#ffffff',
                     fontWeight: 700,
                     border: 'none',
@@ -1896,7 +1710,7 @@ export function PendingDecisionBanner({
     return (
       <div style={MODAL_BACKDROP_STYLE} data-testid="pending-decision-modal">
         <div style={{ ...MODAL_CARD_STYLE, maxWidth: '420px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#f5d11d', marginBottom: '10px' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: 900, color: 'var(--volt)', marginBottom: '10px' }}>
             Environmental Inspector — Choose Steal Victim
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -1938,10 +1752,10 @@ export function PendingDecisionBanner({
     return (
       <div style={MODAL_BACKDROP_STYLE} data-testid="pending-decision-modal">
         <div style={{ ...MODAL_CARD_STYLE, maxWidth: '460px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#f5d11d', marginBottom: '8px' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: 900, color: 'var(--volt)', marginBottom: '8px' }}>
             Trade Offer for {player.name} from {offerer.name}
           </h3>
-          <p style={{ fontSize: '13px', color: '#e2e8f0', marginBottom: '12px' }}>
+          <p style={{ fontSize: '13px', color: 'var(--ink-100)', marginBottom: '12px' }}>
             {offerer.name} offers:{' '}
             <strong>
               {Object.entries(decision.give)
@@ -1974,7 +1788,7 @@ export function PendingDecisionBanner({
                 flex: 1,
                 padding: '10px',
                 borderRadius: '8px',
-                background: '#2e8540',
+                background: 'var(--leaf)',
                 color: '#ffffff',
                 fontWeight: 900,
                 border: 'none',
@@ -2014,36 +1828,75 @@ export function PendingDecisionBanner({
   }
 
   // Board-interactive decisions (MOVE_INSPECTOR, EVENT_HAZARD_CHOICE, EVENT_PRODUCTION_INCREASE)
+  const sourceLabel =
+    decision.type === 'EVENT_HAZARD_CHOICE'
+      ? decision.source === 'AirPollution'
+        ? 'Air pollution'
+        : 'Rain & flooding'
+      : null;
+  const prompt =
+    decision.type === 'MOVE_INSPECTOR'
+      ? {
+          title: `${player.name}, move the inspector`,
+          body: 'Click a glowing hex. You may then take a card from a player with a building there.',
+        }
+      : decision.type === 'EVENT_HAZARD_CHOICE'
+        ? {
+            title: `${sourceLabel}: ${player.name} places a hazard`,
+            body: 'Click one of your glowing buildings. It stops producing until the hazard clears.',
+          }
+        : {
+            title: `Production increase: a free fossil plant for ${player.name}`,
+            body: 'Click a glowing spot next to your town or city, or pass.',
+          };
+
   return (
     <div
       data-testid="pending-decision-banner"
+      role="status"
+      aria-live="polite"
       style={{
         position: 'fixed',
-        top: '56px',
+        top: '62px',
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: 120,
-        background: 'rgba(20, 25, 34, 0.94)',
-        border: `2px solid ${pTheme.fill}`,
-        borderRadius: '12px',
-        padding: '10px 18px',
+        width: 'min(560px, calc(100vw - 32px))',
+        background: 'var(--ink-800)',
+        color: 'var(--ink-100)',
+        borderRadius: '14px',
+        padding: '10px 14px 10px 16px',
         display: 'flex',
         alignItems: 'center',
         gap: '12px',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.65)',
+        boxShadow: `inset 5px 0 0 ${pTheme.fill}, var(--shadow-ink)`,
+        animation: 'toastIn 220ms var(--ease-out)',
       }}
     >
-      <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#ffffff' }}>
-        {decision.type === 'MOVE_INSPECTOR' &&
-          `${player.name}: Click any highlighted Hex on the board to move the Environmental Inspector!`}
-        {decision.type === 'EVENT_HAZARD_CHOICE' &&
-          `${player.name} (${decision.source}): Click one of your highlighted buildings on the board to place 1 Hazard Token!`}
-        {decision.type === 'EVENT_PRODUCTION_INCREASE' &&
-          `${player.name} (Production Increase): Click a highlighted Power Plant cutout on the board for a FREE Fossil Plant + 1 Resource!`}
+      <svg width="26" height="26" viewBox="-13 -13 26 26" aria-hidden="true" style={{ flexShrink: 0 }}>
+        <circle r="12" fill={pTheme.fill} stroke={pTheme.stroke} strokeWidth="1.2" />
+        <PlayerEmblemSvg playerId={decision.playerId} cx={0} cy={0} r={6.5} />
+      </svg>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span
+          style={{
+            display: 'block',
+            fontFamily: 'var(--font-display)',
+            fontWeight: 700,
+            fontSize: '15px',
+            color: '#ffffff',
+          }}
+        >
+          {prompt.title}
+        </span>
+        <span style={{ display: 'block', fontSize: '12.5px', color: 'var(--ink-300)', marginTop: '1px' }}>
+          {prompt.body}
+        </span>
       </span>
       {decision.type === 'EVENT_PRODUCTION_INCREASE' && (
         <button
           type="button"
+          className="tt-icon-btn"
           data-testid="pass-production-increase-btn"
           onClick={() =>
             onDispatch({
@@ -2053,15 +1906,6 @@ export function PendingDecisionBanner({
               response: { pass: true },
             })
           }
-          style={{
-            padding: '5px 12px',
-            borderRadius: '8px',
-            background: '#4a5260',
-            color: '#ffffff',
-            fontWeight: 800,
-            border: 'none',
-            cursor: 'pointer',
-          }}
         >
           Pass
         </button>
@@ -2096,7 +1940,7 @@ export function PrivacyCurtainModal({
         <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#ffffff', marginBottom: '8px' }}>
           Pass Device to {nextPlayerName}
         </h2>
-        <p style={{ fontSize: '13px', color: '#a0aec0', marginBottom: '18px' }}>
+        <p style={{ fontSize: '13px', color: 'var(--ink-300)', marginBottom: '18px' }}>
           Private Resource, Science, and Development cards are hidden until you are ready.
         </p>
         <button
@@ -2165,13 +2009,13 @@ export function VictoryModal({
           style={{
             fontSize: '24px',
             fontWeight: 900,
-            color: isCollapse ? '#ff6b6b' : '#f5d11d',
+            color: isCollapse ? '#ff6b6b' : 'var(--volt)',
             marginBottom: '6px',
           }}
         >
           {headline}
         </h2>
-        <p style={{ fontSize: '13.5px', color: '#cbd5e0', marginBottom: '16px' }}>
+        <p style={{ fontSize: '13.5px', color: 'var(--ink-100)', marginBottom: '16px' }}>
           {subheadline}
         </p>
 
@@ -2185,7 +2029,7 @@ export function VictoryModal({
           }}
         >
           <thead>
-            <tr style={{ borderBottom: '2px solid #3c424d', color: '#a0aec0', textAlign: 'left' }}>
+            <tr style={{ borderBottom: '2px solid rgba(163, 183, 202, 0.22)', color: 'var(--ink-300)', textAlign: 'left' }}>
               <th style={{ padding: '8px' }}>Player</th>
               <th style={{ padding: '8px' }}>Total VP</th>
               <th style={{ padding: '8px' }}>Renewables</th>
@@ -2201,7 +2045,7 @@ export function VictoryModal({
               const pTheme = PLAYER_THEMES[pid];
 
               return (
-                <tr key={pid} style={{ borderBottom: '1px solid #2d333d' }}>
+                <tr key={pid} style={{ borderBottom: '1px solid var(--ink-700)' }}>
                   <td style={{ padding: '8px', fontWeight: 800, color: pTheme.fill }}>
                     {p.name}
                   </td>
@@ -2237,10 +2081,10 @@ export function VictoryModal({
               flex: 1,
               padding: '10px',
               borderRadius: '8px',
-              background: '#2d333d',
+              background: 'var(--ink-700)',
               color: '#ffffff',
               fontWeight: 800,
-              border: '1px solid #4a5260',
+              border: '1px solid rgba(163, 183, 202, 0.28)',
               cursor: 'pointer',
             }}
           >
@@ -2254,7 +2098,7 @@ export function VictoryModal({
               flex: 1,
               padding: '10px',
               borderRadius: '8px',
-              background: '#2e8540',
+              background: 'var(--leaf)',
               color: '#ffffff',
               fontWeight: 900,
               border: 'none',

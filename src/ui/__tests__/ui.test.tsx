@@ -124,15 +124,19 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
   });
 
   it('renders TabletopApp and executes Event Draw -> Roll Dice -> Action Phase -> End Turn cleanly', () => {
+    // Beginner positions skip the placement draft so the first turn starts immediately
+    window.history.pushState({}, '', '/?placement=fixed');
     act(() => {
       render(<TabletopApp />, container);
     });
+    window.history.pushState({}, '', '/');
 
-    // Verify TabletopApp shell, Event Bag, 4 Corner Stations, and Player Mat
+    // Verify TabletopApp shell, Event Bag, player boards and the hand dock
     expect(container.querySelector('[data-testid="tabletop-app"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="event-bag"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="corner-station-orange"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="player-mat"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="bottom-player-dock"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="organiser-slot-lumber"]')).not.toBeNull();
 
     // Pause bots so we can step cleanly
     const pauseBtn = container.querySelector('[data-testid="bot-pause-btn"]') as HTMLButtonElement;
@@ -253,16 +257,11 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
     });
     expect(zoomReadout?.textContent).toBe('500%');
 
-    // 3. Verify Hide / Show Player Mat Toggle
+    // 3. Verify the player board drawer opens and closes (closed by default so the board is the hero)
     const toggleMatBtn = container.querySelector(
       '[data-testid="toggle-player-mat-btn"]'
     ) as HTMLButtonElement;
     expect(toggleMatBtn).not.toBeNull();
-    expect(container.querySelector('[data-testid="player-mat"]')).not.toBeNull();
-
-    act(() => {
-      toggleMatBtn.click();
-    });
     expect(container.querySelector('[data-testid="player-mat"]')).toBeNull();
 
     act(() => {
@@ -270,8 +269,16 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
     });
     expect(container.querySelector('[data-testid="player-mat"]')).not.toBeNull();
 
-    // 4. Verify Tablecloth Color Picker & Presets
+    act(() => {
+      toggleMatBtn.click();
+    });
+    expect(container.querySelector('[data-testid="player-mat"]')).toBeNull();
+
+    // 4. Verify Tablecloth Color Picker & Presets (inside the table settings popover)
     const appShell = container.querySelector('[data-testid="tabletop-app"]') as HTMLElement;
+    act(() => {
+      (container.querySelector('[data-testid="settings-btn"]') as HTMLButtonElement).click();
+    });
     const oceanPreset = container.querySelector(
       '[data-testid="tablecloth-preset-133b63"]'
     ) as HTMLButtonElement;
@@ -305,6 +312,41 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
       // In standard setup mode, starts in SetupRoll
       expect(container.querySelector('[data-testid="setup-roll-overlay"]')).not.toBeNull();
       expect(container.querySelector('[data-testid="action-setup-roll-btn"]')).not.toBeNull();
+    } finally {
+      window.history.pushState({}, '', '/');
+    }
+  });
+
+  it('lets every hotseat player place a starting town, road, city and road on the beginner board', () => {
+    window.history.pushState({}, '', '/?mode=hotseat');
+    try {
+      act(() => {
+        render(<TabletopApp />, container);
+      });
+
+      // Roll-off: every seat rolls (ties reroll) until the placement draft begins
+      for (let i = 0; i < 20 && container.querySelector('[data-testid="setup-roll-dialog-btn"]'); i++) {
+        act(() => {
+          (container.querySelector('[data-testid="setup-roll-dialog-btn"]') as HTMLButtonElement).click();
+        });
+      }
+      expect(container.querySelector('[data-testid="setup-coach"]')).not.toBeNull();
+
+      // 4 players x (settlement + road) x 2 rounds, all placed by clicking glowing board targets
+      for (let step = 0; step < 16; step++) {
+        const nodeTarget = container.querySelector('[data-testid^="node-target-"]');
+        const edgeTarget = container.querySelector('[data-testid^="edge-target-"]');
+        const target = (nodeTarget ?? edgeTarget)!.parentElement!;
+        expect(target).not.toBeNull();
+        act(() => {
+          target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+      }
+
+      expect(container.querySelector('[data-testid="setup-coach"]')).toBeNull();
+      expect(container.querySelector('[data-testid="action-draw-event-btn"]')).not.toBeNull();
+      expect(container.querySelectorAll('[data-testid="island-layer"] [data-piece="town"]').length).toBe(4);
+      expect(container.querySelectorAll('[data-testid="island-layer"] [data-piece="city"]').length).toBe(4);
     } finally {
       window.history.pushState({}, '', '/');
     }

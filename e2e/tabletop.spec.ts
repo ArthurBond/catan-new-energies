@@ -1,11 +1,10 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('CATAN: New Energies — Tabletop E2E Tests', () => {
-  test('renders board, sea frame, player mat, and resource organiser', async ({ page }) => {
-    // Open with autostart and fixed first game setup
-    await page.goto('/?seed=42&setup=first&players=4&autostart=1');
+  test('renders board, sea frame, hand dock, and the player board drawer', async ({ page }) => {
+    // Beginner board with the rulebook starting positions
+    await page.goto('/?seed=42&setup=first&placement=fixed&players=4');
 
-    // Wait for the main tabletop board to render
     const board = page.locator('[data-testid="tabletop-board"]');
     await expect(board).toBeVisible({ timeout: 10000 });
 
@@ -24,31 +23,30 @@ test.describe('CATAN: New Energies — Tabletop E2E Tests', () => {
     await expect(page.locator('[data-testid="event-track-climateConference"]')).toBeAttached();
     await expect(page.locator('[data-testid="event-track-rainAndFlooding"]')).toBeAttached();
 
-    // Verify the showcase Player Mat & Resource Organiser
-    const playerMat = page.locator('[data-testid="player-mat"]');
-    await expect(playerMat).toBeVisible();
+    // The hand dock shows the human's cards and the build palette
+    await expect(page.locator('[data-testid="bottom-player-dock"]')).toBeVisible();
+    await expect(page.locator('[data-testid="organiser-slot-lumber"]')).toBeVisible();
+    await expect(page.locator('[data-testid="build-town"]')).toBeVisible();
 
-    const resourceOrganiser = page.locator('[data-testid="resource-organiser"]');
-    await expect(resourceOrganiser).toBeVisible();
-
-    const warehouseTile = page.locator('[data-testid="warehouse-tile"]');
-    await expect(warehouseTile).toBeVisible();
-
-    const energyBar = page.locator('[data-testid="energy-bar"]');
-    await expect(energyBar).toBeVisible();
+    // The detailed player board opens in a drawer
+    await page.locator('[data-testid="toggle-player-mat-btn"]').click();
+    await expect(page.locator('[data-testid="player-mat"]')).toBeVisible();
+    await expect(page.locator('[data-testid="resource-organiser"]')).toBeVisible();
+    await expect(page.locator('[data-testid="warehouse-tile"]')).toBeVisible();
+    await expect(page.locator('[data-testid="energy-bar"]')).toBeVisible();
   });
 
-  test('can open setup lobby, toggle bots, and launch game', async ({ page }) => {
-    await page.goto('/');
+  test('can open the new game sheet, choose options, and start', async ({ page }) => {
+    await page.goto('/?lobby=1');
 
-    // Check if the setup lobby or game board is rendered
     const lobby = page.locator('[data-testid="setup-lobby"]');
-    if (await lobby.isVisible()) {
-      const startBtn = page.locator('[data-testid="start-game-btn"]');
-      await expect(startBtn).toBeVisible();
-      await startBtn.click();
-    }
+    await expect(lobby).toBeVisible();
+    await page.locator('[data-testid="lobby-setup-standard"]').click();
+    // Fixed positions only exist on the beginner layout
+    await expect(page.locator('[data-testid="lobby-placement-fixed"]')).toBeDisabled();
+    await page.locator('[data-testid="start-game-btn"]').click();
 
     await expect(page.locator('[data-testid="tabletop-board"]')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="setup-roll-overlay"]')).toBeVisible();
   });
 });

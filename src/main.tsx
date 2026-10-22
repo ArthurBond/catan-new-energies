@@ -1,5 +1,6 @@
 import 'preact/compat';
 import { render } from 'preact';
+import './ui/tabletop.css';
 import { TabletopApp } from './ui/TabletopApp';
 
 export function App() {
