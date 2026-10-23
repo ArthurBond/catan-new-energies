@@ -13,9 +13,9 @@ Verification at hand-off (latest commit on `goal/04-full-game-ui-bots-multiplaye
 ```text
 npm run typecheck   -> exit 0
 npm run lint        -> exit 0
-npm run build       -> dist/assets/index-*.js 299 kB (86 kB gzip), css 31 kB
+npm run build       -> dist/assets/index-*.js 302 kB (87 kB gzip), css 31 kB
 npx vitest run      -> 16 files, 186 tests passed
-npx playwright test -> 10 passed (tabletop x2, setup-flow x2, dev-cards x4 incl. discard, visual verification x2 viewports)
+npx playwright test -> 16 passed (tabletop x2, setup-flow x2, dev-cards x4, gf-widget x6, visual verification x2)
 ```
 Also checked by hand in a browser: a full all-bot game to the end (0 console errors), keyboard-only setup
 (Tab to the roll button, focus a glowing corner, Enter to place), reduced-motion mode, and layouts at
@@ -69,6 +69,13 @@ Dev-only visual scenarios: `?scenario=showcase` (mid-game with plants, hazards, 
 - **Rule audit** against `rules_text.txt`: production and hazard clearing (incl. the inspector exception and the hex+city example), roll of 7, inspector moves and steals, roads (not past opponent buildings), towns (distance rule), cities, power plant cutouts and the one-per-turn limit, energy uses and the 5-energy cap, supply/harbor/player trades, warehouse, development cards and both win conditions all match. Hardened: trade offers must be whole non-negative numbers of real cards; Research Grant must name resource/science cards. The empty-bag tie-breaks after "most points" (most renewables, lowest LF) are engine additions the rules do not specify.
 - Tests: `src/engine/__tests__/decision-validation.test.ts` (discards, key order, malformed trades, Research Grant, a full real roll of 7 → discards → inspector → steal), a UI discard test, and an e2e discard test.
 - **Player board** (`PlayerMat.tsx`) redrawn: full rounded cardboard rectangle (no stepped corners), piece-shaped slots using the exported `TOWN_PATH_D`/`CITY_PATH_D` with upright pieces, a bridge window bordered on all four corners, puffy smoke/clouds instead of pale wedges, new factory and hills, card-stock cost tabs and energy tiles. The visual e2e checks all 24 slots sit inside the printed area.
+
+### 9. Follow-up: resource art, hazard token, footprint widget, and a wrong rule
+- **Resource icons** (`ResourceIconSvg`, `WoodenPiecesSvg.tsx`) follow the rulebook cards: stacked logs with growth rings, clay bricks with cores, a cone of white thread plus a small spool, bread with slices, and I-beams. They are used everywhere resources appear, so change them in one place.
+- **Hex clean-up:** the little green harvester on fields and the black mine portal on mountains were removed.
+- **Natural hazard token** is now `HazardTokenSvg` (was a cog): wobbly oil-spill outline (`SPILL_WAVES`), white die-cut border, dark thickness, speckled face, and a hole sized to the number disc on hexes or the piece on buildings. Blocked hexes are no longer greyed out; the token alone marks them.
+- **Footprint widget:** the bag icon, label gap and pill are laid out explicitly and checked by `e2e/gf-widget.spec.ts` for 1, 2 and 3 draws per turn (`?scenario=draws2|draws3`).
+- **Wrong rule removed:** `applyBuildPowerPlant` used to place a hazard token when a fossil plant was built. The rulebook (p. 15) says only that the footprint rises. Hazards come only from events (Air Pollution, Environmental Pollution, Rain & Flooding). The 500-game fuzz suite now fails if any other action increases the hazards on the board.
 
 ## New / changed files
 | File | Role |

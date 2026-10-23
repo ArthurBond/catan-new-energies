@@ -45,3 +45,9 @@
   - Full rule audit against the rulebook; hardened trade item and Research Grant validation. New `decision-validation.test.ts` incl. a real roll-of-7 sequence.
   - Player board redrawn with a complete rounded frame, piece-shaped slots, fully bordered bridge window and proper clouds.
   - **Verification**: `npm run typecheck` (exit 0), `npm run lint` (exit 0), `npm run build` (exit 0), `npx vitest run` (16 files, 186 tests passed), `npx playwright test` (10 passed).
+- **Resource Icons, Oil-Spill Hazard Token, Footprint Widget Fix & Fossil-Plant Hazard Rule Removal (`src/ui/WoodenPiecesSvg.tsx`, `src/ui/SeaFrameSvg.tsx`, `src/engine/build.ts`, `e2e/gf-widget.spec.ts`)**:
+  - Log, brick, fiber, bread and steel icons redrawn from the rulebook cards; stray harvester and mine-portal objects removed from the fields and mountains hexes.
+  - Hazard token redrawn as the grey cardboard oil spill with a hole (replaces the cog).
+  - Global footprint widget: "DRAW n/TURN" no longer overlaps the bag icon (verified for 1, 2 and 3 draws at two screen sizes).
+  - Engine: removed the invented rule that placed a hazard token when a fossil plant is built; the fuzz suite now asserts hazards are only added by events.
+  - **Verification**: `npm run typecheck` (exit 0), `npm run lint` (exit 0), `npm run build` (exit 0), `npx vitest run` (16 files, 186 tests passed), `npx playwright test` (16 passed).
