@@ -95,7 +95,8 @@ test.describe('CATAN: New Energies — Tabletop layout, sea frame & zero-overlap
         let gfRowOverlaps = 0;
         for (const r1 of row1) for (const r2 of row2) if (hit(r1, r2)) gfRowOverlaps++;
 
-        const vpTitleRect = document.querySelector('[data-testid="vp-track"] g rect')!.getBoundingClientRect();
+        // The label pill sits on the sea below the band, so it must not touch any counter either
+        const vpTitleRect = document.querySelector('[data-testid="vp-title"]')!.getBoundingClientRect();
         const vpTitleOverlapsSlots = Array.from(document.querySelectorAll('[data-testid^="vp-slot-"] circle'))
           .map((el) => el.getBoundingClientRect())
           .some((s) => hit(vpTitleRect, s, 0));

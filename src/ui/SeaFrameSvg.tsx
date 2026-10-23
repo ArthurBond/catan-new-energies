@@ -146,6 +146,48 @@ function OceanWhaleSvg({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Victory point track geometry (board units, centre 500,500)
+// ---------------------------------------------------------------------------
+
+/** Track runs from 3 (everyone's starting score) to 10 (the winning score). */
+export const VP_FIRST = 3;
+export const VP_LAST = 10;
+export const VP_COUNTER_R = 12;
+/** The green band follows the rim: slots sit on its centre line (angles in degrees, y down). */
+export const VP_ARC = { startDeg: -113, endDeg: -81, rMid: 439, halfW: 25 };
+const VP_REEF_EXTRA = 6.5;
+/** Reef is shifted inward so its outer edge stays inside the rim: outer = rMid + halfW + extra */
+const VP_REEF_MID = 466 - (VP_ARC.halfW + VP_REEF_EXTRA);
+/** Label pill: arc on the sea below the reef, thick enough for the text, centred under the band. */
+export const VP_TITLE = { rMid: 388, spanDeg: 8.8, thickness: 16 };
+
+function polarPt(radius: number, deg: number): [number, number] {
+  const rad = (deg * Math.PI) / 180;
+  return [BOARD_CENTER_X + Math.cos(rad) * radius, BOARD_CENTER_Y + Math.sin(rad) * radius];
+}
+
+const pt = ([x, y]: [number, number]) => `${x.toFixed(2)} ${y.toFixed(2)}`;
+
+/** A band of constant width along the rim, from angle a0 to a1, with semicircular ends. */
+function vpBandPath(a0: number, a1: number, rMid: number, halfW: number): string {
+  const rO = rMid + halfW;
+  const rI = rMid - halfW;
+  return (
+    `M ${pt(polarPt(rO, a0))} A ${rO} ${rO} 0 0 1 ${pt(polarPt(rO, a1))} ` +
+    `A ${halfW} ${halfW} 0 0 1 ${pt(polarPt(rI, a1))} ` +
+    `A ${rI} ${rI} 0 0 0 ${pt(polarPt(rI, a0))} ` +
+    `A ${halfW} ${halfW} 0 0 1 ${pt(polarPt(rO, a0))} Z`
+  );
+}
+
+/** Centre line of the label pill (an arc concentric with the rim). */
+function vpTitleArcPath(): string {
+  const mid = (VP_ARC.startDeg + VP_ARC.endDeg) / 2;
+  const r = VP_TITLE.rMid;
+  return `M ${pt(polarPt(r, mid - VP_TITLE.spanDeg))} A ${r} ${r} 0 0 1 ${pt(polarPt(r, mid + VP_TITLE.spanDeg))}`;
+}
+
 export function SeaFrameSvg({
   board,
   playerCount,
@@ -159,13 +201,14 @@ export function SeaFrameSvg({
   const gfConfig = playerCount === 4 ? GF_CONFIG_4P : GF_CONFIG_3P;
   const currentDrawCount = getEventDiscDrawCount(clampedGF, playerCount);
 
-  // Group players by clamped VP (1..10) for the 12 o'clock VP track
+  // Group players by VP for the 12 o'clock track, which runs 3..10: everyone starts with a town (1)
+  // and a city (2), so nobody can be lower than 3 (before setup is finished they wait on 3)
   const vpSlotPlayers = new Map<number, PlayerId[]>();
-  for (let v = 1; v <= 10; v++) vpSlotPlayers.set(v, []);
+  for (let v = VP_FIRST; v <= VP_LAST; v++) vpSlotPlayers.set(v, []);
   for (const pid of playerOrder) {
     const p = players[pid];
     if (!p) continue;
-    const clampedVp = Math.max(1, Math.min(10, p.victoryPoints || 1));
+    const clampedVp = Math.max(VP_FIRST, Math.min(VP_LAST, p.victoryPoints || VP_FIRST));
     vpSlotPlayers.get(clampedVp)!.push(pid);
   }
 
@@ -405,59 +448,62 @@ export function SeaFrameSvg({
       </g>
 
       {/* =================================================================== */}
-      {/* 2. TOP 12 O'CLOCK GREEN COASTAL PENINSULA — VICTORY POINTS (1..10)  */}
+      {/* 2. TOP 12 O'CLOCK GREEN COASTAL PENINSULA — VICTORY POINTS (3..10; everyone starts on 3)         */}
       {/* =================================================================== */}
       <g data-testid="vp-track">
-        {/* Shallow Turquoise Reef & Foam Shoreline under the Top Coastal Peninsula */}
+        {/* Shallow turquoise reef & foam around the peninsula (drawn first so it frames the green) */}
         <path
-          d="M 284 86 A 466 466 0 0 1 592 43 Q 598 76, 568 86 Q 445 64, 326 112 Q 290 116, 284 86 Z"
+          data-testid="vp-reef"
+          d={vpBandPath(VP_ARC.startDeg, VP_ARC.endDeg, VP_REEF_MID, VP_ARC.halfW + VP_REEF_EXTRA)}
           fill="rgba(138, 232, 255, 0.36)"
           stroke="rgba(220, 248, 255, 0.7)"
-          strokeWidth={5}
+          strokeWidth={4}
           strokeLinejoin="round"
         />
 
-        {/* Green Coastal Peninsula Hugging the Outer Top Rim (matching BGG board image) */}
+        {/* Green coastal peninsula: a band concentric with the rim, wide enough to hold every counter */}
         <path
-          d="M 290 83 A 465 465 0 0 1 588 42 Q 592 72, 564 81 Q 445 59, 328 106 Q 296 110, 290 83 Z"
+          data-testid="vp-peninsula"
+          d={vpBandPath(VP_ARC.startDeg, VP_ARC.endDeg, VP_ARC.rMid, VP_ARC.halfW)}
           fill="url(#greenIslandGrad)"
           stroke="#ece2c6"
           strokeWidth={3.5}
           strokeLinejoin="round"
         />
 
-        {/* Subtle Inner-Shore VP Badge (positioned below the peninsula at cy=96, never sticking outside the board rim) */}
-        <g transform="translate(454, 96)">
-          <rect
-            x={-68}
-            y={-7.5}
-            width={136}
-            height={14}
-            rx={7}
-            fill="rgba(14, 42, 68, 0.82)"
+        {/* Label on the open sea below the shore: a pill that follows the arc, clear of the sand */}
+        <g data-testid="vp-title">
+          <path
+            id="vp-title-arc"
+            data-testid="vp-title-arc"
+            d={vpTitleArcPath()}
+            fill="none"
             stroke="rgba(190, 232, 255, 0.5)"
-            strokeWidth={0.9}
+            strokeWidth={VP_TITLE.thickness + 1.8}
+            strokeLinecap="round"
           />
-          <text
-            x={0}
-            y={2}
-            textAnchor="middle"
-            fontSize="7.2"
-            fontWeight="800"
-            fill="#f0f8ff"
-          >
-            Victory points · 10 to win
+          <path
+            d={vpTitleArcPath()}
+            fill="none"
+            stroke="rgba(14, 42, 68, 0.9)"
+            strokeWidth={VP_TITLE.thickness}
+            strokeLinecap="round"
+          />
+          <text fontSize="7.6" fontWeight="800" fill="#f0f8ff" textAnchor="middle" dy="2.6">
+            <textPath href="#vp-title-arc" startOffset="50%">
+              Victory points · 10 to win
+            </textPath>
           </text>
         </g>
 
-        {/* 10 Stone Circles Following the Top Rim Curve (from angle -114° to -80° at r=441) */}
-        {Array.from({ length: 10 }, (_, idx) => {
-          const vp = idx + 1;
-          const deg = -114 + (idx / 9) * 34;
+        {/* Stone counters 3..10 along the band's centre line */}
+        {Array.from({ length: VP_LAST - VP_FIRST + 1 }, (_, idx) => {
+          const vp = VP_FIRST + idx;
+          const deg =
+            VP_ARC.startDeg + (idx / (VP_LAST - VP_FIRST)) * (VP_ARC.endDeg - VP_ARC.startDeg);
           const rad = (deg * Math.PI) / 180;
-          const rTrack = 441;
-          const cx = BOARD_CENTER_X + Math.cos(rad) * rTrack;
-          const cy = BOARD_CENTER_Y + Math.sin(rad) * rTrack;
+          const cx = BOARD_CENTER_X + Math.cos(rad) * VP_ARC.rMid;
+          const cy = BOARD_CENTER_Y + Math.sin(rad) * VP_ARC.rMid;
           const occupants = vpSlotPlayers.get(vp) ?? [];
 
           return (
@@ -466,7 +512,7 @@ export function SeaFrameSvg({
               <circle
                 cx={cx}
                 cy={cy}
-                r={10.8}
+                r={VP_COUNTER_R}
                 fill={vp === 10 ? '#f7e594' : '#cbd5c0'}
                 stroke={vp === 10 ? '#9c7816' : '#4a5d3f'}
                 strokeWidth={1.8}
@@ -474,16 +520,16 @@ export function SeaFrameSvg({
               <circle
                 cx={cx}
                 cy={cy}
-                r={8.4}
+                r={VP_COUNTER_R - 2.6}
                 fill={vp === 10 ? '#fff3b8' : '#e6ebe0'}
                 stroke="rgba(74, 93, 63, 0.45)"
                 strokeWidth={0.9}
               />
               <text
                 x={cx}
-                y={cy + 3.4}
+                y={cy + 3.8}
                 textAnchor="middle"
-                fontSize="9.2"
+                fontSize="10.4"
                 fontWeight="900"
                 fill="#1e2b18"
               >
