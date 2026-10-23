@@ -409,10 +409,10 @@ export const ISLAND_SCALE = 1.17;
 
 /**
  * Wooden road length along its path. Paths are HEX_RADIUS long, so the road is centred with
- * (HEX_RADIUS - ROAD_LENGTH) / 2 left free at each end: just enough that a City (the widest piece)
- * sits against the road end without covering it, in every direction.
+ * (HEX_RADIUS - ROAD_LENGTH) / 2 left free at each end. A City is sized (CITY_REACH) to end exactly
+ * where the road begins, so it sits against a road end without covering it, in every direction.
  */
-export const ROAD_LENGTH = 25;
+export const ROAD_LENGTH = 29;
 export const ISLAND_TRANSFORM = `translate(${500 * (1 - ISLAND_SCALE)}, ${500 * (1 - ISLAND_SCALE)}) scale(${ISLAND_SCALE})`;
 
 /**

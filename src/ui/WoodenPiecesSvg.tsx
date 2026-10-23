@@ -105,10 +105,10 @@ export const PLANT_SOCKET_DIST = 15.5;
 export const PLANT_RADIUS = 7;
 
 const TOWN_RADIUS = 11.5;
-const CITY_APOTHEM = 13;
+const CITY_APOTHEM = 11.5;
 /** Thickness of the wooden pieces, in board units (drawn downward as the side wall). */
 export const TOWN_DEPTH = 3.5;
-export const CITY_DEPTH = 5;
+export const CITY_DEPTH = 4;
 
 /**
  * How far a Town / City reaches from its intersection toward a road, in board units. The piece is
