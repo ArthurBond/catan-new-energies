@@ -61,21 +61,27 @@ test('the digit and the 1 are drawn to exactly the same height, on screen', asyn
   await page.goto('/?scenario=showcase&bots=0');
   const labels = await page.locator('[data-ratio-label]').evaluateAll((els) =>
     els.map((el) => {
-      const paths = el.querySelectorAll('path');
+            const glyph = (name: string) => el.querySelector<SVGPathElement>(`[data-ratio-glyph="${name}"]`)!;
       const screenHeight = (p: SVGPathElement) => p.getBoundingClientRect().height;
-      const own = (p: SVGPathElement) => p.getBBox().height;
+      // getBBox is the ink extent of the outline (control points excluded), in glyph units
+      const own = (p: SVGPathElement) => p.getBBox();
+      const [digit, one] = [own(glyph('digit')), own(glyph('one'))];
       return {
         label: el.getAttribute('data-ratio-label'),
-        digit: own(paths[0]!),
-        one: own(paths[1]!),
-        digitOnScreen: screenHeight(paths[0]!),
-        oneOnScreen: screenHeight(paths[1]!),
+        digit: digit.height,
+        one: one.height,
+        digitTop: digit.y,
+        oneTop: one.y,
+        digitOnScreen: screenHeight(glyph('digit')),
+        oneOnScreen: screenHeight(glyph('one')),
       };
     })
   );
   expect(labels.length).toBeGreaterThanOrEqual(9);
   for (const l of labels) {
-    expect(l.one, l.label!).toBe(l.digit);
+    expect(l.one, l.label!).toBeCloseTo(l.digit, 6);
+    expect(l.oneTop, l.label!).toBeCloseTo(l.digitTop, 6); // and they start on the same line
+    expect(l.digit, l.label!).toBeCloseTo(10, 1);
     expect(l.oneOnScreen, l.label!).toBeCloseTo(l.digitOnScreen, 6);
   }
 });

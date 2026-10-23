@@ -263,35 +263,38 @@ export function eventLabelArcLength(text: string): number {
 }
 
 /**
- * The "2:1" / "3:1" on a harbor, drawn as shapes rather than text. Every glyph is built to the same
- * cap height (its top and bottom points sit exactly on the 0 and 10 lines), so the "1" can never
- * be taller or shorter than the other digit, whatever font or screen resolution is in use.
+ * The "2:1" / "3:1" on a harbor, drawn from the outlines of the real typeface rather than as text.
+ * The glyph shapes are the digits 1, 2, 3 and the colon of Atkinson Hyperlegible Bold (Braille
+ * Institute, SIL Open Font License 1.1), extracted with opentype.js. Each digit is scaled so its ink
+ * runs from exactly y=0 to y=10 (the font's own digits differ by up to 3.5%, and the round ones
+ * overshoot), so the 1 can never be taller or shorter than the other digit, whatever the screen
+ * resolution or font loading. Every glyph's left ink edge is at x=0; the gaps are the font's own
+ * side bearings.
  */
 const RATIO_GLYPHS = {
-  2: 'M1.2 3.4 C1.2 1.2 2.9 0 5 0 C7.3 0 8.8 1.3 8.8 3.3 C8.8 5.6 5.5 7 1.3 10 H9',
-  3: 'M1.4 1.6 C2.4 0.5 3.6 0 5 0 C7.2 0 8.4 1.1 8.4 2.6 C8.4 4.1 7.2 5 4.8 5 C7.4 5 8.8 6 8.8 7.5 C8.8 9 7.2 10 5 10 C3.4 10 2 9.5 1 8.3',
-  1: 'M2.8 2.6 L5.5 0 V10 M2.8 10 H8.2',
+  1: { width: 4.46, d: 'M4.46 10L2.24 10L2.24 3.29L0 3.29L0 1.45Q0.78 1.45 1.29 1.37Q1.81 1.29 2.15 0.98Q2.5 0.67 2.76 0L2.76 0L4.46 0L4.46 10' },
+  2: { width: 7.54, d: 'M7.54 10L0 10L0 8.16Q1.94 6.79 3.09 5.85Q4.24 4.9 4.74 4.18Q5.25 3.46 5.25 2.82L5.25 2.82Q5.25 2.25 4.85 1.96Q4.44 1.66 3.9 1.66L3.9 1.66Q3.44 1.66 3 1.92Q2.56 2.18 2.4 2.87L2.4 2.87L0.37 2.13Q0.76 1.1 1.74 0.55Q2.71 0 4 0L4 0Q5 0 5.79 0.33Q6.59 0.66 7.04 1.3Q7.5 1.94 7.5 2.87L7.5 2.87Q7.5 4.35 6.26 5.63Q5.01 6.9 2.85 8.16L2.85 8.16L7.54 8.16L7.54 10' },
+  3: { width: 7.66, d: 'M3.79 10L3.79 10Q2.97 10 2.21 9.77Q1.46 9.54 0.88 9.05Q0.31 8.57 0 7.8L0 7.8L2.03 7.08Q2.22 7.79 2.74 8.08Q3.25 8.37 3.85 8.37L3.85 8.37Q4.54 8.37 4.96 8.03Q5.37 7.7 5.37 7.11L5.37 7.11Q5.37 6.52 4.99 6.19Q4.6 5.87 3.98 5.74Q3.35 5.62 2.62 5.62L2.62 5.62L2.62 4.09Q3.88 4.09 4.57 3.74Q5.25 3.4 5.25 2.76L5.25 2.76Q5.25 2.2 4.79 1.91Q4.32 1.63 3.72 1.63L3.72 1.63Q3.18 1.63 2.72 1.89Q2.26 2.15 2.12 2.82L2.12 2.82L0.1 2.1Q0.4 1.36 0.97 0.9Q1.54 0.43 2.29 0.22Q3.04 0 3.85 0L3.85 0Q4.53 0 5.18 0.14Q5.82 0.29 6.35 0.6Q6.87 0.91 7.18 1.38Q7.5 1.85 7.5 2.5L7.5 2.5Q7.5 3.28 7.07 3.87Q6.65 4.45 6.13 4.74L6.13 4.74Q6.62 4.91 6.96 5.29Q7.31 5.66 7.49 6.11Q7.66 6.56 7.66 7.01L7.66 7.01Q7.66 8.02 7.12 8.68Q6.57 9.34 5.69 9.67Q4.81 10 3.79 10' },
+  colon: { width: 2.87, d: 'M1.44 5.35L1.44 5.35Q0.85 5.35 0.43 4.94Q0 4.53 0 3.94L0 3.94Q0 3.34 0.43 2.92Q0.85 2.5 1.44 2.5L1.44 2.5Q2.03 2.5 2.45 2.92Q2.87 3.34 2.87 3.94L2.87 3.94Q2.87 4.53 2.45 4.94Q2.03 5.35 1.44 5.35M1.44 10.18L1.44 10.18Q0.85 10.18 0.43 9.75Q0 9.32 0 8.74L0 8.74Q0 8.13 0.43 7.72Q0.85 7.31 1.44 7.31L1.44 7.31Q2.03 7.31 2.45 7.72Q2.87 8.13 2.87 8.74L2.87 8.74Q2.87 9.32 2.45 9.75Q2.03 10.18 1.44 10.18' },
 } as const;
+const RATIO_GAP = { digitColon: { 2: 0.93, 3: 1.1 }, colonOne: 1.04 } as const;
 
 function HarborRatio({ ratio, x, baseline, height }: { ratio: 2 | 3; x: number; baseline: number; height: number }) {
   const scale = height / 10;
-  const width = 23.2; // digit, colon and 1 laid out left to right in glyph units
+  const colonX = RATIO_GLYPHS[ratio].width + RATIO_GAP.digitColon[ratio];
+  const oneX = colonX + RATIO_GLYPHS.colon.width + RATIO_GAP.colonOne;
+  const width = oneX + RATIO_GLYPHS[1].width;
   return (
     <g
       data-ratio-label={`${ratio}:1`}
       role="img"
       aria-label={`${ratio}:1`}
       transform={`translate(${x - (width / 2) * scale} ${baseline - height}) scale(${scale})`}
-      fill="none"
-      stroke="#12304d"
-      strokeWidth={1.9}
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      fill="#12304d"
     >
-      <path d={RATIO_GLYPHS[ratio]} />
-      <circle cx={12.4} cy={2.9} r={0.95} fill="#12304d" strokeWidth={0.6} />
-      <circle cx={12.4} cy={7.1} r={0.95} fill="#12304d" strokeWidth={0.6} />
-      <path d={RATIO_GLYPHS[1]} transform="translate(15 0)" />
+      <path data-ratio-glyph="digit" d={RATIO_GLYPHS[ratio].d} />
+      <path data-ratio-glyph="colon" d={RATIO_GLYPHS.colon.d} transform={`translate(${colonX} 0)`} />
+      <path data-ratio-glyph="one" d={RATIO_GLYPHS[1].d} transform={`translate(${oneX} 0)`} />
     </g>
   );
 }
