@@ -26,6 +26,7 @@ import {
   PLAYER_THEMES,
 } from './theme';
 import { FOOTPRINT_CLOUD_CENTRE, FOOTPRINT_CLOUD_PATH_D } from './footprintCloud';
+import { HarborPier, harborPierLayout } from './harborPier';
 import { EventIconSvg, PlayerEmblemSvg, ResourceIconSvg } from './WoodenPiecesSvg';
 
 export interface SeaFrameSvgProps {
@@ -467,18 +468,9 @@ export function SeaFrameSvg({
         const p1 = latticeToSvg(n1.u, n1.v);
         const p2 = latticeToSvg(n2.u, n2.v);
 
-        const midX = (p1.x + p2.x) / 2;
-        const midY = (p1.y + p2.y) / 2;
-
-        // Outward normal vector from board center through edge midpoint
-        const dx = midX - BOARD_CENTER_X;
-        const dy = midY - BOARD_CENTER_Y;
-        const len = Math.hypot(dx, dy) || 1;
-        const nx = dx / len;
-        const ny = dy / len;
-
-        const harborX = midX + nx * 40;
-        const harborY = midY + ny * 40;
+        const { badge, piers } = harborPierLayout(p1, p2, { x: BOARD_CENTER_X, y: BOARD_CENTER_Y });
+        const harborX = badge.x;
+        const harborY = badge.y;
 
         return (
           <g
@@ -486,25 +478,10 @@ export function SeaFrameSvg({
             data-testid={`harbor-${harbor.id}`}
             aria-label={`Harbor ${harbor.id}: ${harbor.ratio}:1 ${harbor.resource ?? 'generic'}`}
           >
-            {/* Wooden Pier Lines to the 2 Coastal Intersections */}
-            <line
-              x1={p1.x}
-              y1={p1.y}
-              x2={harborX - nx * 9}
-              y2={harborY - ny * 9}
-              stroke="#e0d4bc"
-              strokeWidth={3.4}
-              strokeLinecap="round"
-            />
-            <line
-              x1={p2.x}
-              y1={p2.y}
-              x2={harborX - nx * 9}
-              y2={harborY - ny * 9}
-              stroke="#e0d4bc"
-              strokeWidth={3.4}
-              strokeLinecap="round"
-            />
+            {/* Two wooden jetties, one from each coastal intersection to the badge rim */}
+            {piers.map((pier, i) => (
+              <HarborPier key={i} harborId={harbor.id} index={i} pier={pier} />
+            ))}
 
             {/* Harbor Water Ripple Halo */}
             <circle
