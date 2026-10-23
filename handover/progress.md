@@ -51,3 +51,9 @@
   - Global footprint widget: "DRAW n/TURN" no longer overlaps the bag icon (verified for 1, 2 and 3 draws at two screen sizes).
   - Engine: removed the invented rule that placed a hazard token when a fossil plant is built; the fuzz suite now asserts hazards are only added by events.
   - **Verification**: `npm run typecheck` (exit 0), `npm run lint` (exit 0), `npm run build` (exit 0), `npx vitest run` (16 files, 186 tests passed), `npx playwright test` (16 passed).
+- **Piece Fit, Plant Layering, Victory Point Track, 4K Cursor & Log Privacy (`src/ui/WoodenPiecesSvg.tsx`, `src/ui/IslandBoardSvg.tsx`, `src/ui/SeaFrameSvg.tsx`, `src/ui/tabletop.css`, `scripts/make-cursors.mjs`, `src/engine/build.ts`)**:
+  - Cities/towns centred on their intersection, city sized so roads meet it cleanly (long roads kept); plants rest in the notches and are layered by direction (far-side plants behind the building, near-side in front); brick and steel icons stacked with the third piece centred.
+  - VP track redrawn as a band that contains its counters, runs 3..10, label on the sea; geometry-tested.
+  - Crisp 1x-4x hand cursors replace the browser's pixelated grab bitmap on 4K screens.
+  - The log no longer reveals which green event disc a renewable plant adds to the bag.
+  - **Verification**: `npm run typecheck` (exit 0), `npm run lint` (exit 0), `npm run build` (exit 0), `npx vitest run` (16 files, 190 tests passed), `npx playwright test` (20 passed).
