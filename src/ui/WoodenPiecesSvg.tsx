@@ -142,8 +142,9 @@ function notchedHexPath(circumradius: number, notchDegs: number[]): string {
   return cmds.join(' ');
 }
 
-const TOWN_PATH_D = notchedHexPath(TOWN_RADIUS, [0]);
-const CITY_PATH_D = notchedHexPath(CITY_APOTHEM / Math.cos(Math.PI / 6), [0, 120, 240]);
+/** Town / City outlines (notch(es) facing 0°); also used for the matching slots on the player board. */
+export const TOWN_PATH_D = notchedHexPath(TOWN_RADIUS, [0]);
+export const CITY_PATH_D = notchedHexPath(CITY_APOTHEM / Math.cos(Math.PI / 6), [0, 120, 240]);
 
 /**
  * Shared gradients & textures for pieces and tokens. Render once inside any <svg> that draws

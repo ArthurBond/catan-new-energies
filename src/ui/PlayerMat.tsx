@@ -20,12 +20,15 @@ import {
   PLAYER_THEMES,
 } from './theme';
 import {
+  CITY_PATH_D,
   CityPieceSvg,
   EnergyBoltSvg,
   FootprintCloudIconSvg,
+  HazardCogSvg,
   PlayerEmblemSvg,
   PowerPlantCylinderSvg,
   ResourceIconSvg,
+  TOWN_PATH_D,
   TownPieceSvg,
 } from './WoodenPiecesSvg';
 
@@ -58,6 +61,53 @@ export interface PlayerMatProps {
   onOpenEnergyBuyCardModal?: () => void;
   onPlayDevCardPrompt?: (cardId: string, cardType: DevelopmentCardType) => void;
   onRevealVpCards?: (cardIds: string[]) => void;
+}
+
+/** Bridge window (the road picture) on the player board, in board units (860 x 440). */
+const WINDOW = { x: 230, y: 106, w: 462, h: 150, r: 14 };
+/** Pieces in storage sit with their notch facing down, and each slot is printed in the same shape. */
+const MAT_PIECE_ANGLE = 90;
+const TOWN_MAT_SCALE = 1.9;
+const CITY_MAT_SCALE = 1.7;
+const TOWN_SLOT_SCALE = TOWN_MAT_SCALE * 1.1;
+const CITY_SLOT_SCALE = CITY_MAT_SCALE * 1.1;
+
+/** A soft puffy cloud (smoke from the stacks, clouds in the sky). */
+function MatCloud({ x, y, scale = 1, opacity = 0.9 }: { x: number; y: number; scale?: number; opacity?: number }) {
+  return (
+    <g transform={`translate(${x}, ${y}) scale(${scale})`} opacity={opacity} pointerEvents="none">
+      <ellipse cx={0} cy={10} rx={34} ry={10} fill="#dce6f1" />
+      <circle cx={-18} cy={2} r={14} fill="#eaf0f7" />
+      <circle cx={2} cy={-6} r={19} fill="#f6f9fc" />
+      <circle cx={22} cy={2} r={13} fill="#eaf0f7" />
+      <ellipse cx={0} cy={13} rx={30} ry={6} fill="#c7d4e4" opacity={0.7} />
+    </g>
+  );
+}
+
+/** A printed cream tab listing a building cost. */
+function MatCostTab({
+  x,
+  y,
+  items,
+  tall = false,
+}: {
+  x: number;
+  y: number;
+  items: (ResourceType | 'science')[];
+  tall?: boolean;
+}) {
+  const step = tall ? 26 : 20;
+  const height = items.length * step + 10;
+  return (
+    <g transform={`translate(${x}, ${y})`} pointerEvents="none">
+      <rect x={1} y={2} width={32} height={height} rx={8} fill="rgba(0,0,0,0.22)" />
+      <rect width={32} height={height} rx={8} fill="#f6f1e4" stroke="#cfc4a6" strokeWidth={1} />
+      {items.map((k, i) => (
+        <ResourceIconSvg key={i} type={k} cx={16} cy={5 + step / 2 + i * step} scale={tall ? 1.15 : 0.9} />
+      ))}
+    </g>
+  );
 }
 
 export function PlayerMat({
@@ -135,48 +185,11 @@ export function PlayerMat({
     player.fossilPlantsBuilt > 0 &&
     turnStats.fossilPlantsDemolishedThisTurn < 1;
 
-  // Town slots (5 total: index 0..4, built slots expose grey '+' cloud icon from right to left)
-  const townSlotPositions = [
-    { x: 120, y: 52 },
-    { x: 186, y: 52 },
-    { x: 252, y: 52 },
-    { x: 318, y: 52 },
-    { x: 384, y: 52 },
-  ];
-
-  // City slots (4 total: index 0..3, built slots expose 2 stacked grey '+' cloud icons from right to left)
-  const citySlotPositions = [
-    { x: 476, y: 52 },
-    { x: 554, y: 52 },
-    { x: 632, y: 52 },
-    { x: 710, y: 52 },
-  ];
-
-  // Fossil Fuel Power Plant slots (2 rows x 3 columns = 6 slots at bottom-left)
-  const fossilSlotPositions = [
-    { x: 68, y: 314 },
-    { x: 136, y: 314 },
-    { x: 204, y: 314 },
-    { x: 68, y: 382 },
-    { x: 136, y: 382 },
-    { x: 204, y: 382 },
-  ];
-
-  // Renewable Power Plant slots (3x3 grid at bottom-right with generous clearance below City Cost Strip)
-  const renewableSlotPositions = [
-    // Left column of 3
-    { x: 616, y: 246 },
-    { x: 616, y: 314 },
-    { x: 616, y: 382 },
-    // Middle column of 3
-    { x: 694, y: 246 },
-    { x: 694, y: 314 },
-    { x: 694, y: 382 },
-    // Rightmost column of 3
-    { x: 772, y: 246 },
-    { x: 772, y: 314 },
-    { x: 772, y: 382 },
-  ];
+  // Piece storage positions on the board (860 x 440 units)
+  const townSlotPositions = [104, 168, 232, 296, 360].map((x) => ({ x, y: 62 }));
+  const citySlotPositions = [478, 558, 638, 718].map((x) => ({ x, y: 64 }));
+  const fossilSlotPositions = [330, 392].flatMap((y) => [82, 144, 206].map((x) => ({ x, y })));
+  const renewableSlotPositions = [640, 704, 768].flatMap((x) => [280, 340, 400].map((y) => ({ x, y })));
 
   const totalResourceHand =
     player.resources.lumber +
@@ -216,682 +229,518 @@ export function PlayerMat({
           flex: compact ? '0 0 auto' : '1 1 540px',
           minWidth: compact ? '280px' : '460px',
           maxWidth: compact ? '420px' : showOrganiser ? '640px' : '820px',
-          background: '#17191c',
-          borderRadius: '14px',
-          padding: '6px',
+          // The board draws its own rounded cardboard edge; the wrapper only adds the turn ring
+          borderRadius: '2.8% / 5.4%',
           boxShadow: isActiveTurn
-            ? `0 0 0 2px ${pTheme.fill}, 0 10px 28px rgba(0,0,0,0.65)`
-            : '0 8px 22px rgba(0,0,0,0.55)',
-          border: `2px solid ${isActiveTurn ? pTheme.fill : '#363b42'}`,
+            ? `0 0 0 3px ${pTheme.fill}, 0 14px 30px -8px rgba(0,0,0,0.6)`
+            : '0 14px 30px -8px rgba(0,0,0,0.55)',
         }}
       >
         <svg
           viewBox="0 0 860 440"
           width="100%"
           style={{ display: 'block', userSelect: 'none' }}
+          role="group"
+          aria-label={`${player.name}'s player board`}
         >
           <defs>
-            <linearGradient id={`matSkyGrad-${player.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#263d66" style={{ stopColor: '#263d66' }} />
-              <stop offset="65%" stopColor="#324c78" style={{ stopColor: '#324c78' }} />
-              <stop offset="100%" stopColor="#485d87" style={{ stopColor: '#485d87' }} />
+            <linearGradient id={`matSky-${player.id}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#1d335a" style={{ stopColor: '#1d335a' }} />
+              <stop offset="45%" stopColor="#2f4d7d" style={{ stopColor: '#2f4d7d' }} />
+              <stop offset="100%" stopColor="#7d86ad" style={{ stopColor: '#7d86ad' }} />
             </linearGradient>
-
-            <linearGradient id={`bridgeTwilight-${player.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#2c4570" style={{ stopColor: '#2c4570' }} />
-              <stop offset="55%" stopColor="#565278" style={{ stopColor: '#565278' }} />
-              <stop offset="100%" stopColor="#8c6f85" style={{ stopColor: '#8c6f85' }} />
+            <linearGradient id={`matWindow-${player.id}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#2a4472" style={{ stopColor: '#2a4472' }} />
+              <stop offset="60%" stopColor="#5f5b8a" style={{ stopColor: '#5f5b8a' }} />
+              <stop offset="100%" stopColor="#b88ea0" style={{ stopColor: '#b88ea0' }} />
             </linearGradient>
-
-            <linearGradient id={`meadowGreen-${player.id}`} x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#7aa646" style={{ stopColor: '#7aa646' }} />
-              <stop offset="50%" stopColor="#6b9c3e" style={{ stopColor: '#6b9c3e' }} />
-              <stop offset="100%" stopColor="#528732" style={{ stopColor: '#528732' }} />
+            <linearGradient id={`matMeadow-${player.id}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#86b552" style={{ stopColor: '#86b552' }} />
+              <stop offset="100%" stopColor="#4f8a32" style={{ stopColor: '#4f8a32' }} />
             </linearGradient>
-
-            <clipPath id={`matShapeClip-${player.id}`}>
-              {/* Exact stepped cardboard die-cut silhouette from player-mat-reference.png */}
-              <path d="M 56 14 L 780 14 Q 796 14, 796 30 L 796 52 L 832 52 Q 848 52, 848 68 L 848 412 Q 848 428, 832 428 L 28 428 Q 12 428, 12 412 L 12 68 Q 12 52, 28 52 L 56 52 Z" />
+            <linearGradient id={`matRail-${player.id}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#0b1830" stopOpacity={0.55} style={{ stopColor: '#0b1830', stopOpacity: 0.55 }} />
+              <stop offset="100%" stopColor="#0b1830" stopOpacity={0} style={{ stopColor: '#0b1830', stopOpacity: 0 }} />
+            </linearGradient>
+            <clipPath id={`matArt-${player.id}`}>
+              <rect x={16} y={16} width={828} height={408} rx={14} />
+            </clipPath>
+            <clipPath id={`matWindowClip-${player.id}`}>
+              <rect x={WINDOW.x} y={WINDOW.y} width={WINDOW.w} height={WINDOW.h} rx={WINDOW.r} />
             </clipPath>
           </defs>
 
-          {/* Stepped Cream Cardboard Base Frame */}
-          <path
-            d="M 56 10 L 780 10 Q 800 10, 800 30 L 800 48 L 832 48 Q 852 48, 852 68 L 852 414 Q 852 432, 832 432 L 28 432 Q 8 432, 8 414 L 8 68 Q 8 48, 28 48 L 56 48 Z"
-            fill="#e9e7de"
-            stroke="#b8b4a6"
-            strokeWidth={3}
-          />
+          {/* Cardboard board: printed face over a visible cut edge */}
+          <rect x={4} y={7} width={852} height={430} rx={24} fill="#cbbf9f" />
+          <rect x={4} y={3} width={852} height={430} rx={24} fill="#f4eee0" stroke="#d6cba9" strokeWidth={1.5} />
 
-          {/* Main Clipped Artwork Interior */}
-          <g clipPath={`url(#matShapeClip-${player.id})`}>
-            {/* 1. Top Navy/Twilight Sky Backdrop */}
-            <rect x={10} y={12} width={840} height={270} fill="#324c78" />
-            <rect x={10} y={12} width={840} height={270} fill={`url(#matSkyGrad-${player.id})`} />
-
-            {/* Left & Right Sky Clouds */}
+          <g clipPath={`url(#matArt-${player.id})`}>
+            {/* Sky, rail shading behind the piece storage, distant hills and meadow */}
+            <rect x={16} y={16} width={828} height={408} fill={`url(#matSky-${player.id}) #2f4d7d`} />
+            <rect x={16} y={16} width={828} height={92} fill={`url(#matRail-${player.id}) transparent`} />
+            <MatCloud x={790} y={214} scale={1.25} opacity={0.85} />
+            <MatCloud x={600} y={128} scale={0.7} opacity={0.35} />
             <path
-              d="M 10 60 Q 55 58, 72 95 Q 98 115, 112 165 Q 150 175, 190 220 L 190 290 L 10 290 Z"
-              fill="#c5daeb"
-              opacity={0.92}
+              d="M 140 272 L 212 238 L 262 254 L 334 226 L 420 252 L 500 230 L 580 254 L 664 232 L 762 258 L 844 242 L 844 310 L 140 310 Z"
+              fill="#8b84a6"
             />
             <path
-              d="M 850 60 Q 808 65, 804 115 Q 785 155, 725 170 Q 675 182, 665 245 L 850 265 Z"
-              fill="#c5daeb"
-              opacity={0.9}
+              d="M 16 262 Q 160 248 300 268 Q 480 286 640 264 Q 760 248 844 256 L 844 424 L 16 424 Z"
+              fill={`url(#matMeadow-${player.id}) #6b9c3e`}
+            />
+            <path
+              d="M 16 330 Q 120 318 230 334 M 590 300 Q 700 286 844 296"
+              fill="none"
+              stroke="#9cc766"
+              strokeWidth={2}
+              opacity={0.6}
             />
 
-            {/* 2. Upper-Left Angled Development Card Frame (1 Food, 1 Fiber, 1 Steel) */}
+            {/* Factory with striped smokestacks and their smoke */}
+            <g className="industrial-factory" pointerEvents="none">
+              <MatCloud x={62} y={132} scale={0.66} opacity={0.92} />
+              <MatCloud x={92} y={116} scale={0.5} opacity={0.75} />
+              {[
+                { x: 50, top: 150 },
+                { x: 76, top: 166 },
+              ].map((stack) => (
+                <g key={stack.x}>
+                  <rect x={stack.x} y={stack.top} width={13} height={262 - stack.top} fill="#e2ded3" stroke="#8c887d" strokeWidth={1} />
+                  {[0, 1, 2, 3].map((band) => (
+                    <rect key={band} x={stack.x} y={stack.top + 8 + band * 22} width={13} height={9} fill="#e0a83a" />
+                  ))}
+                  <rect x={stack.x - 1.5} y={stack.top - 4} width={16} height={5} rx={1.5} fill="#a8a296" />
+                </g>
+              ))}
+              <path d="M 30 252 L 30 238 L 56 226 L 56 238 L 82 226 L 82 238 L 108 226 L 108 252 Z" fill="#b9b3a5" stroke="#8a867c" strokeWidth={1.2} strokeLinejoin="round" />
+              <rect x={30} y={250} width={146} height={52} fill="#ebe7dc" stroke="#8a867c" strokeWidth={1.4} />
+              <rect x={108} y={240} width={68} height={12} fill="#d6d1c3" stroke="#8a867c" strokeWidth={1.2} />
+              {[44, 70, 96, 122, 148].map((wx) => (
+                <rect key={wx} x={wx} y={262} width={12} height={16} rx={1.5} fill="#6f7a88" />
+              ))}
+              <rect x={74} y={284} width={20} height={18} fill="#8a867c" />
+            </g>
+
+            {/* Development card (1 food, 1 fiber, 1 steel) */}
             <g
               data-testid="mat-buy-dev-card"
-              transform="translate(148, 168) rotate(-6)"
+              transform="translate(152, 178) rotate(-5)"
               onClick={() => {
                 if (canAffordDevCard) onBuyDevCard?.();
               }}
               style={{ cursor: canAffordDevCard ? 'pointer' : 'default' }}
               role="button"
-              tabIndex={0}
-              aria-label="Buy Development Card (Cost: 1 Food, 1 Natural Fiber, 1 Steel)"
+              tabIndex={canAffordDevCard ? 0 : -1}
+              aria-label="Buy a development card (1 food, 1 fiber, 1 steel)"
             >
+              <rect x={-44} y={-38} width={92} height={80} rx={9} fill="rgba(0,0,0,0.25)" transform="translate(2, 3)" />
               <rect
                 x={-44}
                 y={-40}
                 width={92}
-                height={82}
-                rx={8}
-                fill="#f2f0e6"
-                stroke={canAffordDevCard ? '#f5d11d' : '#9c9688'}
+                height={80}
+                rx={9}
+                fill="#f6f1e4"
+                stroke={canAffordDevCard ? '#ffc83a' : '#cfc4a6'}
                 strokeWidth={canAffordDevCard ? 3 : 1.5}
               />
-              {/* 3 Cost Icons on Left of Card */}
-              <ResourceIconSvg type="food" cx={-26} cy={-21} scale={0.95} />
-              <ResourceIconSvg type="natural_fiber" cx={-26} cy={1} scale={0.95} />
-              <ResourceIconSvg type="steel" cx={-26} cy={23} scale={0.95} />
-
-              {/* Sunrise-over-Lake Dev Card Art */}
-              <rect x={-6} y={-30} width={44} height={64} rx={4} fill="#7ac1e4" stroke="#ffffff" strokeWidth={1.5} />
-              <circle cx={16} cy={-4} r={10} fill="#f5d76e" />
-              <path d="M -6 6 Q 10 -2, 24 4 L 38 2 L 38 34 L -6 34 Z" fill="#3a6b4c" />
-              <path d="M -6 17 L 38 17 L 38 34 L -6 34 Z" fill="#2c5e8a" />
+              <ResourceIconSvg type="food" cx={-27} cy={-21} scale={0.9} />
+              <ResourceIconSvg type="natural_fiber" cx={-27} cy={0} scale={0.9} />
+              <ResourceIconSvg type="steel" cx={-27} cy={21} scale={0.9} />
+              <rect x={-8} y={-31} width={48} height={62} rx={5} fill="#7ac1e4" stroke="#ffffff" strokeWidth={1.5} />
+              <circle cx={16} cy={-6} r={10} fill="#ffd34d" />
+              <path d="M -8 8 Q 8 -1 24 5 L 40 3 L 40 31 L -8 31 Z" fill="#3a7a4c" />
+              <path d="M -8 19 L 40 19 L 40 31 L -8 31 Z" fill="#2c6494" />
             </g>
 
-            {/* 3. Center Twilight Highway Bridge Frame (Road Cost: 1 Lumber, 1 Brick) */}
+            {/* Bridge window (road: 1 lumber, 1 brick) */}
             <g
               data-testid="mat-build-road"
               onClick={() => {
-                if (canAffordRoad) {
-                  onSelectBuildMode?.(activeBuildMode === 'BUILD_ROAD' ? null : 'BUILD_ROAD');
-                }
+                if (canAffordRoad) onSelectBuildMode?.(activeBuildMode === 'BUILD_ROAD' ? null : 'BUILD_ROAD');
               }}
               style={{ cursor: canAffordRoad ? 'pointer' : 'default' }}
               role="button"
-              tabIndex={0}
-              aria-label={`Build Road (Cost: 1 Lumber, 1 Brick). ${player.roadsInReserve} roads in reserve.`}
+              tabIndex={canAffordRoad ? 0 : -1}
+              aria-label={`Build a road (1 lumber, 1 brick). ${player.roadsInReserve} roads left.`}
             >
               <rect
-                x={216}
-                y={96}
-                width={492}
-                height={152}
-                rx={12}
-                fill={`url(#bridgeTwilight-${player.id})`}
-                stroke={
-                  activeBuildMode === 'BUILD_ROAD'
-                    ? '#f5d11d'
-                    : canAffordRoad
-                      ? '#a8e6b8'
-                      : '#ebe8df'
-                }
-                strokeWidth={activeBuildMode === 'BUILD_ROAD' ? 4 : 5}
+                x={WINDOW.x}
+                y={WINDOW.y}
+                width={WINDOW.w}
+                height={WINDOW.h}
+                rx={WINDOW.r}
+                fill={`url(#matWindow-${player.id}) #5f5b8a`}
               />
-
-              {/* Road Cost Corner Tab (1 Lumber, 1 Brick) */}
-              <path
-                d="M 216 96 L 266 96 L 266 142 Q 266 154, 252 154 L 216 154 Z"
-                fill="#ebe8df"
-              />
-              <ResourceIconSvg type="lumber" cx={238} cy={112} scale={1.15} />
-              <ResourceIconSvg type="brick" cx={238} cy={135} scale={1.15} />
-
-              {/* Highway Overpass Concrete Deck & Pillars Artwork */}
-              <path
-                d="M 218 148 L 365 215 M 310 210 L 705 154"
-                stroke="#9aa5b8"
-                strokeWidth={14}
-                fill="none"
-              />
-              <path
-                d="M 218 143 L 365 210 M 310 204 L 705 148"
-                stroke="#d0d8e6"
-                strokeWidth={4}
-                fill="none"
-              />
-              {/* Bridge Support Pillars */}
-              {[258, 294, 420, 515, 608].map((px, i) => (
-                <rect key={i} x={px} y={175} width={8} height={65} fill="#798296" />
-              ))}
-
-              {/* Reserve Wooden Road Sticks Badge along the Bridge */}
-              <g transform="translate(465, 118)">
-                <rect
-                  x={-98}
-                  y={-13}
-                  width={196}
-                  height={24}
-                  rx={12}
-                  fill="rgba(20, 26, 38, 0.78)"
-                  stroke="rgba(255,255,255,0.3)"
-                  strokeWidth={1}
+              <g clipPath={`url(#matWindowClip-${player.id})`}>
+                <path
+                  d="M 222 232 Q 300 208 380 226 T 540 216 T 692 224 L 692 256 L 222 256 Z"
+                  fill="#8f86a8"
                 />
-                <text x={0} y={3} textAnchor="middle" fontSize="10.5" fontWeight="800" fill="#f0f4f8">
-                  ROADS IN RESERVE: {player.roadsInReserve} / 12
+                {/* Highway overpass: two decks crossing, with pillars */}
+                {[258, 300, 344, 452, 548, 640].map((px) => (
+                  <rect key={px} x={px} y={px < 400 ? 178 + (px - 258) * 0.38 : 196 - (px - 452) * 0.12} width={9} height={90} fill="#7b8399" />
+                ))}
+                <path d="M 214 150 L 404 220" stroke="#8d97ad" strokeWidth={15} strokeLinecap="butt" />
+                <path d="M 214 145 L 404 215" stroke="#d6dde9" strokeWidth={4} />
+                <path d="M 330 214 L 700 152" stroke="#9aa4ba" strokeWidth={15} strokeLinecap="butt" />
+                <path d="M 330 208 L 700 146" stroke="#e1e7f1" strokeWidth={4} />
+                {[
+                  [270, 168, '#ffd34d'],
+                  [352, 196, '#ef5a3c'],
+                  [470, 186, '#ffd34d'],
+                  [598, 165, '#ef5a3c'],
+                ].map(([cx, cy, c], i) => (
+                  <circle key={i} cx={cx as number} cy={cy as number} r={2.4} fill={c as string} />
+                ))}
+              </g>
+              <rect
+                x={WINDOW.x}
+                y={WINDOW.y}
+                width={WINDOW.w}
+                height={WINDOW.h}
+                rx={WINDOW.r}
+                fill="none"
+                stroke={activeBuildMode === 'BUILD_ROAD' ? '#ffc83a' : canAffordRoad ? '#bfe9c8' : '#f4eee0'}
+                strokeWidth={6}
+              />
+              <MatCostTab x={WINDOW.x + 12} y={WINDOW.y + 12} items={['lumber', 'brick']} />
+              <g transform={`translate(${WINDOW.x + WINDOW.w / 2}, ${WINDOW.y + 22})`}>
+                <rect x={-62} y={-11} width={124} height={22} rx={11} fill="rgba(16, 26, 44, 0.78)" />
+                <text x={0} y={4} textAnchor="middle" fontSize="11" fontWeight="700" fill="#f0f4f8">
+                  {player.roadsInReserve} of 12 roads left
                 </text>
               </g>
             </g>
 
-            {/* 4. Distant Purple Mountains & Power Transmission Lines */}
-            <path
-              d="M 150 285 L 255 232 L 325 256 L 445 224 L 545 255 L 660 228 L 848 272 L 848 310 L 10 310 Z"
-              fill="#9992a3"
-              stroke="#787282"
-              strokeWidth={1.5}
-            />
-
-            {/* 5. Bottom Lush Green Valley Floor */}
-            <path
-              d="M 10 278 Q 140 272, 290 296 L 620 296 Q 760 270, 850 266 L 850 428 L 10 428 Z"
-              fill={`url(#meadowGreen-${player.id})`}
-            />
-
-            {/* 6. Left Industrial Factory & Twin Striped Smokestacks */}
-            <g className="industrial-factory">
-              {/* Smoke Plumes */}
-              <path
-                d="M 74 148 Q 52 108, 45 75 Q 72 82, 92 120 Q 108 135, 104 162 Z"
-                fill="#e6ebf0"
-                opacity={0.85}
-              />
-              {/* Smokestack 1 */}
-              <rect x={68} y={148} width={12} height={95} fill="#d8d6ce" stroke="#8c887d" strokeWidth={1} />
-              {[158, 178, 198, 218].map((sy) => (
-                <rect key={sy} x={68} y={sy} width={12} height={8} fill="#d9a738" />
-              ))}
-              {/* Smokestack 2 */}
-              <rect x={94} y={162} width={12} height={82} fill="#d8d6ce" stroke="#8c887d" strokeWidth={1} />
-              {[172, 192, 212].map((sy) => (
-                <rect key={sy} x={94} y={sy} width={12} height={8} fill="#d9a738" />
-              ))}
-              {/* Factory Building */}
-              <polygon
-                points="46,245 78,232 174,242 174,295 46,282"
-                fill="#e3e1da"
-                stroke="#8a867c"
-                strokeWidth={1.5}
-              />
-              <polygon points="46,245 78,232 78,285 46,282" fill="#9c9488" />
-              {[92, 112, 132, 152].map((wx) => (
-                <rect key={wx} x={wx} y={248} width={6} height={14} fill="#7a828c" />
-              ))}
-            </g>
-
-            {/* 7. Right White Wind Turbines */}
+            {/* Wind turbines (behind the renewable plants) */}
             <g className="wind-turbines" pointerEvents="none">
-              {/* Background Turbine */}
-              <g transform="translate(642, 208)">
-                <line x1={0} y1={0} x2={0} y2={105} stroke="#dcdad2" strokeWidth={4} />
-                <circle cx={0} cy={0} r={3.5} fill="#ffffff" stroke="#8c8f94" strokeWidth={1} />
-                {[25, 145, 265].map((deg) => (
-                  <polygon
-                    key={deg}
-                    points="0,0 -3,-48 0,-54 3,-48"
-                    transform={`rotate(${deg})`}
-                    fill="#f4f5f0"
-                    stroke="#9ea3a8"
-                    strokeWidth={0.7}
-                  />
-                ))}
-              </g>
-              {/* Foreground Tall Turbine */}
-              <g transform="translate(718, 178)">
-                <line x1={0} y1={0} x2={12} y2={245} stroke="#e6e4dc" strokeWidth={7} />
-                <circle cx={0} cy={0} r={5} fill="#ffffff" stroke="#7a7d82" strokeWidth={1.2} />
-                {[12, 132, 252].map((deg) => (
-                  <polygon
-                    key={deg}
-                    points="0,0 -4.5,-85 0,-95 4.5,-85"
-                    transform={`rotate(${deg})`}
-                    fill="#ffffff"
-                    stroke="#8c9196"
-                    strokeWidth={0.9}
-                  />
-                ))}
-              </g>
+              {[
+                { x: 812, y: 206, blade: 46, tower: 4 },
+                { x: 748, y: 168, blade: 72, tower: 6 },
+              ].map((t) => (
+                <g key={t.x} transform={`translate(${t.x}, ${t.y})`}>
+                  <path d={`M -${t.tower / 2} 2 L ${t.tower / 2} 2 L ${t.tower} 260 L -${t.tower} 260 Z`} fill="#eceae3" stroke="#a7a9ac" strokeWidth={0.8} />
+                  {[8, 128, 248].map((deg) => (
+                    <path
+                      key={deg}
+                      d={`M 0 0 L -${t.blade * 0.06} -${t.blade * 0.86} L 0 -${t.blade} L ${t.blade * 0.07} -${t.blade * 0.86} Z`}
+                      transform={`rotate(${deg})`}
+                      fill="#ffffff"
+                      stroke="#8c9196"
+                      strokeWidth={0.9}
+                      strokeLinejoin="round"
+                    />
+                  ))}
+                  <circle r={t.tower * 0.8} fill="#ffffff" stroke="#7a7d82" strokeWidth={1.1} />
+                </g>
+              ))}
             </g>
 
-            {/* =============================================================== */}
-            {/* 8. TOP BAR: 5 TOWN SLOTS (LEFT) & 4 CITY SLOTS (RIGHT)          */}
-            {/* =============================================================== */}
-            {/* Left Town Cost Strip (1 Lumber, 1 Brick, 1 Food, 1 Fiber) */}
-            <g transform="translate(56, 16)">
-              <rect x={0} y={0} width={36} height={84} rx={6} fill="#ebe8df" stroke="#b8b4a6" strokeWidth={1} />
-              <ResourceIconSvg type="lumber" cx={18} cy={13} scale={1.0} />
-              <ResourceIconSvg type="brick" cx={18} cy={33} scale={1.0} />
-              <ResourceIconSvg type="food" cx={18} cy={53} scale={1.0} />
-              <ResourceIconSvg type="natural_fiber" cx={18} cy={73} scale={1.0} />
-            </g>
-
-            {/* 5 Town Recessed Slots */}
+            {/* Piece storage: towns (left) and cities (right), each slot shaped like its piece */}
+            <MatCostTab x={26} y={24} items={['lumber', 'brick', 'food', 'natural_fiber']} />
             {townSlotPositions.map((pos, idx) => {
               const hasPieceInReserve = idx < player.townsInReserve;
               const isTownMode = activeBuildMode === 'BUILD_TOWN';
-
               return (
                 <g
                   key={`town-slot-${idx}`}
                   data-testid={`mat-town-slot-${idx}`}
                   transform={`translate(${pos.x}, ${pos.y})`}
                   onClick={() => {
-                    if (canAffordTown) {
-                      onSelectBuildMode?.(isTownMode ? null : 'BUILD_TOWN');
-                    }
+                    if (canAffordTown) onSelectBuildMode?.(isTownMode ? null : 'BUILD_TOWN');
                   }}
                   style={{ cursor: canAffordTown ? 'pointer' : 'default' }}
                   role="button"
-                  tabIndex={0}
-                  aria-label={`Town reserve slot ${idx + 1}: ${hasPieceInReserve ? 'In reserve' : 'Built on board (+1 Local Footprint)'}`}
+                  tabIndex={canAffordTown ? 0 : -1}
+                  aria-label={`Town ${idx + 1}: ${hasPieceInReserve ? 'in reserve' : 'built (+1 footprint)'}`}
                 >
-                  {/* Town Outline Recess */}
-                  <polygon
-                    points="-22,-8 -4,-25 18,-15 22,16 0,25 -22,15"
-                    fill="rgba(26, 38, 58, 0.55)"
-                    stroke={isTownMode && hasPieceInReserve ? '#f5d11d' : 'rgba(214, 224, 240, 0.65)'}
+                  <path
+                    data-slot-recess
+                    d={TOWN_PATH_D}
+                    transform={`rotate(${MAT_PIECE_ANGLE}) scale(${TOWN_SLOT_SCALE})`}
+                    fill="rgba(8, 16, 32, 0.45)"
+                    stroke={isTownMode && hasPieceInReserve ? '#ffc83a' : 'rgba(226, 234, 246, 0.6)'}
                     strokeWidth={isTownMode && hasPieceInReserve ? 2.5 : 1.3}
+                    strokeDasharray={hasPieceInReserve ? undefined : '4 3'}
+                    vectorEffect="non-scaling-stroke"
+                    strokeLinejoin="round"
                   />
-                  {/* Exposed +1 Pollution Cloud underneath */}
-                  <FootprintCloudIconSvg type="plus" cx={0} cy={2} scale={1.15} />
-
-                  {/* 3D Wooden Town Piece when still in reserve */}
+                  <FootprintCloudIconSvg type="plus" cx={0} cy={-2} scale={1.1} />
                   {hasPieceInReserve && (
-                    <TownPieceSvg playerId={player.id} cx={0} cy={0} scale={1.95} />
+                    <TownPieceSvg playerId={player.id} cx={0} cy={-3} scale={TOWN_MAT_SCALE} cutoutAngleDeg={MAT_PIECE_ANGLE} />
                   )}
                 </g>
               );
             })}
 
-            {/* 4 City Recessed Slots */}
             {citySlotPositions.map((pos, idx) => {
               const hasPieceInReserve = idx < player.citiesInReserve;
               const isCityMode = activeBuildMode === 'BUILD_CITY';
-
               return (
                 <g
                   key={`city-slot-${idx}`}
                   data-testid={`mat-city-slot-${idx}`}
                   transform={`translate(${pos.x}, ${pos.y})`}
                   onClick={() => {
-                    if (canAffordCity) {
-                      onSelectBuildMode?.(isCityMode ? null : 'BUILD_CITY');
-                    }
+                    if (canAffordCity) onSelectBuildMode?.(isCityMode ? null : 'BUILD_CITY');
                   }}
                   style={{ cursor: canAffordCity ? 'pointer' : 'default' }}
                   role="button"
-                  tabIndex={0}
-                  aria-label={`City reserve slot ${idx + 1}: ${hasPieceInReserve ? 'In reserve' : 'Built on board (+2 Local Footprint)'}`}
+                  tabIndex={canAffordCity ? 0 : -1}
+                  aria-label={`City ${idx + 1}: ${hasPieceInReserve ? 'in reserve' : 'built (+2 footprint)'}`}
                 >
-                  {/* City Outline Recess */}
-                  <polygon
-                    points="-12,-28 12,-28 28,-12 28,14 12,28 -12,28 -28,14 -28,-12"
-                    fill="rgba(26, 38, 58, 0.55)"
-                    stroke={isCityMode && hasPieceInReserve ? '#f5d11d' : 'rgba(214, 224, 240, 0.65)'}
+                  <path
+                    data-slot-recess
+                    d={CITY_PATH_D}
+                    transform={`rotate(${MAT_PIECE_ANGLE}) scale(${CITY_SLOT_SCALE})`}
+                    fill="rgba(8, 16, 32, 0.45)"
+                    stroke={isCityMode && hasPieceInReserve ? '#ffc83a' : 'rgba(226, 234, 246, 0.6)'}
                     strokeWidth={isCityMode && hasPieceInReserve ? 2.5 : 1.3}
+                    strokeDasharray={hasPieceInReserve ? undefined : '4 3'}
+                    vectorEffect="non-scaling-stroke"
+                    strokeLinejoin="round"
                   />
-                  {/* Exposed TWO Stacked + Pollution Clouds (+2 LF) underneath */}
-                  <FootprintCloudIconSvg type="plus" cx={0} cy={-10} scale={1.02} />
-                  <FootprintCloudIconSvg type="plus" cx={0} cy={11} scale={1.02} />
-
-                  {/* 3D Wooden City Piece when still in reserve */}
+                  <FootprintCloudIconSvg type="plus" cx={0} cy={-11} scale={0.9} />
+                  <FootprintCloudIconSvg type="plus" cx={0} cy={6} scale={0.9} />
                   {hasPieceInReserve && (
-                    <CityPieceSvg playerId={player.id} cx={0} cy={0} scale={1.9} />
+                    <CityPieceSvg playerId={player.id} cx={0} cy={-4} scale={CITY_MAT_SCALE} cutoutAngleDeg={MAT_PIECE_ANGLE} />
                   )}
                 </g>
               );
             })}
+            <MatCostTab x={800} y={24} items={['food', 'food', 'steel', 'steel', 'steel']} />
 
-            {/* Right City Cost Strip (2 Food, 3 Steel) */}
-            <g transform="translate(756, 16)">
-              <rect x={0} y={0} width={38} height={106} rx={6} fill="#ebe8df" stroke="#b8b4a6" strokeWidth={1} />
-              <ResourceIconSvg type="food" cx={19} cy={13} scale={1.0} />
-              <ResourceIconSvg type="food" cx={19} cy={33} scale={1.0} />
-              <ResourceIconSvg type="steel" cx={19} cy={53} scale={1.0} />
-              <ResourceIconSvg type="steel" cx={19} cy={73} scale={1.0} />
-              <ResourceIconSvg type="steel" cx={19} cy={93} scale={1.0} />
-            </g>
-
-            {/* =============================================================== */}
-            {/* 9. BOTTOM-LEFT: 6 FOSSIL FUEL POWER PLANTS (Cost: 1 Science)    */}
-            {/* =============================================================== */}
-            {/* 1 Science Cost Badge at Far Bottom-Left */}
-            <g transform="translate(18, 344)">
-              <rect x={0} y={0} width={28} height={68} rx={10} fill="#ebe8df" stroke="#9ea399" strokeWidth={1.2} />
-              <ResourceIconSvg type="science" cx={14} cy={34} scale={1.45} />
-            </g>
-
+            {/* Fossil fuel power plants (1 science each) */}
+            <MatCostTab x={20} y={340} items={['science']} tall />
             {fossilSlotPositions.map((pos, idx) => {
               const hasPlantInReserve = idx < player.fossilPlantsInReserve;
               const isFossilMode = activeBuildMode === 'BUILD_FOSSIL_PLANT';
-
               return (
                 <g
                   key={`fossil-slot-${idx}`}
                   data-testid={`mat-fossil-slot-${idx}`}
                   transform={`translate(${pos.x}, ${pos.y})`}
                   onClick={() => {
-                    if (canAffordFossil) {
-                      onSelectBuildMode?.(isFossilMode ? null : 'BUILD_FOSSIL_PLANT');
-                    }
+                    if (canAffordFossil) onSelectBuildMode?.(isFossilMode ? null : 'BUILD_FOSSIL_PLANT');
                   }}
                   style={{ cursor: canAffordFossil ? 'pointer' : 'default' }}
                   role="button"
-                  tabIndex={0}
-                  aria-label={`Fossil Power Plant slot ${idx + 1}: ${hasPlantInReserve ? 'In reserve (Cost: 1 Science)' : 'Built on board (+1 Local Footprint)'}`}
+                  tabIndex={canAffordFossil ? 0 : -1}
+                  aria-label={`Fossil fuel plant ${idx + 1}: ${hasPlantInReserve ? 'in reserve (1 science)' : 'built (+1 footprint)'}`}
                 >
                   <circle
-                    cx={0}
-                    cy={0}
                     r={22}
-                    fill="rgba(34, 42, 34, 0.45)"
-                    stroke={isFossilMode && hasPlantInReserve ? '#f5d11d' : 'rgba(255,255,255,0.75)'}
+                    fill="rgba(20, 30, 20, 0.4)"
+                    stroke={isFossilMode && hasPlantInReserve ? '#ffc83a' : 'rgba(255,255,255,0.75)'}
                     strokeWidth={isFossilMode && hasPlantInReserve ? 3 : 1.5}
                     strokeDasharray={hasPlantInReserve ? undefined : '4 3'}
                   />
-                  {/* Underlying +1 Pollution Cloud */}
-                  <FootprintCloudIconSvg type="plus" cx={0} cy={1} scale={1.15} />
-
-                  {/* 3D Dark-Brown Fossil Plant Cylinder */}
-                  {hasPlantInReserve && (
-                    <PowerPlantCylinderSvg type="fossil" cx={0} cy={0} r={19.5} />
-                  )}
+                  <FootprintCloudIconSvg type="plus" cx={0} cy={1} scale={1.1} />
+                  {hasPlantInReserve && <PowerPlantCylinderSvg type="fossil" cx={0} cy={-3} r={18} />}
                 </g>
               );
             })}
 
-            {/* =============================================================== */}
-            {/* 10. BOTTOM-CENTER: WAREHOUSE, ENERGY PYLONS & 5-BOLT ENERGY BAR */}
-            {/* =============================================================== */}
-            {/* Interactive Warehouse Tile */}
+            {/* Warehouse, energy uses, energy storage and the one-plant-per-turn reminder */}
             <g
               data-testid="warehouse-tile"
-              transform="translate(292, 246)"
+              transform="translate(298, 268)"
               onClick={() => {
                 if (canAffordWarehouse) onBuildWarehouse?.();
               }}
               style={{ cursor: canAffordWarehouse ? 'pointer' : 'default' }}
               role="button"
-              tabIndex={0}
+              tabIndex={canAffordWarehouse ? 0 : -1}
               aria-label={
                 player.hasWarehouse
-                  ? 'Warehouse Active: Hand limit on roll of 7 is raised to 10 cards'
-                  : 'Build Warehouse (Cost: 2 Energy tokens). Raises hand limit on roll of 7 from 7 to 10 cards.'
+                  ? 'Warehouse built: you keep up to 10 cards on a 7'
+                  : 'Build the warehouse (2 energy): keep up to 10 cards on a 7'
               }
             >
+              <rect x={1.5} y={2.5} width={108} height={58} rx={8} fill="rgba(0,0,0,0.22)" />
               <rect
                 x={0}
                 y={0}
-                width={104}
-                height={70}
-                rx={6}
-                fill={player.hasWarehouse ? '#e8f4ea' : '#dcd9d0'}
-                stroke={canAffordWarehouse ? '#f5d11d' : '#595e66'}
-                strokeWidth={canAffordWarehouse ? 3 : 2}
+                width={108}
+                height={58}
+                rx={8}
+                fill={player.hasWarehouse ? '#e6f4e9' : '#f4eee0'}
+                stroke={canAffordWarehouse ? '#ffc83a' : '#a99f86'}
+                strokeWidth={canAffordWarehouse ? 3 : 1.5}
               />
-              {/* Warehouse Roof lines */}
-              <polygon points="0,12 52,2 104,12 104,20 0,20" fill="#8c929c" />
-
+              <path d="M 0 16 L 54 4 L 108 16 L 108 20 L 0 20 Z" fill="#8d93a0" />
               {!player.hasWarehouse ? (
                 <>
-                  {/* 2 Energy Bolts Cost + Flip Arrow */}
-                  <EnergyBoltSvg cx={28} cy={40} scale={1.15} />
-                  <EnergyBoltSvg cx={46} cy={42} scale={1.15} />
-                  <rect x={64} y={36} width={28} height={24} rx={2} fill="#4d535c" />
-                  <path
-                    d="M 74 32 Q 86 20, 94 34"
-                    fill="none"
-                    stroke="#22252a"
-                    strokeWidth={2.2}
-                    strokeLinecap="round"
-                  />
-                  <polygon points="94,34 90,29 97,29" fill="#22252a" />
+                  <EnergyBoltSvg cx={30} cy={39} scale={1.05} />
+                  <EnergyBoltSvg cx={47} cy={41} scale={1.05} />
+                  <rect x={66} y={30} width={28} height={22} rx={3} fill="#4d535c" />
+                  <path d="M 76 28 Q 88 16 96 30" fill="none" stroke="#22252a" strokeWidth={2.2} strokeLinecap="round" />
+                  <polygon points="96,30 92,25 99,25" fill="#22252a" />
                 </>
               ) : (
                 <>
-                  {/* Active Warehouse: <= 10 Hand Limit Badge */}
-                  <rect x={12} y={24} width={80} height={38} rx={4} fill="#2e8540" />
-                  <text x={52} y={42} textAnchor="middle" fontSize="14" fontWeight="900" fill="#ffffff">
+                  <text x={54} y={39} textAnchor="middle" fontSize="15" fontWeight="800" fill="#1e7a3e">
                     &le; 10 cards
                   </text>
-                  <text x={52} y={55} textAnchor="middle" fontSize="8.5" fontWeight="700" fill="#d9f2e1">
+                  <text x={54} y={52} textAnchor="middle" fontSize="9" fontWeight="700" fill="#2f6b43">
                     Warehouse built
                   </text>
                 </>
               )}
             </g>
 
-            {/* 3 Power-Line Pylon Energy Action Buttons */}
-            {/* Action 1: 2 Energy -> 1 Resource/Science Card */}
-            <g
-              data-testid="energy-action-buy-card"
-              transform="translate(425, 278)"
-              onClick={() => {
-                if (canEnergyBuyCard) onOpenEnergyBuyCardModal?.();
-              }}
-              style={{ cursor: canEnergyBuyCard ? 'pointer' : 'default' }}
-              role="button"
-              tabIndex={0}
-              aria-label="Spend 2 Energy to take any 1 Resource or Science card from supply"
-            >
+            {(
+              [
+                {
+                  testId: 'energy-action-buy-card',
+                  x: 446,
+                  mode: null,
+                  enabled: canEnergyBuyCard,
+                  label: 'Spend 2 energy to take any 1 resource or science card',
+                  onClick: () => canEnergyBuyCard && onOpenEnergyBuyCardModal?.(),
+                },
+                {
+                  testId: 'energy-action-clean-hazard',
+                  x: 502,
+                  mode: 'CLEAN_HAZARD' as ActiveBuildMode,
+                  enabled: canEnergyCleanHazard,
+                  label: 'Spend 1 energy to remove a hazard',
+                  onClick: () =>
+                    canEnergyCleanHazard &&
+                    onSelectBuildMode?.(activeBuildMode === 'CLEAN_HAZARD' ? null : 'CLEAN_HAZARD'),
+                },
+                {
+                  testId: 'energy-action-demolish-plant',
+                  x: 558,
+                  mode: 'DEMOLISH_PLANT' as ActiveBuildMode,
+                  enabled: canEnergyDemolish,
+                  label: 'Spend 1 energy to remove one of your fossil fuel plants (once per turn)',
+                  onClick: () =>
+                    canEnergyDemolish &&
+                    onSelectBuildMode?.(activeBuildMode === 'DEMOLISH_PLANT' ? null : 'DEMOLISH_PLANT'),
+                },
+              ] as const
+            ).map((a) => {
+              const selected = a.mode !== null && activeBuildMode === a.mode;
+              return (
+                <g
+                  key={a.testId}
+                  data-testid={a.testId}
+                  transform={`translate(${a.x}, 297)`}
+                  onClick={a.onClick}
+                  style={{ cursor: a.enabled ? 'pointer' : 'default' }}
+                  role="button"
+                  tabIndex={a.enabled ? 0 : -1}
+                  aria-label={a.label}
+                >
+                  <rect x={-24.5} y={-27.5} width={50} height={58} rx={8} fill="rgba(0,0,0,0.2)" />
+                  <rect
+                    x={-26}
+                    y={-29}
+                    width={50}
+                    height={58}
+                    rx={8}
+                    fill={selected ? '#ffc83a' : '#f4eee0'}
+                    stroke={selected ? '#1b2a39' : a.enabled ? '#ffc83a' : '#a99f86'}
+                    strokeWidth={a.enabled || selected ? 2.5 : 1.3}
+                    opacity={a.enabled || selected ? 1 : 0.85}
+                  />
+                  {a.testId === 'energy-action-buy-card' && (
+                    <>
+                      <EnergyBoltSvg cx={-8} cy={-15} scale={0.62} />
+                      <EnergyBoltSvg cx={4} cy={-13} scale={0.62} />
+                      <rect x={-11} y={2} width={20} height={24} rx={3} fill="#ffffff" stroke="#2c3540" strokeWidth={1.2} />
+                      <circle cx={-1} cy={14} r={5.5} fill="#2f9a53" />
+                    </>
+                  )}
+                  {a.testId === 'energy-action-clean-hazard' && (
+                    <>
+                      <EnergyBoltSvg cx={-1} cy={-15} scale={0.62} />
+                      <HazardCogSvg cx={-1} cy={13} r={11} />
+                      <path d="M -10 22 L 9 4" stroke="#c9302c" strokeWidth={2.4} strokeLinecap="round" />
+                    </>
+                  )}
+                  {a.testId === 'energy-action-demolish-plant' && (
+                    <>
+                      <EnergyBoltSvg cx={-6} cy={-15} scale={0.62} />
+                      <PowerPlantCylinderSvg type="fossil" cx={-3} cy={12} r={9} />
+                      <circle cx={12} cy={-3} r={8} fill="#c9302c" stroke="#ffffff" strokeWidth={1.2} />
+                      <text x={12} y={0.5} textAnchor="middle" fontSize="8" fontWeight="800" fill="#ffffff">
+                        x1
+                      </text>
+                    </>
+                  )}
+                </g>
+              );
+            })}
+
+            <g data-testid="energy-bar" transform="translate(298, 334)">
+              <rect x={1.5} y={2.5} width={286} height={50} rx={12} fill="rgba(0,0,0,0.22)" />
+              <rect x={0} y={0} width={286} height={50} rx={12} fill="#e2b93b" stroke="#8c6d14" strokeWidth={2} />
+              <rect x={6} y={5} width={274} height={8} rx={4} fill="#f2d470" opacity={0.6} />
+              {Array.from({ length: 5 }, (_, eIdx) => (
+                <g key={eIdx} data-testid={`energy-slot-${eIdx}`}>
+                  <EnergyBoltSvg cx={33 + eIdx * 55} cy={26} scale={1.3} empty={eIdx >= player.energy} />
+                </g>
+              ))}
+            </g>
+
+            <g transform="translate(441, 405)" data-testid="plant-limit-badge">
               <rect
-                x={-22}
-                y={-34}
-                width={44}
-                height={66}
-                rx={6}
-                fill={canEnergyBuyCard ? 'rgba(245, 209, 29, 0.22)' : 'transparent'}
-                stroke={canEnergyBuyCard ? '#f5d11d' : 'transparent'}
+                x={-62}
+                y={-14}
+                width={124}
+                height={28}
+                rx={14}
+                fill="#f4eee0"
+                stroke={plantLimitReached ? '#c9302c' : '#a99f86'}
                 strokeWidth={1.5}
               />
-              <EnergyBoltSvg cx={-6} cy={-22} scale={0.68} />
-              <EnergyBoltSvg cx={5} cy={-20} scale={0.68} />
-              {/* Mini Resource/Science Split Card Icon */}
-              <rect x={-11} y={-2} width={22} height={30} rx={3} fill="#f4f5f0" stroke="#2c3540" strokeWidth={1.2} />
-              <circle cx={0} cy={13} r={6} fill="#3a8f4c" />
-            </g>
-
-            {/* Action 2: 1 Energy -> Remove 1 Hazard Cog */}
-            <g
-              data-testid="energy-action-clean-hazard"
-              transform="translate(478, 278)"
-              onClick={() => {
-                if (canEnergyCleanHazard) {
-                  onSelectBuildMode?.(activeBuildMode === 'CLEAN_HAZARD' ? null : 'CLEAN_HAZARD');
-                }
-              }}
-              style={{ cursor: canEnergyCleanHazard ? 'pointer' : 'default' }}
-              role="button"
-              tabIndex={0}
-              aria-label="Spend 1 Energy to clean 1 Hazard token from any hex or building"
-            >
-              <rect
-                x={-24}
-                y={-34}
-                width={48}
-                height={66}
-                rx={6}
-                fill={
-                  activeBuildMode === 'CLEAN_HAZARD'
-                    ? 'rgba(245, 209, 29, 0.4)'
-                    : canEnergyCleanHazard
-                      ? 'rgba(245, 209, 29, 0.18)'
-                      : 'transparent'
-                }
-                stroke={
-                  activeBuildMode === 'CLEAN_HAZARD'
-                    ? '#ffffff'
-                    : canEnergyCleanHazard
-                      ? '#f5d11d'
-                      : 'transparent'
-                }
-                strokeWidth={1.8}
-              />
-              <EnergyBoltSvg cx={0} cy={-21} scale={0.68} />
-              <circle cx={0} cy={12} r={11} fill="none" stroke="#8c8f94" strokeWidth={3.5} strokeDasharray="4 2" />
-              <path d="M 4 2 L 15 -4" stroke="#141619" strokeWidth={2.2} strokeLinecap="round" />
-            </g>
-
-            {/* Action 3: 1 Energy -> Demolish 1 Fossil Plant (x1 per turn) */}
-            <g
-              data-testid="energy-action-demolish-plant"
-              transform="translate(534, 278)"
-              onClick={() => {
-                if (canEnergyDemolish) {
-                  onSelectBuildMode?.(activeBuildMode === 'DEMOLISH_PLANT' ? null : 'DEMOLISH_PLANT');
-                }
-              }}
-              style={{ cursor: canEnergyDemolish ? 'pointer' : 'default' }}
-              role="button"
-              tabIndex={0}
-              aria-label="Spend 1 Energy to demolish 1 of your built Fossil Fuel Power Plants (-1 Local Footprint, max 1 per turn)"
-            >
-              <rect
-                x={-26}
-                y={-34}
-                width={52}
-                height={66}
-                rx={6}
-                fill={
-                  activeBuildMode === 'DEMOLISH_PLANT'
-                    ? 'rgba(245, 209, 29, 0.4)'
-                    : canEnergyDemolish
-                      ? 'rgba(245, 209, 29, 0.18)'
-                      : 'transparent'
-                }
-                stroke={
-                  activeBuildMode === 'DEMOLISH_PLANT'
-                    ? '#ffffff'
-                    : canEnergyDemolish
-                      ? '#f5d11d'
-                      : 'transparent'
-                }
-                strokeWidth={1.8}
-              />
-              <EnergyBoltSvg cx={-4} cy={-21} scale={0.68} />
-              <ellipse cx={-3} cy={14} rx={10} ry={8} fill="#261c15" stroke="#8c6239" strokeWidth={1.2} />
-              {/* Red x1 per turn badge */}
-              <circle cx={15} cy={-2} r={8.5} fill="#c93b2b" stroke="#ffffff" strokeWidth={1.2} />
-              <text x={15} y={1.5} textAnchor="middle" fontSize="8.5" fontWeight="900" fill="#ffffff">
+              <PowerPlantCylinderSvg type="fossil" cx={-36} cy={-2} r={8} />
+              <circle cx={0} cy={0} r={9} fill="#c9302c" />
+              <text x={0} y={3.5} textAnchor="middle" fontSize="9" fontWeight="800" fill="#ffffff">
                 x1
               </text>
+              <PowerPlantCylinderSvg type="renewable" cx={36} cy={-2} r={8} />
             </g>
 
-            {/* Yellow 5-Slot Energy Storage Bar (`[data-testid="energy-bar"]`) */}
-            <g data-testid="energy-bar" transform="translate(290, 316)">
-              <rect
-                x={0}
-                y={0}
-                width={272}
-                height={58}
-                rx={12}
-                fill="#d9b338"
-                stroke="#8c6d14"
-                strokeWidth={2}
-              />
-              {Array.from({ length: 5 }, (_, eIdx) => {
-                const bx = 30 + eIdx * 53;
-                const by = 29;
-                const isFilled = eIdx < player.energy;
-                return (
-                  <g key={eIdx} data-testid={`energy-slot-${eIdx}`}>
-                    <EnergyBoltSvg cx={bx} cy={by} scale={1.45} empty={!isFilled} />
-                  </g>
-                );
-              })}
-            </g>
-
-            {/* Bottom-Center 1-Power-Plant-Per-Turn Indicator Badge */}
-            <g transform="translate(426, 398)" data-testid="plant-limit-badge">
-              <rect
-                x={-60}
-                y={-18}
-                width={120}
-                height={34}
-                rx={8}
-                fill="#ebe8df"
-                stroke={plantLimitReached ? '#c93b2b' : '#9ea399'}
-                strokeWidth={1.5}
-              />
-              <ellipse cx={-34} cy={0} rx={12} ry={9} fill="#2e2018" />
-              <circle cx={0} cy={0} r={9.5} fill="#c93b2b" />
-              <text x={0} y={3.5} textAnchor="middle" fontSize="9.5" fontWeight="900" fill="#ffffff">
-                x1
-              </text>
-              <ellipse cx={34} cy={0} rx={12} ry={9} fill="#2e8540" />
-            </g>
-
-            {/* =============================================================== */}
-            {/* 11. BOTTOM-RIGHT: 9 RENEWABLE POWER PLANTS & GREEN EVENT DISCS  */}
-            {/* =============================================================== */}
-            {/* 3 Science Cost Badge at Far Bottom-Right */}
-            <g transform="translate(812, 318)">
-              <rect x={0} y={0} width={30} height={96} rx={10} fill="#ebe8df" stroke="#9ea399" strokeWidth={1.2} />
-              <ResourceIconSvg type="science" cx={15} cy={22} scale={1.3} />
-              <ResourceIconSvg type="science" cx={15} cy={50} scale={1.3} />
-              <ResourceIconSvg type="science" cx={15} cy={78} scale={1.3} />
-            </g>
-
+            {/* Renewable power plants (3 science each), each on its green event disc */}
+            <MatCostTab x={812} y={300} items={['science', 'science', 'science']} tall />
             {renewableSlotPositions.map((pos, idx) => {
               const hasPlantInReserve = idx < player.renewablePlantsInReserve;
               const isRenewableMode = activeBuildMode === 'BUILD_RENEWABLE_PLANT';
-
               return (
                 <g
                   key={`renewable-slot-${idx}`}
                   data-testid={`mat-renewable-slot-${idx}`}
                   transform={`translate(${pos.x}, ${pos.y})`}
                   onClick={() => {
-                    if (canAffordRenewable) {
-                      onSelectBuildMode?.(isRenewableMode ? null : 'BUILD_RENEWABLE_PLANT');
-                    }
+                    if (canAffordRenewable) onSelectBuildMode?.(isRenewableMode ? null : 'BUILD_RENEWABLE_PLANT');
                   }}
                   style={{ cursor: canAffordRenewable ? 'pointer' : 'default' }}
                   role="button"
-                  tabIndex={0}
-                  aria-label={`Renewable Power Plant slot ${idx + 1}: ${hasPlantInReserve ? 'In reserve with hidden Green Event Disc (Cost: 3 Science)' : 'Built on board (-1 Local Footprint)'}`}
+                  tabIndex={canAffordRenewable ? 0 : -1}
+                  aria-label={`Renewable plant ${idx + 1}: ${hasPlantInReserve ? 'in reserve (3 science)' : 'built (-1 footprint)'}`}
                 >
                   <circle
-                    cx={0}
-                    cy={0}
                     r={22}
-                    fill="rgba(26, 56, 32, 0.45)"
-                    stroke={isRenewableMode && hasPlantInReserve ? '#f5d11d' : 'rgba(255,255,255,0.75)'}
+                    fill="rgba(16, 48, 24, 0.4)"
+                    stroke={isRenewableMode && hasPlantInReserve ? '#ffc83a' : 'rgba(255,255,255,0.75)'}
                     strokeWidth={isRenewableMode && hasPlantInReserve ? 3 : 1.5}
                     strokeDasharray={hasPlantInReserve ? undefined : '4 3'}
                   />
-                  {/* Underlying -1 Clean Cloud Icon */}
-                  <FootprintCloudIconSvg type="minus" cx={0} cy={1} scale={1.15} />
-
-                  {/* Face-Down Green Event Disc + 3D Dark-Green Renewable Plant Cylinder */}
+                  <FootprintCloudIconSvg type="minus" cx={0} cy={1} scale={1.1} />
                   {hasPlantInReserve && (
-                    <PowerPlantCylinderSvg
-                      type="renewable"
-                      cx={0}
-                      cy={0}
-                      r={19.5}
-                      hasGreenDiscUnderneath={true}
-                    />
+                    <PowerPlantCylinderSvg type="renewable" cx={1} cy={-3} r={16} hasGreenDiscUnderneath={true} />
                   )}
                 </g>
               );
             })}
           </g>
+
+          {/* Inner edge of the printed area */}
+          <rect x={16} y={16} width={828} height={408} rx={14} fill="none" stroke="rgba(30, 24, 10, 0.28)" strokeWidth={2} />
         </svg>
       </div>
 

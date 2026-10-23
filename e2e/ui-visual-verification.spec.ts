@@ -150,17 +150,40 @@ test.describe('CATAN: New Energies — Tabletop layout, sea frame & zero-overlap
       await expect(page.getByTestId('player-mat')).toBeVisible();
       const matOverlapCheck = await page.evaluate(() => {
         const devCard = document.querySelector('[data-testid="mat-buy-dev-card"] rect')!.getBoundingClientRect();
-        const townSlot0 = document.querySelector('[data-testid="mat-town-slot-0"] polygon')!.getBoundingClientRect();
+        const townSlot0 = document
+          .querySelector('[data-testid="mat-town-slot-0"] [data-slot-recess]')!
+          .getBoundingClientRect();
         const roadFrame = document.querySelector('[data-testid="mat-build-road"] rect')!.getBoundingClientRect();
         const boxHit = (a: DOMRect, b: DOMRect) =>
           a.left + 1 < b.right - 1 && a.right - 1 > b.left + 1 && a.top + 1 < b.bottom - 1 && a.bottom - 1 > b.top + 1;
+        // Every piece slot, plant slot and cost tab stays inside the printed area of the board
+        const svgBox = document.querySelector('[data-testid="player-mat"] svg')!.getBoundingClientRect();
+        const unit = svgBox.width / 860;
+        const inner = {
+          left: svgBox.left + 16 * unit,
+          right: svgBox.left + 844 * unit,
+          top: svgBox.top + 16 * unit,
+          bottom: svgBox.top + 424 * unit,
+        };
+        const slots = Array.from(
+          document.querySelectorAll(
+            '[data-testid^="mat-town-slot-"], [data-testid^="mat-city-slot-"], [data-testid^="mat-fossil-slot-"], [data-testid^="mat-renewable-slot-"]'
+          )
+        ).map((el) => el.getBoundingClientRect());
+        const outside = slots.filter(
+          (r) => r.left < inner.left - 1 || r.right > inner.right + 1 || r.top < inner.top - 1 || r.bottom > inner.bottom + 1
+        ).length;
         return {
           devOverlapsTown0: boxHit(devCard, townSlot0),
           devOverlapsRoadFrame: boxHit(devCard, roadFrame),
+          slotCount: slots.length,
+          slotsOutside: outside,
         };
       });
       expect(matOverlapCheck.devOverlapsTown0).toBe(false);
       expect(matOverlapCheck.devOverlapsRoadFrame).toBe(false);
+      expect(matOverlapCheck.slotCount).toBe(24);
+      expect(matOverlapCheck.slotsOutside).toBe(0);
       if (viewport.width === 1920) {
         await page.getByTestId('player-mat').screenshot({ path: 'docs/ui-after-player-mat.png' });
       }
