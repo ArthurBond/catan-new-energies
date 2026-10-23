@@ -109,7 +109,7 @@ restarts, so the host link keeps working). Delete `saves/` to reset everything.
 | Phase | Owner | Scope | Status |
 | :--- | :--- | :--- | :---: |
 | A | subagent | Server, protocol, room logic, persistence, bots on the server, Windows scripts, server tests | done |
-| B | subagent | Online mode in the UI (lobby, join, seat, reconnect, status), two-browser Playwright test | todo |
+| B | subagent | Online mode in the UI (lobby, join, seat, reconnect, status), two-browser Playwright test | in progress |
 | C | lead | Host guide `docs/hosting-on-windows.md`, LAN check, full verification, progress log | todo |
 
 ### Phase A — acceptance
@@ -227,3 +227,16 @@ build). Double-click `scripts\windows\host-game.cmd` on the host PC.
   and render that; never send anything derived from placeholders to the server (the server
   re-validates anyway). Use `legalActions` on it only for highlighting own options.
 - Online mode must not run browser bots, undo, local save or the hotseat curtain.
+
+### Phase B — in progress
+**Done**
+- `118f34d` server hides opponents' resource breakdown by default (`DEFAULT_ROOM_REDACT_OPTIONS`
+  in `server/room.ts`); test in `server/__tests__/room.test.ts`.
+- `db092ae` `src/network/hydrate.ts` (`hydrateRedactedState`, `playerHandCount`, `isHandHidden`)
+  + `src/network/__tests__/hydrate.test.ts`; `handCount`/`stealVictimsOnHex` in `gameView.ts` use
+  `hiddenResourcesCount`.
+
+**Next** (plan): `src/ui/online/` (`useOnlineGame.ts` connection hook, `OnlineLobby.tsx`,
+`OnlineApp.tsx`), detection in `src/main.tsx`, `online` prop on `TabletopApp` (fixed viewer seat,
+dispatch over the socket, feedback from `lastAction`, no bots/undo/save/curtain/BroadcastChannel),
+`playwright.online.config.ts` + `e2e-online/`, screenshots `docs/online-*.png`.
