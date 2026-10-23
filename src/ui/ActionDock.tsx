@@ -84,8 +84,8 @@ function BuildIcon({ kind, playerId }: { kind: BuildKind; playerId: PlayerId }) 
           <rect x="-12" y="-4" width="24" height="6.5" rx="2" fill={t.fill} stroke={t.stroke} strokeWidth="1" />
         </g>
       )}
-      {kind === 'town' && <TownPieceSvg playerId={playerId} cx={0} cy={-1} scale={1} cutoutAngleDeg={-90} showEmblem={false} />}
-      {kind === 'city' && <CityPieceSvg playerId={playerId} cx={0} cy={-2} scale={0.88} cutoutAngleDeg={-90} showEmblem={false} />}
+      {kind === 'town' && <TownPieceSvg playerId={playerId} cx={0} cy={0} scale={1} cutoutAngleDeg={-90} showEmblem={false} />}
+      {kind === 'city' && <CityPieceSvg playerId={playerId} cx={0} cy={0} scale={0.88} cutoutAngleDeg={-90} showEmblem={false} />}
       {kind === 'devCard' && (
         <g>
           <rect x="-7" y="-11" width="16" height="22" rx="2.5" fill="#2b5f8f" />

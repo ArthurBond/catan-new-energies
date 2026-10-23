@@ -84,9 +84,9 @@ function PieceGlyph({ piece, playerId, size = 22 }: { piece: 'town' | 'city'; pl
   return (
     <svg width={size} height={size} viewBox="-16 -16 32 32" aria-hidden="true">
       {piece === 'town' ? (
-        <TownPieceSvg playerId={playerId} cx={0} cy={-1.5} scale={1.15} cutoutAngleDeg={-90} showEmblem={false} />
+        <TownPieceSvg playerId={playerId} cx={0} cy={0} scale={1.15} cutoutAngleDeg={-90} showEmblem={false} />
       ) : (
-        <CityPieceSvg playerId={playerId} cx={0} cy={-2.5} scale={0.95} cutoutAngleDeg={-90} showEmblem={false} />
+        <CityPieceSvg playerId={playerId} cx={0} cy={0} scale={0.95} cutoutAngleDeg={-90} showEmblem={false} />
       )}
     </svg>
   );

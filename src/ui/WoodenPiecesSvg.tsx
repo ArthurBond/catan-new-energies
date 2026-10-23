@@ -106,8 +106,17 @@ export const PLANT_RADIUS = 7;
 
 const TOWN_RADIUS = 11.5;
 const CITY_APOTHEM = 13;
-const TOWN_DEPTH = 3.5;
-const CITY_DEPTH = 6;
+/** Thickness of the wooden pieces, in board units (drawn downward as the side wall). */
+export const TOWN_DEPTH = 3.5;
+export const CITY_DEPTH = 5;
+
+/**
+ * How far a Town / City reaches from its intersection toward a road, in board units. The piece is
+ * centred on the node (top face raised by half the wall thickness), so this is the same whether the
+ * road leaves upward or downward: flat-edge apothem plus half the thickness.
+ */
+export const TOWN_REACH = TOWN_RADIUS * Math.cos(Math.PI / 6) + TOWN_DEPTH / 2;
+export const CITY_REACH = CITY_APOTHEM + CITY_DEPTH / 2;
 
 function polar(radius: number, deg: number): [number, number] {
   const rad = (deg * Math.PI) / 180;
@@ -232,8 +241,11 @@ function WoodenPiece({
   showEmblem: boolean;
 }) {
   const p = PLAYER_THEMES[playerId];
+  // The side wall hangs below the top face, so raise the whole piece by half its thickness: the
+  // footprint is then centred on the intersection and reaches as far toward a road below the node
+  // as toward one above it.
   return (
-    <g>
+    <g transform={`translate(0, ${(-depth / 2).toFixed(2)})`}>
       {/* Soft contact shadow on the board */}
       <path
         d={d}
@@ -965,11 +977,11 @@ export function ResourceIconSvg({
     case 'steel':
       return (
         <g transform={`translate(${cx}, ${cy}) scale(${scale})`}>
-          {/* Three steel I-beams lying side by side (farthest first), the I profile at their near ends */}
-          <g transform="scale(0.9)">
-            {[2, 1, 0].map((i) => (
-              <IBeamPiece key={i} s={[-10.95 + i * 4.72, -0.9 - i * 3.07]} />
-            ))}
+          {/* Three steel I-beams: two lying side by side with a small gap, the third stacked on top in the middle */}
+          <g>
+            <IBeamPiece s={[-8.95 + 5.4, -1.57 - 3.5]} />
+            <IBeamPiece s={[-8.95, -1.57]} />
+            <IBeamPiece s={[-8.95 + 2.7, -1.57 - 1.75 - BEAM_DEPTH]} />
           </g>
         </g>
       );

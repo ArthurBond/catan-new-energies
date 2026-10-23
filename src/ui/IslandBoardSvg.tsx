@@ -29,6 +29,7 @@ import {
   HEX_RADIUS,
   hexCoordToSvg,
   ISLAND_TRANSFORM,
+  ROAD_LENGTH,
   latticeToSvg,
   PLAYER_THEMES,
   TABLETOP_THEME,
@@ -39,8 +40,10 @@ import {
   HazardTokenSvg,
   InspectorPawnSvg,
   PieceDefs,
+  CITY_DEPTH,
   PLANT_RADIUS,
   PLANT_SOCKET_DIST,
+  TOWN_DEPTH,
   PowerPlantCylinderSvg,
   TownPieceSvg,
 } from './WoodenPiecesSvg';
@@ -686,11 +689,11 @@ export function IslandBoardSvg({
                         opacity={edge.road ? 1 : 0.6}
                         className={edge.road && isFresh(`e${edge.id}`) ? 'piece-drop' : undefined}
                       >
-                        <rect x={-13} y={-1.5} width={29} height={8.5} rx={2} fill="rgba(10,14,20,0.32)" />
+                        <rect x={-ROAD_LENGTH / 2 + 1} y={-1.5} width={ROAD_LENGTH} height={8.5} rx={2} fill="rgba(10,14,20,0.32)" />
                         <rect
-                          x={-14.5}
+                          x={-ROAD_LENGTH / 2}
                           y={-3.5}
-                          width={29}
+                          width={ROAD_LENGTH}
                           height={9}
                           rx={2}
                           fill={pTheme.sideFill}
@@ -698,9 +701,9 @@ export function IslandBoardSvg({
                           strokeWidth={1.1}
                         />
                         <rect
-                          x={-14.5}
+                          x={-ROAD_LENGTH / 2}
                           y={-4.5}
-                          width={29}
+                          width={ROAD_LENGTH}
                           height={7}
                           rx={1.8}
                           fill={pTheme.fill}
@@ -708,9 +711,9 @@ export function IslandBoardSvg({
                           strokeWidth={1.1}
                         />
                         <line
-                          x1={-12}
+                          x1={-ROAD_LENGTH / 2 + 2.5}
                           y1={-2.6}
-                          x2={12}
+                          x2={ROAD_LENGTH / 2 - 2.5}
                           y2={-2.6}
                           stroke={pTheme.highlight}
                           strokeWidth={1.2}
@@ -849,8 +852,10 @@ export function IslandBoardSvg({
             const dx = hp.x - np.x;
             const dy = hp.y - np.y;
             const dist = Math.hypot(dx, dy) || 1;
+            // The town/city top face is raised by half its thickness; keep the plant nested in its notch
+            const lift = (node.building?.type === 'city' ? CITY_DEPTH : TOWN_DEPTH) / 2;
             const slotX = np.x + (dx / dist) * PLANT_SOCKET_DIST;
-            const slotY = np.y + (dy / dist) * PLANT_SOCKET_DIST;
+            const slotY = np.y + (dy / dist) * PLANT_SOCKET_DIST - lift;
 
             const slotKey = `${node.id}-${hexId}`;
             const plant = node.powerPlants.find((p) => p.hexId === hexId) ?? null;

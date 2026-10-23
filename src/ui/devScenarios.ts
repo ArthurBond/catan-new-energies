@@ -7,7 +7,8 @@
  *
  * Variants: `showcase` (action phase), `discard` (roll of 7 discard prompt),
  * `cardchoice` (Climate Conference reward prompt), `victory` (game over summary),
- * `draws2` / `draws3` (global footprint low / high, so the HUD shows 2 / 3 draws per turn).
+ * `draws2` / `draws3` (global footprint low / high, so the HUD shows 2 / 3 draws per turn),
+ * `cityfit` (roads on every side of every building, to check how pieces meet roads).
  */
 
 import { computePlayerLF, computeTrueTotalLF, clampGF } from '../engine/footprint';
@@ -84,10 +85,10 @@ export function applyShowcaseScenario(input: GameState): GameState {
   return state;
 }
 
-export type DevScenario = 'showcase' | 'discard' | 'cardchoice' | 'victory' | 'draws2' | 'draws3';
+export type DevScenario = 'showcase' | 'discard' | 'cardchoice' | 'victory' | 'draws2' | 'draws3' | 'cityfit';
 
 export function applyDevScenario(input: GameState, scenario: string): GameState {
-  if (!['showcase', 'discard', 'cardchoice', 'victory', 'draws2', 'draws3'].includes(scenario)) return input;
+  if (!['showcase', 'discard', 'cardchoice', 'victory', 'draws2', 'draws3', 'cityfit'].includes(scenario)) return input;
   const state = applyShowcaseScenario(input);
   if (scenario === 'discard') {
     state.phase = 'ProductionPhase';
@@ -107,6 +108,15 @@ export function applyDevScenario(input: GameState, scenario: string): GameState 
         isOptional: false,
       },
     ];
+  } else if (scenario === 'cityfit') {
+    // Roads on every side of every town and city, to check how pieces meet roads in all directions
+    for (const node of state.board.intersections) {
+      if (!node.building) continue;
+      for (const edgeId of node.incidentEdgeIds) {
+        const edge = state.board.edges[edgeId]!;
+        if (edge.road === null) edge.road = { playerId: node.building.playerId };
+      }
+    }
   } else if (scenario === 'draws2') {
     // Low global footprint: 2 event discs per turn
     state.trueTotalLF = 3;

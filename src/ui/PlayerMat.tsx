@@ -468,7 +468,7 @@ export function PlayerMat({
                   />
                   <FootprintCloudIconSvg type="plus" cx={0} cy={-2} scale={1.1} />
                   {hasPieceInReserve && (
-                    <TownPieceSvg playerId={player.id} cx={0} cy={-3} scale={TOWN_MAT_SCALE} cutoutAngleDeg={MAT_PIECE_ANGLE} />
+                    <TownPieceSvg playerId={player.id} cx={0} cy={0} scale={TOWN_MAT_SCALE} cutoutAngleDeg={MAT_PIECE_ANGLE} />
                   )}
                 </g>
               );
@@ -504,7 +504,7 @@ export function PlayerMat({
                   <FootprintCloudIconSvg type="plus" cx={0} cy={-11} scale={0.9} />
                   <FootprintCloudIconSvg type="plus" cx={0} cy={6} scale={0.9} />
                   {hasPieceInReserve && (
-                    <CityPieceSvg playerId={player.id} cx={0} cy={-4} scale={CITY_MAT_SCALE} cutoutAngleDeg={MAT_PIECE_ANGLE} />
+                    <CityPieceSvg playerId={player.id} cx={0} cy={0} scale={CITY_MAT_SCALE} cutoutAngleDeg={MAT_PIECE_ANGLE} />
                   )}
                 </g>
               );

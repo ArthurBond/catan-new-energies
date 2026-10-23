@@ -406,6 +406,13 @@ export const SQRT3 = Math.sqrt(3);
  * scaled up around the board centre so it fills the sea frame like the printed board does.
  */
 export const ISLAND_SCALE = 1.17;
+
+/**
+ * Wooden road length along its path. Paths are HEX_RADIUS long, so the road is centred with
+ * (HEX_RADIUS - ROAD_LENGTH) / 2 left free at each end: just enough that a City (the widest piece)
+ * sits against the road end without covering it, in every direction.
+ */
+export const ROAD_LENGTH = 25;
 export const ISLAND_TRANSFORM = `translate(${500 * (1 - ISLAND_SCALE)}, ${500 * (1 - ISLAND_SCALE)}) scale(${ISLAND_SCALE})`;
 
 /**
