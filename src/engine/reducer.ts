@@ -336,7 +336,22 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           next.playerOrder
         );
         applyProductionPayouts(next, prod);
-        autoClearHazards(next.board, sum, next.supply);
+        const cleared = autoClearHazards(next.board, sum, next.supply);
+        // The roll clears hazards by itself, so say so: it must not look like another action did it
+        for (const hexId of cleared.clearedHexIds) {
+          const hex = next.board.hexes[hexId]!;
+          next.log.push({
+            timestamp: next.log.length,
+            message: `The roll of ${sum} cleared the hazard on hex ${hex.id} (${hex.terrain} #${hex.numberDisc}).`,
+          });
+        }
+        for (const nodeId of cleared.clearedNodeIds) {
+          const building = next.board.intersections[nodeId]!.building;
+          next.log.push({
+            timestamp: next.log.length,
+            message: `The roll of ${sum} cleared the hazard on ${building ? `${next.players[building.playerId]!.name}'s ${building.type}` : 'a building'}.`,
+          });
+        }
         next.phase = 'ActionPhase';
       } else {
         // Roll of 7

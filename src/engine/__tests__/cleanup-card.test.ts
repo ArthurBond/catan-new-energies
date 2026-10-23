@@ -64,3 +64,30 @@ describe('Cleanup card is one option or the other', () => {
     expect(hazardCount(state)).toBe(2);
   });
 });
+
+describe('hazards cleared by a roll are logged, so they are not mistaken for a Clean Up', () => {
+  it('names the hex and the building the roll cleared', () => {
+    const state = createInitialGameState({ setupMode: 'first', playerCount: 4, seed: 42 });
+    state.phase = 'ProductionPhase';
+    state.pendingDecisions = [];
+    state.lastDiceRoll = null;
+    const hex = state.board.hexes.find((h) => h.numberDisc === 8 && !h.hasInspector)!;
+    hex.hasHazard = true;
+    const node = state.board.intersections.find((n) => n.building && n.adjacentHexIds.includes(hex.id));
+    if (node) node.hasHazard = true;
+
+    // Roll until the dice sum to 8 (the roll is deterministic for a given state, so scan seeds)
+    let after: GameState | null = null;
+    for (let seed = 1; seed < 400 && !after; seed++) {
+      const s = structuredClone(state);
+      s.prng = { seed, calls: 0 };
+      const next = applyAction(s, { type: 'ROLL_DICE', playerId: s.activePlayerId });
+      if (next.lastDiceRoll && next.lastDiceRoll[0] + next.lastDiceRoll[1] === 8) after = next;
+    }
+    expect(after).not.toBeNull();
+    const lines = after!.log.map((e) => e.message).filter((m) => m.startsWith('The roll of 8 cleared'));
+    expect(lines.some((m) => m.includes(`hex ${hex.id}`))).toBe(true);
+    if (node) expect(lines.some((m) => m.includes("'s "))).toBe(true);
+    expect(after!.board.hexes[hex.id]!.hasHazard).toBe(false);
+  });
+});
