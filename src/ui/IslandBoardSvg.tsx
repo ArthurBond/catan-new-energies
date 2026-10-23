@@ -88,35 +88,31 @@ const FOREST_TREES: [number, number, number][] = [
   [26, 6, 0.8],
 ];
 
-/** Quarry pit centre and half-axes: a large smooth ellipse sitting a little right of the hex centre. */
-const PIT = { cx: 2, cy: 4, rx: 37, ry: 35 };
+/**
+ * Quarry levels from the rim down to the floor. The floor is centred on the number disc, so the disc
+ * sits at the bottom of the mine; every level above it is larger and drawn a little higher (seen
+ * from the south), so the far walls show as shaded faces and the near walls as thin lit edges.
+ * `bench` is a level's flat terrace [rx, ry]; `lip` is the top edge of the wall cut down from it.
+ */
+const QUARRY_LEVELS: { cy: number; bench?: [number, number]; lip?: [number, number] }[] = [
+  { cy: -4.8, lip: [38.2, 37.4] },
+  { cy: -3.2, bench: [36, 35], lip: [31.2, 30.4] },
+  { cy: -1.6, bench: [29, 28], lip: [24.2, 23.4] },
+  { cy: 0, bench: [22, 21] },
+];
+const QUARRY_RIM = { cy: -4.8, rx: 38.2, ry: 37.4 };
 
 /**
- * Terrace benches, outermost first: each is a lit salmon ellipse smaller than the last and slid
- * down-right, so a thin shaded wall shows only on the upper-left side of every step.
+ * Soft rolling mounds on the open ground below and above the pit [x, y, rx, ry]: rust shade low-right,
+ * sunlit cap up-left. None at the sides, where the pit leaves only a sliver of ground.
  */
-const PIT_STEPS = [
-  { s: 1, dx: 0, dy: 0 },
-  { s: 0.8, dx: 3, dy: 4 },
-  { s: 0.61, dx: 6.5, dy: 8.5 },
-  { s: 0.43, dx: 10, dy: 13 },
-];
-
-/** Soft rolling mounds round the hex perimeter [x, y, rx, ry]: rust shade low-right, sunlit cap up-left. */
 const HILL_MOUNDS: [number, number, number, number][] = [
   [-24, -45, 17, 9],
-  [1, -50, 13, 7],
   [26, -44, 16, 9],
-  [-43, -24, 11, 10],
-  [43, -26, 11, 10],
-  [-46, 2, 8, 12],
-  [47, 0, 8, 12],
-  [-42, 24, 11, 11],
-  [44, 22, 10, 12],
-  [-30, 40, 17, 10],
+  [-30, 41, 17, 10],
   [-8, 51, 14, 7],
   [14, 51, 14, 7],
-  [32, 41, 16, 10],
+  [32, 42, 16, 10],
 ];
 
 /** Deterministic soft mottling [x, y, rx, ry, rotation, light?] so the painted look is stable per render. */
@@ -160,51 +156,54 @@ function BrickStack({ x, y, s = 1 }: { x: number; y: number; s?: number }) {
   );
 }
 
-/** Dry scrub bush on the quarry rim. */
-function ScrubBush({ x, y, s = 1 }: { x: number; y: number; s?: number }) {
+/** Tiny clay miner in a hard hat: swinging a pick, pushing a barrow of clay, or carrying bricks. */
+function Miner({ x, y, shirt, pose, flip = false, s = 1.25 }: { x: number; y: number; shirt: string; pose: 'pick' | 'barrow' | 'carry'; flip?: boolean; s?: number }) {
   return (
-    <g transform={`translate(${x}, ${y}) scale(${s})`}>
-      <ellipse cx={1.2} cy={2.4} rx={5.6} ry={1.7} fill="rgba(60,20,8,0.3)" />
-      <circle cx={-2.4} cy={0.4} r={2.8} fill="#5f6b2f" stroke="#3a4219" strokeWidth={0.5} />
-      <circle cx={2.6} cy={0.6} r={2.6} fill="#566226" stroke="#3a4219" strokeWidth={0.5} />
-      <circle cx={0} cy={-1.4} r={3.1} fill="#74823a" stroke="#3a4219" strokeWidth={0.5} />
-      <circle cx={-0.9} cy={-2.3} r={1.2} fill="#a1b058" opacity={0.8} />
-    </g>
-  );
-}
-
-/** Tiny quarry worker, optionally pushing a clay cart. */
-function QuarryWorker({ x, y, shirt, cart = false, flip = false }: { x: number; y: number; shirt: string; cart?: boolean; flip?: boolean }) {
-  return (
-    <g transform={`translate(${x}, ${y}) scale(${flip ? -1 : 1}, 1)`}>
-      <ellipse cx={0.4} cy={0.8} rx={2.4} ry={0.8} fill="rgba(40,12,4,0.4)" />
-      {cart && (
-        <g transform="translate(3.6, -0.6)">
-          <path d="M -2.4 -2.4 L 2.4 -2.4 L 1.8 0 L -1.8 0 Z" fill="#5b3a22" stroke="#2f1a0c" strokeWidth={0.35} />
-          <path d="M -2 -2.4 Q 0 -4.2, 2 -2.4 Z" fill="#d9794a" stroke="#6a2a14" strokeWidth={0.3} />
-          <circle cx={0} cy={0.2} r={0.9} fill="#2f1a0c" />
+    <g transform={`translate(${x}, ${y}) scale(${flip ? -s : s}, ${s})`}>
+      <ellipse cx={0.6} cy={0.4} rx={2.5} ry={0.7} fill="rgba(60,20,6,0.38)" />
+      {pose === 'barrow' && (
+        <g transform="translate(4, -0.5)">
+          <path d="M -2.3 -2.1 L -4 -1.3" stroke="#5b3a22" strokeWidth={0.45} strokeLinecap="round" />
+          <path d="M -2.6 -2.7 L 2.8 -2.7 L 2 -0.6 L -1.9 -0.6 Z" fill="#6b4a2f" stroke="#2f1a0c" strokeWidth={0.3} />
+          <path d="M -2.2 -2.7 Q 0.2 -4.8, 2.5 -2.7 Z" fill="#c8673c" stroke="#6a2a14" strokeWidth={0.25} />
+          <circle cx={1.5} cy={0} r={0.85} fill="#2f1a0c" />
         </g>
       )}
-      <rect x={-0.9} y={-3} width={1.8} height={3} rx={0.6} fill={shirt} stroke="#2f1a0c" strokeWidth={0.3} />
-      <circle cx={0} cy={-3.8} r={0.95} fill="#e8b48a" stroke="#2f1a0c" strokeWidth={0.3} />
-      <path d="M -1.1 -4.2 Q 0 -5.4, 1.1 -4.2 Z" fill="#f2c230" stroke="#2f1a0c" strokeWidth={0.25} />
+      <path d="M -0.45 -1.6 L -0.7 0.2 M 0.45 -1.6 L 0.75 0.2" stroke="#3b2a1e" strokeWidth={0.6} strokeLinecap="round" />
+      <rect x={-0.95} y={-3.9} width={1.9} height={2.6} rx={0.6} fill={shirt} stroke="#2f1a0c" strokeWidth={0.25} />
+      <circle cx={0} cy={-4.7} r={0.9} fill="#e8b48a" stroke="#2f1a0c" strokeWidth={0.25} />
+      <path d="M -1.1 -4.95 Q 0 -6.3, 1.1 -4.95 Z" fill="#f2c230" stroke="#2f1a0c" strokeWidth={0.22} />
+      <path d="M -1.4 -4.95 L 1.4 -4.95" stroke="#2f1a0c" strokeWidth={0.3} strokeLinecap="round" />
+      {pose === 'pick' && (
+        <g>
+          <path d="M 0.5 -3.2 L -2.2 -6.3" stroke="#7a5230" strokeWidth={0.45} strokeLinecap="round" />
+          <path d="M -3.2 -5.35 Q -2.6 -6.75, -1.2 -7.25" fill="none" stroke="#9aa3ad" strokeWidth={0.6} strokeLinecap="round" />
+        </g>
+      )}
+      {pose === 'carry' && <rect x={-1.7} y={-3.5} width={3.4} height={1.3} rx={0.2} fill="#c9552d" stroke="#6a2a14" strokeWidth={0.25} />}
     </g>
   );
 }
 
-/** Lit lower-right arc along an ellipse edge, where the step wall catches the sun. */
-function litArc(cx: number, cy: number, rx: number, ry: number): string {
+/** The upper part of an ellipse (from `fromDeg` to `toDeg`, y pointing down), for clay strata on a wall. */
+function upperArc(cx: number, cy: number, rx: number, ry: number, fromDeg = 195, toDeg = 345): string {
   const pt = (deg: number) => {
     const t = (deg * Math.PI) / 180;
     return `${(cx + rx * Math.cos(t)).toFixed(2)} ${(cy + ry * Math.sin(t)).toFixed(2)}`;
   };
-  return `M ${pt(20)} A ${rx} ${ry} 0 0 1 ${pt(95)}`;
+  return `M ${pt(fromDeg)} A ${rx} ${ry} 0 0 1 ${pt(toDeg)}`;
 }
 
-/** Open-pit clay quarry for the hills (brick) tile: burnt-orange hills round a lit, terraced pit. */
+/**
+ * Open-pit clay quarry for the hills (brick) tile: burnt-orange hills round a terraced pit whose floor
+ * is centred under the number disc, with miners at work and bricks stacked by the haul road.
+ */
 function HillsArtworkSvg({ hexId }: { hexId: number }) {
   const id = (name: string) => `hills-${name}-${hexId}`;
-  const floor = { cx: PIT.cx + 10, cy: PIT.cy + 13, rx: PIT.rx * 0.43, ry: PIT.ry * 0.43 };
+  // Haul road: in from the lower-left, over the rim onto the first terrace, along it, then down a
+  // ramp cut through the wall to the second terrace (the arc follows the first terrace's mid-line)
+  const roadPath =
+    'M -37.7 29.6 C -31 26.8, -24.5 25, -19.75 23.25 A 33.6 32.7 0 0 1 -32.45 5.26 C -32.2 0.5, -29.5 -4, -26.2 -6.1';
   return (
     <g>
       <defs>
@@ -213,13 +212,22 @@ function HillsArtworkSvg({ hexId }: { hexId: number }) {
           <stop offset="0.55" stopColor="#db7835" />
           <stop offset="1" stopColor="#a54d20" />
         </radialGradient>
+        {/* Flat terraces: lit, a little shaded on the upper-left under the wall above */}
         <linearGradient id={id('bench')} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#fab07d" />
-          <stop offset="1" stopColor="#e5936a" />
+          <stop offset="0" stopColor="#ee9d69" />
+          <stop offset="0.5" stopColor="#f8b07c" />
+          <stop offset="1" stopColor="#fcc193" />
         </linearGradient>
         <linearGradient id={id('floor')} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#bd6642" />
-          <stop offset="1" stopColor="#dc8a5f" />
+          <stop offset="0" stopColor="#dd8455" />
+          <stop offset="1" stopColor="#eda274" />
+        </linearGradient>
+        {/* Cut walls: in shade where they face away from the light (upper-left), sunlit lower-right */}
+        <linearGradient id={id('wall')} x1="0.15" y1="0.1" x2="0.85" y2="0.9">
+          <stop offset="0" stopColor="#94462a" />
+          <stop offset="0.4" stopColor="#b5592f" />
+          <stop offset="0.7" stopColor="#de8450" />
+          <stop offset="1" stopColor="#f6c093" />
         </linearGradient>
       </defs>
 
@@ -240,8 +248,8 @@ function HillsArtworkSvg({ hexId }: { hexId: number }) {
         </g>
       ))}
 
-      {/* Boulders on the ground */}
-      {([[-38, -6, 1.9], [41, -14, 1.6], [-20, 44, 1.6], [24, -41, 1.5]] as [number, number, number][]).map(([bx, by, br], i) => (
+      {/* Boulders on the ground round the pit */}
+      {([[-40.5, 6, 1.6], [40.5, -2, 1.5], [-14, 45.5, 1.6], [30.5, 27.5, 1.3]] as [number, number, number][]).map(([bx, by, br], i) => (
         <g key={`rock-${i}`}>
           <ellipse cx={bx + 0.6} cy={by + br * 0.6} rx={br * 1.2} ry={br * 0.45} fill="rgba(90,35,14,0.35)" />
           <ellipse cx={bx} cy={by} rx={br} ry={br * 0.75} fill="#c4704a" stroke="#8a4228" strokeWidth={0.4} />
@@ -249,60 +257,60 @@ function HillsArtworkSvg({ hexId }: { hexId: number }) {
         </g>
       ))}
 
-      {/* Shadow the pit lip casts on the surrounding hills */}
-      <ellipse cx={PIT.cx + 1.4} cy={PIT.cy + 2} rx={PIT.rx + 3} ry={PIT.ry + 3} fill="#8a4126" opacity={0.35} />
-
-      {/* Terraces: a thin shaded wall on the upper-left, a lit bench, a bright lip on the lower-right */}
-      {PIT_STEPS.map((step, i) => {
-        const cx = PIT.cx + step.dx;
-        const cy = PIT.cy + step.dy;
-        const rx = PIT.rx * step.s;
-        const ry = PIT.ry * step.s;
+      {/* The pit, rim first: each level's flat bench, then the wall cut down from it, then the next
+          level drawn a little lower on top, so only the far wall faces and thin near edges show */}
+      {QUARRY_LEVELS.map((level, i) => {
+        const isFloor = i === QUARRY_LEVELS.length - 1;
         return (
-          <g key={i}>
-            <ellipse cx={cx - 4.2} cy={cy - 4.2} rx={rx + 0.8} ry={ry + 0.8} fill="#a05940" />
-            <ellipse cx={cx - 2.3} cy={cy - 2.3} rx={rx + 0.4} ry={ry + 0.4} fill="#c47658" />
-            <ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill={`url(#${id('bench')})`} />
-            <path d={litArc(cx, cy, rx, ry)} fill="none" stroke="#ffd9b4" strokeOpacity={0.55} strokeWidth={0.8} strokeLinecap="round" />
+          <g key={`level-${i}`}>
+            {level.bench && (
+              <>
+                <ellipse cx={0} cy={level.cy} rx={level.bench[0]} ry={level.bench[1]} fill={`url(#${id(isFloor ? 'floor' : 'bench')})`} />
+                {/* Soft shade at the foot of the wall above */}
+                <path d={upperArc(0, level.cy + 0.7, level.bench[0] - 0.7, level.bench[1] - 0.7, 200, 340)} fill="none" stroke="#9c4b2b" strokeOpacity={0.3} strokeWidth={1.3} strokeLinecap="round" />
+              </>
+            )}
+            {level.lip && (
+              <>
+                <ellipse cx={0} cy={level.cy} rx={level.lip[0]} ry={level.lip[1]} fill={`url(#${id('wall')})`} />
+                {/* A clay seam along the shaded far wall */}
+                <path d={upperArc(0, level.cy + 0.8, level.lip[0] - 0.9, level.lip[1] - 1.1, 205, 335)} fill="none" stroke="#6b2c17" strokeOpacity={0.22} strokeWidth={0.5} strokeLinecap="round" />
+              </>
+            )}
           </g>
         );
       })}
-      <ellipse cx={floor.cx - 2.4} cy={floor.cy - 2.4} rx={floor.rx + 0.5} ry={floor.ry + 0.5} fill="#8f523d" opacity={0.9} />
-      <ellipse cx={floor.cx} cy={floor.cy} rx={floor.rx} ry={floor.ry} fill={`url(#${id('floor')})`} />
+      <ellipse cx={0} cy={QUARRY_RIM.cy} rx={QUARRY_RIM.rx} ry={QUARRY_RIM.ry} fill="none" stroke="#7a3520" strokeOpacity={0.4} strokeWidth={0.6} />
 
-      {/* Soft mottling over the benches */}
-      {HILL_BLOTCHES.filter((_, i) => i % 2 === 1).map(([bx, by, brx, bry, rot, light], i) => {
-        const px = bx * 0.7 + 3;
-        const py = by * 0.62 + 3;
+      {/* Soft sunlit patches on the terraces */}
+      {HILL_BLOTCHES.filter((_, i) => i % 2 === 1).map(([bx, by, brx, bry, rot], i) => {
+        const px = bx * 0.75;
+        const py = by * 0.72 - 4;
         return (
-          <ellipse key={`bm-${i}`} cx={px} cy={py} rx={brx * 0.8} ry={bry * 0.8} transform={`rotate(${rot.toFixed(0)} ${px.toFixed(1)} ${py.toFixed(1)})`} fill={light ? '#ffd2a6' : '#c9775a'} opacity={light ? 0.28 : 0.2} />
+          <ellipse key={`bm-${i}`} cx={px} cy={py} rx={brx * 0.8} ry={bry * 0.8} transform={`rotate(${rot.toFixed(0)} ${px.toFixed(1)} ${py.toFixed(1)})`} fill="#ffd2a6" opacity={0.2} />
         );
       })}
 
       {/* Speckle grit: darker on the hills, paler in the pit */}
       {HILL_SPECKS.map(([sx, sy, sr], i) => {
-        const inPit = ((sx - PIT.cx) / PIT.rx) ** 2 + ((sy - PIT.cy) / PIT.ry) ** 2 < 0.92;
+        const inPit = (sx / QUARRY_RIM.rx) ** 2 + ((sy - QUARRY_RIM.cy) / QUARRY_RIM.ry) ** 2 < 1;
         return <circle key={`sp-${i}`} cx={sx} cy={sy} r={sr} fill={inPit ? (i % 2 ? '#c9775a' : '#ffd5ab') : i % 2 ? '#8a4026' : '#f0a05c'} opacity={0.4} />;
       })}
 
-      {/* Haul road cutting down across the terraces from the rim */}
-      <path d="M -25 40 Q -14 32, -5 21" transform="translate(0.6, 0.9)" fill="none" stroke="#a24f33" strokeOpacity={0.45} strokeWidth={4} strokeLinecap="round" />
-      <path d="M -25 40 Q -14 32, -5 21" fill="none" stroke="#f2c49a" strokeWidth={3} strokeLinecap="round" />
-      <path d="M -25 40 Q -14 32, -5 21" transform="translate(-0.3, -0.5)" fill="none" stroke="#fff1dc" strokeOpacity={0.6} strokeWidth={0.8} strokeLinecap="round" />
+      {/* Haul road */}
+      <path d={roadPath} transform="translate(0.5, 0.8)" fill="none" stroke="#7a3520" strokeOpacity={0.5} strokeWidth={4} strokeLinecap="round" />
+      <path d={roadPath} fill="none" stroke="#f8d2a8" strokeWidth={3} strokeLinecap="round" />
+      <path d={roadPath} fill="none" stroke="#c98257" strokeOpacity={0.6} strokeWidth={0.35} strokeDasharray="1.4 1.2" />
 
-      {/* Workers and a clay cart on the benches */}
-      <g transform="translate(-29, -2) scale(1.25)"><QuarryWorker x={0} y={0} shirt="#2f6ea8" cart /></g>
-      <g transform="translate(37, 6) scale(1.25)"><QuarryWorker x={0} y={0} shirt="#d9402e" flip /></g>
-      <g transform="translate(13, -24) scale(1.25)"><QuarryWorker x={0} y={0} shirt="#f4f1e6" /></g>
+      {/* Bricks stacked by the road, out of the pit */}
+      <BrickStack x={17} y={37.5} s={0.85} />
+      <BrickStack x={-2} y={44} s={0.72} />
 
-      {/* Brick stacks and scrub on the hills around the rim */}
-      <BrickStack x={-27} y={-31} s={0.9} />
-      <BrickStack x={25} y={40} s={0.9} />
-      <ScrubBush x={29} y={-33} s={0.85} />
-      <ScrubBush x={-37} y={22} s={0.85} />
-      <ScrubBush x={-26} y={39} s={0.7} />
-      <ScrubBush x={5} y={-44} s={0.7} />
-      <ScrubBush x={40} y={-22} s={0.6} />
+      {/* Miners: two cutting clay from the far walls, one wheeling a barrow up the road, one carrying bricks */}
+      <Miner x={-22.5} y={-27.5} shirt="#2f6ea8" pose="pick" />
+      <Miner x={13.3} y={-23.9} shirt="#d9402e" pose="pick" flip />
+      <Miner x={-24.5} y={23.6} shirt="#f4f1e6" pose="barrow" flip />
+      <Miner x={8} y={41} shirt="#3f7f4a" pose="carry" />
     </g>
   );
 }
