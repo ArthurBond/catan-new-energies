@@ -163,10 +163,6 @@ export function PieceDefs() {
           </linearGradient>
         );
       })}
-      <linearGradient id="hazard-top" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stopColor="#b4b6ba" style={{ stopColor: '#b4b6ba' }} />
-        <stop offset="100%" stopColor="#85888d" style={{ stopColor: '#85888d' }} />
-      </linearGradient>
       <pattern id="hex-grain" width="5" height="5" patternUnits="userSpaceOnUse">
         <circle cx="1" cy="1.2" r="0.45" fill="#ffffff" fillOpacity="0.16" />
         <circle cx="3.6" cy="3.4" r="0.5" fill="#000000" fillOpacity="0.1" />
@@ -403,33 +399,75 @@ export function PowerPlantCylinderSvg({
   );
 }
 
-const HAZARD_TEETH = 8;
+/** [amplitude, frequency, phase] waves that make a circle wobble like a spilled puddle. */
+type Wave = [number, number, number];
+const SPILL_WAVES: Wave[] = [
+  [0.1, 2, 0.9],
+  [0.09, 3, 2.1],
+  [0.07, 5, 0.3],
+  [0.04, 7, 1.4],
+];
+const SPILL_HOLE_WAVES: Wave[] = [
+  [0.07, 3, 1.3],
+  [0.05, 5, 0.2],
+];
 
-/** Cog outline (8 rounded teeth) plus a centre hole, drawn with the even-odd rule. */
-function hazardCogPath(outer: number, root: number, hole: number): string {
-  const pitch = 360 / HAZARD_TEETH;
-  const pts: string[] = [];
-  for (let k = 0; k < HAZARD_TEETH; k++) {
-    const a = k * pitch;
-    pts.push(fmt(polar(root, a - pitch * 0.5)));
-    pts.push(fmt(polar(root, a - pitch * 0.27)));
-    pts.push(fmt(polar(outer, a - pitch * 0.17)));
-    pts.push(fmt(polar(outer, a + pitch * 0.17)));
-    pts.push(fmt(polar(root, a + pitch * 0.27)));
+function waveRadius(theta: number, waves: Wave[]): number {
+  let k = 1;
+  for (const [amp, freq, phase] of waves) k += amp * Math.sin(freq * theta + phase);
+  return k;
+}
+
+/** Largest radius factor of the spill outline, so the token's outer radius is exactly the `r` asked for. */
+const SPILL_MAX = (() => {
+  let max = 0;
+  for (let i = 0; i < 720; i++) max = Math.max(max, waveRadius((i / 720) * Math.PI * 2, SPILL_WAVES));
+  return max;
+})();
+
+/** Smooth closed outline through wobbly radius samples (Catmull-Rom converted to cubic Beziers). */
+function wobblyOutline(base: number, waves: Wave[], samples = 30): string {
+  const pts: [number, number][] = [];
+  for (let i = 0; i < samples; i++) {
+    const theta = (i / samples) * Math.PI * 2;
+    const rad = base * waveRadius(theta, waves);
+    pts.push([Math.cos(theta) * rad, Math.sin(theta) * rad]);
   }
-  const h = hole.toFixed(2);
-  return (
-    `M ${pts.join(' L ')} Z ` +
-    `M ${h} 0 A ${h} ${h} 0 1 0 -${h} 0 A ${h} ${h} 0 1 0 ${h} 0 Z`
-  );
+  const f = (n: number) => n.toFixed(2);
+  let d = `M ${f(pts[0]![0])} ${f(pts[0]![1])}`;
+  for (let i = 0; i < samples; i++) {
+    const p0 = pts[(i - 1 + samples) % samples]!;
+    const p1 = pts[i]!;
+    const p2 = pts[(i + 1) % samples]!;
+    const p3 = pts[(i + 2) % samples]!;
+    d +=
+      ` C ${f(p1[0] + (p2[0] - p0[0]) / 6)} ${f(p1[1] + (p2[1] - p0[1]) / 6)}` +
+      `, ${f(p2[0] - (p3[0] - p1[0]) / 6)} ${f(p2[1] - (p3[1] - p1[1]) / 6)}` +
+      `, ${f(p2[0])} ${f(p2[1])}`;
+  }
+  return `${d} Z`;
+}
+
+const spillPathCache = new Map<string, string>();
+
+/** Outer puddle outline plus the hole, as one even-odd path. */
+function spillPath(r: number, holeRatio: number): string {
+  const key = `${r}|${holeRatio}`;
+  let d = spillPathCache.get(key);
+  if (!d) {
+    d = `${wobblyOutline(r / SPILL_MAX, SPILL_WAVES)} ${wobblyOutline(r * holeRatio, SPILL_HOLE_WAVES, 20)}`;
+    spillPathCache.set(key, d);
+  }
+  return d;
 }
 
 /**
- * Hazard token — the grey cardboard cog from the box, with a hole in the middle so the number
- * disc (on a hex) or the player's piece (on a town/city) shows through it.
- * `r` is the outer tooth radius; `holeRatio` sizes the centre hole.
+ * Natural hazard token: the flat grey cardboard oil spill from the box. A wavy puddle with a white
+ * die-cut border, a thin dark edge showing its thickness, a speckled face and a hole in the middle
+ * so the number disc (on a hex) or the player's piece (on a town/city) shows through.
+ * `r` is the largest radius of the puddle; `holeRatio` sizes the hole relative to it.
  */
-export function HazardCogSvg({
+export function HazardTokenSvg({
   cx,
   cy,
   r = 14,
@@ -440,37 +478,34 @@ export function HazardCogSvg({
   r?: number;
   holeRatio?: number;
 }) {
-  const d = hazardCogPath(r, r * 0.8, r * holeRatio);
-  const depth = Math.max(1.5, r * 0.13);
+  const d = spillPath(r, holeRatio);
+  const edge = Math.max(0.8, r * 0.06);
+  const depth = Math.max(1.4, r * 0.08);
   return (
     <g transform={`translate(${cx}, ${cy})`} data-token="hazard">
+      {/* Soft shadow on the board */}
       <path
         d={d}
         fillRule="evenodd"
-        transform={`translate(${(r * 0.12).toFixed(2)}, ${(depth + r * 0.12).toFixed(2)})`}
-        fill="rgba(10, 14, 20, 0.38)"
+        transform={`translate(${(r * 0.1).toFixed(2)}, ${(depth + r * 0.14).toFixed(2)})`}
+        fill="rgba(10, 14, 20, 0.3)"
       />
-      <Extrusion d={d} depth={depth} fill="#63666b" stroke="#3f4247" rotateDeg={0} fillRule="evenodd" />
+      {/* White die-cut border around the face and its thickness */}
+      <path d={d} fillRule="evenodd" fill="#f7f7f4" stroke="#f7f7f4" strokeWidth={edge * 2} strokeLinejoin="round" />
       <path
         d={d}
         fillRule="evenodd"
-        fill="url(#hazard-top) #96989d"
-        stroke="#4a4d52"
-        strokeWidth={Math.max(0.8, r * 0.06)}
+        transform={`translate(0, ${depth.toFixed(2)})`}
+        fill="#f7f7f4"
+        stroke="#f7f7f4"
+        strokeWidth={edge * 2}
         strokeLinejoin="round"
       />
-      {/* Pressed-felt speckle texture */}
-      <path d={d} fillRule="evenodd" fill="url(#hazard-speckle) transparent" opacity={0.85} />
-      {/* Rim light along the upper-left teeth */}
-      <path
-        d={hazardCogPath(r * 0.9, r * 0.72, r * holeRatio * 1.12)}
-        fillRule="evenodd"
-        fill="none"
-        stroke="#ffffff"
-        strokeOpacity={0.22}
-        strokeWidth={Math.max(0.6, r * 0.05)}
-        strokeLinejoin="round"
-      />
+      {/* Thickness: the dark edge under the face */}
+      <path d={d} fillRule="evenodd" transform={`translate(0, ${depth.toFixed(2)})`} fill="#4b4e53" />
+      {/* Speckled grey cardboard face */}
+      <path d={d} fillRule="evenodd" fill="#8d9095" />
+      <path d={d} fillRule="evenodd" fill="url(#hazard-speckle) transparent" opacity={0.9} />
     </g>
   );
 }
@@ -714,6 +749,98 @@ export function FootprintCloudIconSvg({
   );
 }
 
+// ============================================================================
+// Resource icon parts (brick stack, steel I-beams)
+// ============================================================================
+
+type Vec = [number, number];
+const polyPts = (pts: Vec[]) => pts.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(' ');
+const add = (a: Vec, b: Vec): Vec => [a[0] + b[0], a[1] + b[1]];
+const mul = (a: Vec, k: number): Vec => [a[0] * k, a[1] * k];
+
+/** Brick edges: long axis (right and up), short axis (left and up), height drawn downward. */
+const BRICK_A: Vec = [12, -4.5];
+const BRICK_B: Vec = [-5.5, -3.5];
+const BRICK_H = 4.2;
+const BRICK_HOLES: Vec[] = [0.2, 0.5, 0.8].flatMap((u) => [0.3, 0.7].map((v): Vec => [u, v]));
+
+/** One clay brick: top face with its cores, darker end face, lighter long face. `t` is the near top corner. */
+function BrickPiece({ t }: { t: Vec }) {
+  const down: Vec = [0, BRICK_H];
+  const tA = add(t, BRICK_A);
+  const tB = add(t, BRICK_B);
+  const tAB = add(tA, BRICK_B);
+  const holeAngle = (Math.atan2(BRICK_A[1], BRICK_A[0]) * 180) / Math.PI;
+  return (
+    <g strokeLinejoin="round" stroke="#4a1a0a" strokeWidth={0.7}>
+      <polygon points={polyPts([t, tB, add(tB, down), add(t, down)])} fill="#b23a1a" />
+      <polygon points={polyPts([t, tA, add(tA, down), add(t, down)])} fill="#ee7e3d" />
+      <polygon points={polyPts([t, tA, tAB, tB])} fill="#dc5a2b" />
+      <polyline points={polyPts([tB, t, tA])} fill="none" stroke="#f6a066" strokeWidth={0.6} />
+      {BRICK_HOLES.map(([u, v], i) => {
+        const c = add(t, add(mul(BRICK_A, u), mul(BRICK_B, v)));
+        return (
+          <ellipse
+            key={i}
+            cx={c[0]}
+            cy={c[1]}
+            rx={1}
+            ry={0.58}
+            transform={`rotate(${holeAngle} ${c[0]} ${c[1]})`}
+            fill="#6b1f0c"
+            stroke="none"
+          />
+        );
+      })}
+    </g>
+  );
+}
+
+/** Steel I-beam geometry: runs down and to the right, the "I" profile shows at the near end. */
+const BEAM_L: Vec = [8.5, 7.5];
+const BEAM_W: Vec = [4, -2.6];
+const BEAM_DEPTH = 3;
+const BEAM_FLANGE = 1.05;
+
+/** One I-beam. `s` is the top-flange corner at the far (upper-left) end. */
+function IBeamPiece({ s }: { s: Vec }) {
+  const e = add(s, BEAM_L);
+  const at = (base: Vec, u: number, d: number): Vec => add(base, add(mul(BEAM_W, u), [0, d]));
+  const web0 = 0.34;
+  const web1 = 0.66;
+  const D = BEAM_DEPTH;
+  const F = BEAM_FLANGE;
+  return (
+    <g strokeLinejoin="round" stroke="#2b3a4b" strokeWidth={0.6}>
+      {/* lower flange edge, web (set back), upper flange edge */}
+      <polygon points={polyPts([at(s, 0, D - F), at(e, 0, D - F), at(e, 0, D), at(s, 0, D)])} fill="#8ea6bf" />
+      <polygon points={polyPts([at(s, web0, F), at(e, web0, F), at(e, web0, D - F), at(s, web0, D - F)])} fill="#5a7089" />
+      <polygon points={polyPts([at(s, 0, 0), at(e, 0, 0), at(e, 0, F), at(s, 0, F)])} fill="#9db5cc" />
+      {/* top face with a bright strip */}
+      <polygon points={polyPts([at(s, 0, 0), at(e, 0, 0), at(e, 1, 0), at(s, 1, 0)])} fill="#bdd2e6" />
+      <polygon points={polyPts([at(s, 0.12, 0), at(e, 0.12, 0), at(e, 0.34, 0), at(s, 0.34, 0)])} fill="#e3eef8" stroke="none" />
+      {/* the I profile at the near end */}
+      <polygon
+        points={polyPts([
+          at(e, 0, 0),
+          at(e, 1, 0),
+          at(e, 1, F),
+          at(e, web1, F),
+          at(e, web1, D - F),
+          at(e, 1, D - F),
+          at(e, 1, D),
+          at(e, 0, D),
+          at(e, 0, D - F),
+          at(e, web0, D - F),
+          at(e, web0, F),
+          at(e, 0, F),
+        ])}
+        fill="#d2e0ee"
+      />
+    </g>
+  );
+}
+
 /**
  * Vector Resource & Science Miniature Icon
  */
@@ -765,18 +892,38 @@ export function ResourceIconSvg({
     case 'brick':
       return (
         <g transform={`translate(${cx}, ${cy}) scale(${scale})`}>
-          {/* Terracotta Bricks */}
-          <rect x={-8} y={-2} width={11} height={6} rx={1} fill="#c85a38" stroke="#4f1c0b" strokeWidth={1} />
-          <rect x={-3} y={-6} width={11} height={6} rx={1} fill="#df7350" stroke="#4f1c0b" strokeWidth={1} />
+          {/* Three clay bricks with round cores, stacked like the rulebook card */}
+          <g transform="scale(0.82) translate(-0.5, 5.07)">
+            <BrickPiece t={add(BRICK_B, [0, 0])} />
+            <BrickPiece t={[0, 0]} />
+            <BrickPiece t={[1.2, -6.2]} />
+          </g>
         </g>
       );
     case 'natural_fiber':
       return (
         <g transform={`translate(${cx}, ${cy}) scale(${scale})`}>
-          {/* Spool of White/Green Natural Fiber */}
-          <ellipse cx={0} cy={5} rx={5.5} ry={2} fill="#7a5835" stroke="#3a2510" strokeWidth={1} />
-          <path d="M -4.5 5 L -3.5 -5 L 3.5 -5 L 4.5 5 Z" fill="#f2f4ee" stroke="#5c6354" strokeWidth={1} />
-          <ellipse cx={0} cy={-5} rx={4} ry={1.8} fill="#9c7348" stroke="#3a2510" strokeWidth={1} />
+          {/* A big cone of white thread beside a small spool, each on a grey cardboard core */}
+          <g transform="translate(-0.7, 0)" stroke="#6f736b" strokeWidth={0.8} strokeLinejoin="round">
+            <ellipse cx={-2.6} cy={5.2} rx={4.4} ry={1.7} fill="#9a9d96" />
+            <path d="M -5.4 -6.2 L -6.9 5 A 4.3 1.6 0 0 0 1.7 5 L 0.2 -6.2 Z" fill="#f8f8f4" />
+            <path d="M -0.4 -6.2 L 0.2 -6.2 L 1.7 5 A 4.3 1.6 0 0 1 -1 6.4 Z" fill="#d5d8d1" stroke="none" />
+            <path
+              d="M -6.2 -3.2 Q -2.6 -1.6 0.8 -3.2 M -6.5 0 Q -2.6 1.6 1 0 M -6.8 3 Q -2.6 4.6 1.5 3 M -6 2 L 0.5 -4.4"
+              fill="none"
+              stroke="#c6c9c1"
+              strokeWidth={0.7}
+              strokeLinecap="round"
+            />
+            <ellipse cx={-2.6} cy={-6.2} rx={2.9} ry={1.25} fill="#f2f2ee" />
+            <ellipse cx={-2.6} cy={-6.2} rx={1.8} ry={0.75} fill="#5d6168" stroke="none" />
+            <path d="M 2.2 0.8 L 2 5.6 A 3.2 1.2 0 0 0 8.4 5.6 L 8.2 0.8 Z" fill="#f8f8f4" />
+            <path d="M 7 0.8 L 8.2 0.8 L 8.4 5.6 A 3.2 1.2 0 0 1 6.6 6.7 Z" fill="#d5d8d1" stroke="none" />
+            <path d="M 2.1 3 Q 5.2 4.2 8.3 3" fill="none" stroke="#c6c9c1" strokeWidth={0.7} strokeLinecap="round" />
+            <ellipse cx={5.2} cy={0.8} rx={3} ry={1.1} fill="#f2f2ee" />
+            <ellipse cx={5.2} cy={0.8} rx={1.8} ry={0.65} fill="#5d6168" stroke="none" />
+            <path d="M 6 7.2 Q 7 8.2 5.8 8.8 Q 4.8 9.4 5.8 10" fill="none" stroke="#8a8d86" strokeWidth={0.6} strokeLinecap="round" />
+          </g>
         </g>
       );
     case 'food':
@@ -818,14 +965,12 @@ export function ResourceIconSvg({
     case 'steel':
       return (
         <g transform={`translate(${cx}, ${cy}) scale(${scale})`}>
-          {/* Steel I-Beam */}
-          <polygon
-            points="-9,3 4,-6 9,-2 -4,7"
-            fill="#7a8899"
-            stroke="#242c36"
-            strokeWidth={1.1}
-          />
-          <line x1={-6} y1={4} x2={6} y2={-4} stroke="#cbd5e0" strokeWidth={1.4} />
+          {/* Three steel I-beams lying side by side (farthest first), the I profile at their near ends */}
+          <g transform="scale(0.9)">
+            {[2, 1, 0].map((i) => (
+              <IBeamPiece key={i} s={[-10.95 + i * 4.72, -0.9 - i * 3.07]} />
+            ))}
+          </g>
         </g>
       );
     case 'science':

@@ -36,7 +36,7 @@ import {
 } from './theme';
 import {
   EnergyBoltSvg,
-  HazardCogSvg,
+  HazardTokenSvg,
   InspectorPawnSvg,
   PieceDefs,
   PlayerEmblemSvg,
@@ -1064,7 +1064,7 @@ export function DevCardPlayModal({
               icon={
                 <svg width="40" height="40" viewBox="-20 -20 40 40">
                   <PieceDefs />
-                  <HazardCogSvg cx={0} cy={-1} r={16} />
+                  <HazardTokenSvg cx={0} cy={-1} r={16} />
                 </svg>
               }
             />

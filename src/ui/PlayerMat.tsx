@@ -24,7 +24,7 @@ import {
   CityPieceSvg,
   EnergyBoltSvg,
   FootprintCloudIconSvg,
-  HazardCogSvg,
+  HazardTokenSvg,
   PlayerEmblemSvg,
   PowerPlantCylinderSvg,
   ResourceIconSvg,
@@ -657,7 +657,7 @@ export function PlayerMat({
                   {a.testId === 'energy-action-clean-hazard' && (
                     <>
                       <EnergyBoltSvg cx={-1} cy={-15} scale={0.62} />
-                      <HazardCogSvg cx={-1} cy={13} r={11} />
+                      <HazardTokenSvg cx={-1} cy={13} r={11} />
                       <path d="M -10 22 L 9 4" stroke="#c9302c" strokeWidth={2.4} strokeLinecap="round" />
                     </>
                   )}

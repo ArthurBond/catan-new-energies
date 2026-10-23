@@ -6,7 +6,7 @@
 import 'preact/compat';
 import { GameState, PlayerId, ResourceType } from '../engine/types';
 import { CARD_METADATA, PLAYER_THEMES } from './theme';
-import { EnergyBoltSvg, HazardCogSvg, PieceDefs, ResourceIconSvg } from './WoodenPiecesSvg';
+import { EnergyBoltSvg, HazardTokenSvg, PieceDefs, ResourceIconSvg } from './WoodenPiecesSvg';
 
 const PIP_COORDS: Record<number, [number, number][]> = {
   1: [[0, 0]],
@@ -276,7 +276,7 @@ export function TableRail({
           <div className="tt-stack" data-testid="supply-hazards" title={`Hazard tokens: ${state.supply.hazards} left`}>
             <svg width="28" height="33" viewBox="-17 -20 34 40" aria-hidden="true">
               <PieceDefs />
-              <HazardCogSvg cx={0} cy={-1} r={13} />
+              <HazardTokenSvg cx={0} cy={-1} r={13} />
             </svg>
             <strong>{state.supply.hazards}</strong>
           </div>

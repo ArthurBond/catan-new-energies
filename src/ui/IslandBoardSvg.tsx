@@ -36,7 +36,7 @@ import {
 } from './theme';
 import {
   CityPieceSvg,
-  HazardCogSvg,
+  HazardTokenSvg,
   InspectorPawnSvg,
   PieceDefs,
   PLANT_RADIUS,
@@ -501,11 +501,9 @@ export function IslandBoardSvg({
           const isProducing = producingHexIds?.has(hex.id) ?? false;
           const isHighProb = hex.numberDisc === 6 || hex.numberDisc === 8;
           const pips = hex.numberDisc ? getNumberDiscPips(hex.numberDisc) : 0;
-          const discInk = hex.hasHazard
-            ? '#6b6f75'
-            : isHighProb
-              ? TABLETOP_THEME.board.numberDiscRed
-              : TABLETOP_THEME.board.numberDiscCharcoal;
+          const discInk = isHighProb
+            ? TABLETOP_THEME.board.numberDiscRed
+            : TABLETOP_THEME.board.numberDiscCharcoal;
 
           return (
             <g
@@ -527,15 +525,6 @@ export function IslandBoardSvg({
               {/* Vector Terrain Illustration */}
               <TerrainArtworkSvg terrain={hex.terrain} hexId={hex.id} />
 
-              {/* A hazard blocks the whole hex: grey the artwork out */}
-              {hex.hasHazard && (
-                <polygon
-                  points={getPointyHexPoints(0, 0, HEX_RADIUS - 4.8)}
-                  fill="rgba(58, 62, 70, 0.42)"
-                  pointerEvents="none"
-                />
-              )}
-
               {/* Cream Circular Number Disc */}
               {hex.numberDisc !== null && (
                 <g data-testid={`number-disc-${hex.id}`}>
@@ -544,15 +533,13 @@ export function IslandBoardSvg({
                     cx={0}
                     cy={0}
                     r={17}
-                    fill={hex.hasHazard ? '#d9d6cc' : TABLETOP_THEME.board.numberDiscFill}
+                    fill={TABLETOP_THEME.board.numberDiscFill}
                     stroke={
-                      isHighProb && !hex.hasHazard
-                        ? TABLETOP_THEME.board.numberDiscRed
-                        : TABLETOP_THEME.board.numberDiscStroke
+                      isHighProb ? TABLETOP_THEME.board.numberDiscRed : TABLETOP_THEME.board.numberDiscStroke
                     }
                     strokeWidth={isHighProb ? 2 : 1.4}
                   />
-                  {isHighProb && !hex.hasHazard && (
+                  {isHighProb && (
                     <circle
                       cx={0}
                       cy={0}
@@ -591,13 +578,13 @@ export function IslandBoardSvg({
                 </g>
               )}
 
-              {/* Hazard cog lies on top of the number disc; its hole keeps the number readable */}
+              {/* Hazard token lies over the number disc; its hole keeps the number readable */}
               {hex.hasHazard && (
                 <g
                   data-testid={`hex-hazard-${hex.id}`}
                   className={isFresh(`hzh${hex.id}`) ? 'piece-drop' : undefined}
                 >
-                  <HazardCogSvg cx={0} cy={0} r={30} holeRatio={0.5} />
+                  <HazardTokenSvg cx={0} cy={0} r={34} holeRatio={0.58} />
                 </g>
               )}
 
@@ -828,13 +815,13 @@ export function IslandBoardSvg({
                 </g>
               )}
 
-              {/* Hazard cog resting on the building */}
+              {/* Hazard token resting on the building (its hole shows the piece beneath) */}
               {node.hasHazard && (
                 <g
                   data-testid={`node-hazard-${node.id}`}
                   className={isFresh(`hzn${node.id}`) ? 'piece-drop' : undefined}
                 >
-                  <HazardCogSvg cx={0} cy={-1} r={node.building?.type === 'city' ? 12 : 10.5} holeRatio={0.38} />
+                  <HazardTokenSvg cx={0} cy={-2} r={node.building?.type === 'city' ? 17 : 15} holeRatio={0.46} />
                 </g>
               )}
 
