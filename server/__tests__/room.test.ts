@@ -278,6 +278,49 @@ describe('GameRoom actions', () => {
     expect(friend.last('state')!.state.devCardsBoughtThisTurn).toEqual(['hidden']);
     expect(host.last('state')!.state.devCardsBoughtThisTurn).toEqual(['dev_cleanup_secret_orange']);
   });
+
+  it('never sends a socket another player’s resource breakdown, only the card count', () => {
+    const { room, saves } = startedRoom();
+    const saved = saves.at(-1)!;
+    const game = saved.game!;
+    // Distinct hands, so a leak of any single number would show.
+    game.players.orange.resources = { lumber: 3, brick: 1, natural_fiber: 0, food: 2, steel: 0 };
+    game.players.orange.science = 1;
+    game.players.purple.resources = { lumber: 0, brick: 4, natural_fiber: 1, food: 0, steel: 2 };
+    game.players.purple.science = 2;
+    room.shutdown();
+
+    const { room: room2, join } = makeRoom({ saved });
+    const host = join('h', { name: 'Hana', hostKey: HOST_KEY });
+    const friend = join('f', { name: 'Finn', seatToken: saved.seats.purple!.token });
+    room2.handleMessage('h', { type: 'action', action: legalActions(room2.gameState!, 'orange')[0]! });
+
+    const truth = room2.gameState!;
+    const zero = { lumber: 0, brick: 0, natural_fiber: 0, food: 0, steel: 0 };
+    for (const [client, me] of [
+      [host, 'orange'],
+      [friend, 'purple'],
+    ] as const) {
+      const states = client.all('state');
+      expect(states.length).toBeGreaterThan(0);
+      for (const s of states) {
+        for (const pid of s.state.playerOrder) {
+          const p = s.state.players[pid];
+          const real = truth.players[pid];
+          const total =
+            Object.values(real.resources).reduce((a, b) => a + b, 0) + real.science;
+          expect(p.hiddenResourcesCount).toBe(total);
+          if (pid === me) {
+            expect(p.resources).toEqual(real.resources);
+            expect(p.science).toBe(real.science);
+          } else {
+            expect(p.resources).toEqual(zero);
+            expect(p.science).toBe(0);
+          }
+        }
+      }
+    }
+  });
 });
 
 describe('GameRoom persistence', () => {

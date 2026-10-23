@@ -73,8 +73,15 @@ export interface GameRoomOptions {
   randomToken?: () => string;
   randomSeed?: () => number;
   log?: (message: string) => void;
+  /**
+   * How each socket's view is redacted. Default: opponents' resource and science cards are hidden
+   * (only `hiddenResourcesCount` is sent), because every player sits at their own screen.
+   */
   redactOptions?: RedactOptions;
 }
+
+/** Players on separate laptops only see how many cards the others hold, not which. */
+export const DEFAULT_ROOM_REDACT_OPTIONS: RedactOptions = { hideOpponentResources: true };
 
 interface ClientRecord {
   client: RoomClient;
@@ -200,6 +207,7 @@ const defaultTimers: RoomTimers = {
 export class GameRoom {
   private readonly hostKey: string;
   private readonly opts: GameRoomOptions;
+  private readonly redactOptions: RedactOptions;
   private readonly timers: RoomTimers;
   private readonly clients = new Map<string, ClientRecord>();
 
@@ -215,6 +223,7 @@ export class GameRoom {
 
   constructor(options: GameRoomOptions) {
     this.opts = options;
+    this.redactOptions = options.redactOptions ?? DEFAULT_ROOM_REDACT_OPTIONS;
     this.hostKey = options.hostKey;
     this.timers = options.timers ?? defaultTimers;
     const saved = options.saved;
@@ -694,8 +703,8 @@ export class GameRoom {
   private sendState(rec: ClientRecord, lastAction: GameAction | null, drawn: EventDiscType | null = null): void {
     if (!this.game) return;
     const state = rec.playerId
-      ? redactForPlayer(this.game, rec.playerId, this.opts.redactOptions)
-      : redactForSpectator(this.game, this.opts.redactOptions);
+      ? redactForPlayer(this.game, rec.playerId, this.redactOptions)
+      : redactForSpectator(this.game, this.redactOptions);
     this.send(rec, {
       type: 'state',
       state,
