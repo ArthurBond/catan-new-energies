@@ -22,6 +22,7 @@ import { getDevCardType } from '@/engine/dev-cards';
 import { canOfferTrade } from '@/engine/energy-trades';
 import { Mulberry32PRNG } from '@/engine/prng';
 import { applyAction } from '@/engine/reducer';
+import { evaluateEmptyBagVictory } from '@/engine/victory';
 import type { GameAction, GameState, PlayerId, ResourceType } from '@/engine/types';
 import { hydrateRedactedState } from '@/network/hydrate';
 import { redactForPlayer } from '@/network/redact';
@@ -551,6 +552,11 @@ function expectCleanFinish(outcome: GameOutcome): void {
     expect(h.view!.currentTurn).toBe(state.currentTurn);
     expect(h.view!.activePlayerId).toBe(state.activePlayerId);
     expect(wire(h.view!.board)).toEqual(wire(state.board));
+    // The final standings read the same from the browser's view: every VP card is revealed.
+    expect(evaluateEmptyBagVictory(h.view!).details.scores).toEqual(evaluateEmptyBagVictory(state).details.scores);
+    for (const pid of state.playerOrder) {
+      expect(h.view!.players[pid]!.devCards.unplayed).toEqual(state.players[pid]!.devCards.unplayed);
+    }
   }
 }
 

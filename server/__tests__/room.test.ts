@@ -323,6 +323,78 @@ describe('GameRoom actions', () => {
   });
 });
 
+describe('GameRoom game end', () => {
+  it('keeps hands secret during play and shows every hand to every socket once the game is over', () => {
+    const ctx = makeRoom();
+    ctx.join('h', { name: 'Hana', hostKey: HOST_KEY });
+    const cfg = twoHumansConfig({ playerCount: 3 });
+    cfg.seats.pink.controller = 'human';
+    ctx.room.handleMessage('h', { type: 'configure', config: cfg });
+    ctx.join('f', { name: 'Finn' });
+    ctx.room.handleMessage('f', { type: 'claimSeat', playerId: 'purple' });
+    ctx.room.handleMessage('h', { type: 'start' });
+    const saved = ctx.saves.at(-1)!;
+    ctx.room.shutdown();
+
+    // Resume one draw away from an empty bag: the next disc ends the game on the clean-energy
+    // balance, and Finn holds a Victory Point card nobody else may see until then.
+    const game = saved.game!;
+    game.phase = 'EventPhase';
+    game.activePlayerId = 'orange';
+    game.pendingDecisions = [];
+    game.eventBag = [];
+    game.players.orange.renewablePlantsBuilt = 2;
+    game.players.purple.devCards.unplayed = ['dev_victoryPoint_secret'];
+    game.players.purple.hiddenGreenDiscs = ['green_secret'];
+    game.players.purple.resources = { lumber: 0, brick: 4, natural_fiber: 1, food: 0, steel: 2 };
+    game.players.pink.resources = { lumber: 3, brick: 0, natural_fiber: 0, food: 1, steel: 0 };
+
+    const { room, join } = makeRoom({ saved });
+    const host = join('h', { name: 'Hana', hostKey: HOST_KEY });
+    const friend = join('f', { name: 'Finn', seatToken: saved.seats.purple!.token });
+    const watcher = join('w', { name: 'Wes' });
+    const clients: [FakeClient, PlayerId | null][] = [
+      [host, 'orange'],
+      [friend, 'purple'],
+      [watcher, null],
+    ];
+
+    // During play: Finn's card, green disc and hand are hidden from the others.
+    for (const [client, me] of clients) {
+      const wire = JSON.stringify(client.messages);
+      if (me !== 'purple') {
+        expect(wire).not.toContain('dev_victoryPoint_secret');
+        expect(wire).not.toContain('green_secret');
+      }
+      expect(client.last('state')!.state.phase).toBe('EventPhase');
+    }
+    expect(host.last('state')!.state.players.purple.resources.brick).toBe(0);
+
+    room.handleMessage('h', { type: 'action', action: { type: 'DRAW_EVENT_DISC', playerId: 'orange' } });
+    expect(room.gameState!.phase).toBe('GameEnd');
+
+    // Game over: everyone sees everything about the players (but never the deck, bag or PRNG).
+    for (const [client, me] of clients) {
+      const s = client.last('state')!;
+      expect(s.state.phase).toBe('GameEnd');
+      expect(s.state.winner).toBe('orange');
+      expect(s.yourPlayerId).toBe(me);
+      for (const pid of s.state.playerOrder) {
+        const p = s.state.players[pid];
+        const real = room.gameState!.players[pid];
+        expect(p.devCards.unplayed).toEqual(real.devCards.unplayed);
+        expect(p.hiddenGreenDiscs).toEqual(real.hiddenGreenDiscs);
+        expect(p.resources).toEqual(real.resources);
+        expect(p.science).toBe(real.science);
+      }
+      expect(s.state.players.purple.devCards.unplayed).toEqual(['dev_victoryPoint_secret']);
+      expect(s.state.supply.devDeck).toBeUndefined();
+      expect(s.state.eventBag).toBeUndefined();
+      expect(s.state.prng).toBeUndefined();
+    }
+  });
+});
+
 describe('GameRoom persistence', () => {
   it('round-trips a game, its version and seat tokens through a save', () => {
     const { room, saves, join } = makeRoom();

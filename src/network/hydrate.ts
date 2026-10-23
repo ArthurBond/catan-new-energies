@@ -10,7 +10,7 @@
 
 import { getHandSizeForSeven, isHandBreakdownHidden } from '../engine/production';
 import type { EventDiscType, GameState, PlayerId, PlayerState } from '../engine/types';
-import { HIDDEN_DEV_CARD_ID, type RedactedGameState } from './redact';
+import { HIDDEN_DEV_CARD_ID, isGameOver, type RedactedGameState } from './redact';
 
 /** Stands in for any card or disc the viewer may not see. */
 export const PLACEHOLDER_CARD_ID = HIDDEN_DEV_CARD_ID;
@@ -28,6 +28,8 @@ function placeholders(count: number): string[] {
  */
 export function hydrateRedactedState(r: RedactedGameState, viewerId: PlayerId | null): GameState {
   const players = {} as Record<PlayerId, PlayerState>;
+  // A finished game is shown to everyone in full (`redactForPlayer`), including every hand.
+  const allRevealed = isGameOver(r);
   for (const pid of r.playerOrder) {
     const p = r.players[pid];
     if (!p) continue;
@@ -41,7 +43,7 @@ export function hydrateRedactedState(r: RedactedGameState, viewerId: PlayerId | 
       },
       hiddenGreenDiscs: hiddenGreenDiscs ? [...hiddenGreenDiscs] : placeholders(hiddenGreenDiscsCount),
       hiddenResourcesCount,
-      handHidden: pid !== viewerId,
+      handHidden: pid !== viewerId && !allRevealed,
     };
     players[pid] = hydrated;
   }

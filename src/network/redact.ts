@@ -13,6 +13,9 @@
  * - Identities of development cards bought this turn (`devCardsBoughtThisTurn`) unless the
  *   viewer owns them (other viewers see the placeholder 'hidden').
  * - A `null` viewer (spectator / unseated socket) sees every hand redacted.
+ * - Once the game is over nothing about the players is hidden any more (see `isGameOver`): every
+ *   hand, dev card and face-down green disc is revealed to every viewer, because the final
+ *   standings count unrevealed Victory Point cards. The dev deck, event bag and PRNG stay hidden.
  */
 
 import { GameState, PlayerId, PlayerState } from '../engine/types';
@@ -55,6 +58,11 @@ function computeTotalHandCards(p: PlayerState): number {
   );
 }
 
+/** True once the game has a winner (or ended on the empty bag): all player secrets are revealed. */
+export function isGameOver(state: Pick<GameState, 'phase' | 'winner'>): boolean {
+  return state.phase === 'GameEnd' || state.winner !== null;
+}
+
 /** Placeholder that replaces dev card ids the viewer is not allowed to see. */
 export const HIDDEN_DEV_CARD_ID = 'hidden';
 
@@ -64,6 +72,7 @@ export function redactForPlayer(
   options?: RedactOptions
 ): RedactedGameState {
   const cloned: GameState = structuredClone(state);
+  const revealAll = isGameOver(cloned);
 
   const redactedPlayers: Record<PlayerId, RedactedPlayerState> = {
     orange: undefined as unknown as RedactedPlayerState,
@@ -76,7 +85,7 @@ export function redactForPlayer(
     const p = cloned.players[pid]!;
     const totalHandCards = computeTotalHandCards(p);
 
-    if (pid === viewerId) {
+    if (pid === viewerId || revealAll) {
       redactedPlayers[pid] = {
         ...p,
         devCards: {
@@ -126,7 +135,8 @@ export function redactForPlayer(
   // Cards bought this turn are listed by id at the top level; only their owner may see them.
   const viewer = viewerId ? cloned.players[viewerId] : undefined;
   const ownCards = new Set<string>(viewer ? [...viewer.devCards.unplayed, ...viewer.devCards.played] : []);
-  const maskBought = (ids: string[]) => ids.map((id) => (ownCards.has(id) ? id : HIDDEN_DEV_CARD_ID));
+  const maskBought = (ids: string[]) =>
+    ids.map((id) => (revealAll || ownCards.has(id) ? id : HIDDEN_DEV_CARD_ID));
 
   const redacted: RedactedGameState = {
     ...restCloned,

@@ -272,8 +272,10 @@ describe('Multiplayer State Redaction & Transport Layer (Task 5.2)', () => {
         expect(clientState.prng).toBeUndefined();
         expect(clientState.supply.devDeck).toBeUndefined();
         expect(clientState.eventBag).toBeUndefined();
+        // A finished game is shown in full: every player's discs and cards are revealed
         expect(clientState.players[pid].hiddenGreenDiscs).toBeDefined();
-        expect(clientState.players.orange.hiddenGreenDiscs).toBeUndefined();
+        expect(clientState.players.orange.hiddenGreenDiscs).toBeDefined();
+        expect(clientState.players.orange.devCards.unplayed).toBeDefined();
       }
 
       clients.purple.close();

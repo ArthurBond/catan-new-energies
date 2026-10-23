@@ -58,6 +58,24 @@ describe('hydrateRedactedState', () => {
     expect(handCount(view, 'orange')).toBe(5);
   });
 
+  it('shows every hand and card of a finished game to every viewer', () => {
+    const truth = richState();
+    truth.phase = 'GameEnd';
+    truth.winner = 'orange';
+    for (const viewer of [...truth.playerOrder, null]) {
+      const view = hydrateRedactedState(wire(redactForPlayer(truth, viewer, { hideOpponentResources: true })), viewer);
+      for (const pid of truth.playerOrder) {
+        expect(isHandHidden(view.players[pid])).toBe(false);
+        expect(view.players[pid].resources).toEqual(truth.players[pid].resources);
+        expect(view.players[pid].science).toBe(truth.players[pid].science);
+        expect(view.players[pid].devCards.unplayed).toEqual(truth.players[pid].devCards.unplayed);
+        expect(view.players[pid].hiddenGreenDiscs).toEqual(truth.players[pid].hiddenGreenDiscs);
+      }
+      // The deck and the bag are still only counts.
+      expect(view.supply.devDeck.every((id) => id === PLACEHOLDER_CARD_ID)).toBe(true);
+    }
+  });
+
   it('keeps 3-player games without a blue seat and spectators without any hand', () => {
     const truth = richState(3);
     const view = hydrateRedactedState(wire(redactForSpectator(truth, { hideOpponentResources: true })), null);
