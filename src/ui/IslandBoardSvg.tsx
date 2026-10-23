@@ -281,13 +281,6 @@ function TerrainArtworkSvg({ terrain, hexId }: { terrain: TerrainType; hexId: nu
                 />
               </g>
             ))}
-
-            {/* Mini Harvester Tractor along the lower-left swath */}
-            <g transform="translate(-14, 24) rotate(28)">
-              <rect x={-5} y={-3} width={10} height={6} rx={1.5} fill="#2f6f3e" stroke="#1a3d22" strokeWidth={0.8} />
-              <rect x={-2} y={-2} width={4} height={4} rx={0.8} fill="#e2e8f0" />
-              <rect x={5} y={-5.5} width={2.5} height={11} rx={0.8} fill="#b84a27" />
-            </g>
           </g>
         )}
 
@@ -316,9 +309,6 @@ function TerrainArtworkSvg({ terrain, hexId }: { terrain: TerrainType; hexId: nu
             ].map(([rx, ry], i) => (
               <ellipse key={i} cx={rx} cy={ry} rx={3} ry={1.8} fill="#9aa5b4" stroke="#3b424c" strokeWidth={0.6} />
             ))}
-            {/* Mine portal */}
-            <rect x={-26} y={14} width={12} height={11} rx={2} fill="#1f242b" stroke="#a0aec0" strokeWidth={1.2} />
-            <path d="M -26 14 L -14 14" stroke="#c9a46b" strokeWidth={1.6} />
           </g>
         )}
 

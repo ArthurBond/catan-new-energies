@@ -732,14 +732,34 @@ export function ResourceIconSvg({
     case 'lumber':
       return (
         <g transform={`translate(${cx}, ${cy}) scale(${scale})`}>
-          {/* 3D Wood Beam / Log */}
-          <polygon
-            points="-9,2 3,-7 9,-3 -3,6"
-            fill="#8c5828"
-            stroke="#3d230a"
-            strokeWidth={1.1}
-          />
-          <ellipse cx={-6} cy={4} rx={3.2} ry={2.5} fill="#cfa068" stroke="#3d230a" strokeWidth={1} />
+          {/* Three stacked logs: bark sides running up and to the right, cut ends (with growth rings) facing us */}
+          <g transform="translate(0.6, 1.6)">
+          {[
+            { x: -3.4, y: -2.6 },
+            { x: -6.6, y: 3.0 },
+            { x: -0.4, y: 3.0 },
+          ].map((log, i) => (
+            <g key={i}>
+              <path
+                d={`M ${log.x} ${log.y - 3.3} L ${log.x + 8.6} ${log.y - 7} L ${log.x + 8.6} ${log.y - 0.4} L ${log.x} ${log.y + 3.3} Z`}
+                fill="#8a5a2b"
+                stroke="#3d230a"
+                strokeWidth={0.9}
+                strokeLinejoin="round"
+              />
+              <path
+                d={`M ${log.x + 1.2} ${log.y - 1.6} L ${log.x + 8.2} ${log.y - 4.8} M ${log.x + 1.2} ${log.y + 1.2} L ${log.x + 8.2} ${log.y - 2}`}
+                stroke="#5d3b18"
+                strokeWidth={0.8}
+                strokeLinecap="round"
+                fill="none"
+              />
+              <ellipse cx={log.x} cy={log.y} rx={2.9} ry={3.3} fill="#e4b676" stroke="#3d230a" strokeWidth={0.9} />
+              <ellipse cx={log.x} cy={log.y} rx={1.7} ry={2} fill="none" stroke="#a06a33" strokeWidth={0.6} />
+              <circle cx={log.x} cy={log.y} r={0.6} fill="#a06a33" />
+            </g>
+          ))}
+          </g>
         </g>
       );
     case 'brick':
@@ -762,18 +782,37 @@ export function ResourceIconSvg({
     case 'food':
       return (
         <g transform={`translate(${cx}, ${cy}) scale(${scale})`}>
-          {/* Golden Wheat Sheaf / Grain Stalks */}
+          {/* Loaf of bread with two slices cut off in front of it (kept inside the icon box) */}
+          <g transform="translate(-1.4, -0.4) scale(0.9)">
           <path
-            d="M -4 6 L 3 -6 M -1 6 L 0 -7 M 3 6 L -3 -6"
-            stroke="#b7791f"
-            strokeWidth={1.4}
-            strokeLinecap="round"
+            d="M -9.6 0.6 C -9.8 -4.2, -6 -7.4, -1.4 -7.4 C 3 -7.4, 6.4 -4.4, 6.6 0.2 L 6.6 2.6 C 6.6 4.2, 5.6 5, 4.2 5 L -7.4 5 C -8.8 5, -9.6 4.1, -9.6 2.6 Z"
+            fill="#c98a2e"
+            stroke="#6b3d0c"
+            strokeWidth={1}
+            strokeLinejoin="round"
           />
-          <ellipse cx={-3.2} cy={-4.2} rx={2.2} ry={3.8} transform="rotate(-22 -3.2 -4.2)" fill="#f6e05e" stroke="#744210" strokeWidth={0.9} />
-          <ellipse cx={0} cy={-5.2} rx={2.2} ry={4.0} fill="#ecc94b" stroke="#744210" strokeWidth={0.9} />
-          <ellipse cx={3.2} cy={-4.2} rx={2.2} ry={3.8} transform="rotate(22 3.2 -4.2)" fill="#f6e05e" stroke="#744210" strokeWidth={0.9} />
-          {/* Tie ribbon */}
-          <rect x={-3.2} y={1.2} width={6.4} height={2.2} rx={1} fill="#c53030" />
+          <path d="M -8.2 -0.6 C -7.6 -4.6, -4.6 -6.4, -1.4 -6.4 C 1.6 -6.4, 4 -5, 5.2 -2.4 C 2.6 -3.8, -3.6 -3.8, -8.2 -0.6 Z" fill="#e8b04e" />
+          <path d="M -5.6 -5.4 L -3.8 -2.4 M -2 -6 L -0.2 -3 M 1.6 -5.2 L 3.2 -2.4" stroke="#8b5412" strokeWidth={0.9} strokeLinecap="round" />
+          {[
+            { x: 2.2, y: 4.4, rot: 10 },
+            { x: 6.6, y: 5.2, rot: 22 },
+          ].map((slice, i) => (
+            <g key={i} transform={`translate(${slice.x}, ${slice.y}) rotate(${slice.rot})`}>
+              <path
+                d="M -3.9 4.2 L -3.9 -1 C -5.6 -2.2, -4.8 -5.4, -2 -5.8 C -1 -6.4, 1 -6.4, 2 -5.8 C 4.8 -5.4, 5.6 -2.2, 3.9 -1 L 3.9 4.2 Z"
+                fill="#fff0c4"
+                stroke="#a8641a"
+                strokeWidth={1.1}
+                strokeLinejoin="round"
+              />
+              <path
+                d="M -2.6 3 L -2.6 -1.4 C -3.8 -2.6, -3.2 -4.4, -1.4 -4.6 C -0.6 -5, 0.6 -5, 1.4 -4.6 C 3.2 -4.4, 3.8 -2.6, 2.6 -1.4 L 2.6 3 Z"
+                fill="#f6d78a"
+                opacity={0.6}
+              />
+            </g>
+          ))}
+          </g>
         </g>
       );
     case 'steel':
