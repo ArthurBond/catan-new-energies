@@ -488,7 +488,12 @@ async function playWholeGame(
   tmpRoot: string,
   seed: number,
   playerCount: 3 | 4,
-  options: { friendDropsAtVersion?: number; dropOnOwnTurn?: boolean } = {},
+  options: {
+    friendDropsAtVersion?: number;
+    dropOnOwnTurn?: boolean;
+    /** The First Game board with fixed starting pieces: no roll-off, play starts at once. */
+    firstGame?: boolean;
+  } = {},
   timeoutMs = 240_000
 ): Promise<GameOutcome> {
   const distDir = path.join(tmpRoot, 'dist');
@@ -508,6 +513,10 @@ async function playWholeGame(
   cfg.playerCount = playerCount;
   cfg.seats.purple.controller = 'human';
   cfg.botSpeed = 'instant';
+  if (options.firstGame) {
+    cfg.setupMode = 'first';
+    cfg.placement = 'fixed';
+  }
 
   const names = { orange: 'Hana', purple: 'Finn' } as const;
   const humans: Human[] = [];
@@ -644,6 +653,13 @@ describe('a whole game through the real server (2 browsers + bots)', () => {
   it.each([[11], [12]])('plays a 4-seat game to the end (seed %i)', async (seed) => {
     const outcome = await playWholeGame(tmp(), seed, 4);
     console.log(report(`4p seed ${seed}`, outcome));
+    expectCleanFinish(outcome);
+  }, 300_000);
+
+  it('plays a First Game board (fixed starting pieces) to the end', async () => {
+    const outcome = await playWholeGame(tmp(), 21, 4, { firstGame: true });
+    console.log(report('4p First Game seed 21', outcome));
+    expect(outcome.server.room.lobbyConfig).toMatchObject({ setupMode: 'first', placement: 'fixed' });
     expectCleanFinish(outcome);
   }, 300_000);
 
