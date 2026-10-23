@@ -5,7 +5,7 @@
  * 1. Seamless azure ocean frame with shallow turquoise reefs, wave crests & swimming Whales.
  * 2. 9 coastal Harbors (`[data-testid="harbor-0"]`..`harbor-8`) with pier lines, 3:1 / 2:1 labels & resource icons.
  * 3. 12 o'clock Green Island Victory Point Track (`1..10`) with 3D player cylinder markers.
- * 4. 1–2 o'clock Diagonal Global Footprint Track (`0..28` in 4P / `0..21` in 3P) with 3P/4P Whale pod, draw bands & 3D Black Cube marker.
+ * 4. 1–2 o'clock Diagonal Global Footprint Track (`0..28` in 4P / `0..21` in 3P) with 3P/4P Whale pod, draw bands & the black footprint marker (with the footprint cloud).
  * 5. 7 Coastal Event Disc Islands (`[data-testid="event-track-<type>"]`) with empty/filled disc slots.
  */
 
@@ -25,6 +25,7 @@ import {
   latticeToSvg,
   PLAYER_THEMES,
 } from './theme';
+import { FOOTPRINT_CLOUD_CENTRE, FOOTPRINT_CLOUD_PATH_D } from './footprintCloud';
 import { EventIconSvg, PlayerEmblemSvg, ResourceIconSvg } from './WoodenPiecesSvg';
 
 export interface SeaFrameSvgProps {
@@ -189,6 +190,50 @@ function vpTitleArcPath(): string {
 }
 
 // ---------------------------------------------------------------------------
+// Global footprint track cells and marker (cell units, y down)
+// ---------------------------------------------------------------------------
+
+/** Half the side of an ordinary cell (13.6 wide) and of the current one, which is a little larger. */
+const GF_CELL_HALF = 6.8;
+const GF_CELL_CURRENT_HALF = 9.2;
+
+/**
+ * The black wooden footprint marker: a rounded block lit from the top left, with the footprint cloud on its
+ * top face. It stays upright on screen whatever the angle of its cell, so the cloud always reads the right way
+ * up and the light never changes direction; it is centred on the cell and sized to clear the ring at any tilt.
+ */
+function GfMarker({ counterRotateDeg }: { counterRotateDeg: number }) {
+  const cloudScale = 0.45;
+  return (
+    <g data-testid="gf-marker" transform={`rotate(${counterRotateDeg.toFixed(1)})`}>
+      {/* Soft contact shadow, away from the light */}
+      <rect x={-5.4} y={-4.7} width={11.6} height={11.2} rx={2.7} fill="rgba(0, 0, 0, 0.4)" />
+      {/* The near side of the block, darker than the top */}
+      <rect x={-5.8} y={-5.3} width={11.6} height={11.2} rx={2.7} fill="#0b0d10" />
+      {/* Top face with a faint rim light along its lit edges */}
+      <rect x={-5.8} y={-6.2} width={11.6} height={10.7} rx={2.7} fill="url(#gfMarkerTopGrad)" />
+      <rect
+        x={-5.4}
+        y={-5.8}
+        width={10.8}
+        height={9.9}
+        rx={2.3}
+        fill="none"
+        stroke="url(#gfMarkerRimGrad)"
+        strokeWidth={0.6}
+      />
+      {/* The same cloud as the footprint widget, centred on the top face */}
+      <path
+        data-testid="gf-marker-cloud"
+        d={FOOTPRINT_CLOUD_PATH_D}
+        transform={`translate(${(-FOOTPRINT_CLOUD_CENTRE.x * cloudScale).toFixed(2)}, ${(-0.85 - FOOTPRINT_CLOUD_CENTRE.y * cloudScale).toFixed(2)}) scale(${cloudScale})`}
+        fill="#f5f9fc"
+      />
+    </g>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Event disc islands: curved bands concentric with the rim
 // ---------------------------------------------------------------------------
 
@@ -266,6 +311,17 @@ export function SeaFrameSvg({
           <stop offset="0%" stopColor="#ad9b7e" style={{ stopColor: '#ad9b7e' }} />
           <stop offset="60%" stopColor="#85745b" style={{ stopColor: '#85745b' }} />
           <stop offset="100%" stopColor="#5e503d" style={{ stopColor: '#5e503d' }} />
+        </linearGradient>
+
+        {/* Black wooden footprint marker: lit from the top left (top face, then a faint rim light) */}
+        <linearGradient id="gfMarkerTopGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#3b424b" style={{ stopColor: '#3b424b' }} />
+          <stop offset="100%" stopColor="#14171b" style={{ stopColor: '#14171b' }} />
+        </linearGradient>
+        <linearGradient id="gfMarkerRimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#ffffff" style={{ stopColor: '#ffffff', stopOpacity: 0.55 }} />
+          <stop offset="55%" stopColor="#ffffff" style={{ stopColor: '#ffffff', stopOpacity: 0.06 }} />
+          <stop offset="100%" stopColor="#ffffff" style={{ stopColor: '#ffffff', stopOpacity: 0 }} />
         </linearGradient>
       </defs>
 
@@ -652,7 +708,7 @@ export function SeaFrameSvg({
           {/* Left Green Minus Cloud (-1 LF) */}
           <g transform="translate(-31, -11)">
             <path
-              d="M -8 4 C -11 4, -12 1.5, -11 -1 C -11 -3.5, -8 -5, -5.5 -4.5 C -4 -7.5, 1 -8, 3.5 -5 C 6.5 -5.5, 9 -3, 8.5 0 C 10 1.5, 9 4, 6.5 4 Z"
+              d={FOOTPRINT_CLOUD_PATH_D}
               fill="#4ea83b"
               stroke="#e6f7de"
               strokeWidth={1.1}
@@ -685,7 +741,7 @@ export function SeaFrameSvg({
           {/* Right Grey Plus Cloud (+1 LF) */}
           <g transform="translate(28, -11)">
             <path
-              d="M -8 4 C -11 4, -12 1.5, -11 -1 C -11 -3.5, -8 -5, -5.5 -4.5 C -4 -7.5, 1 -8, 3.5 -5 C 6.5 -5.5, 9 -3, 8.5 0 C 10 1.5, 9 4, 6.5 4 Z"
+              d={FOOTPRINT_CLOUD_PATH_D}
               fill="#636b75"
               stroke="#e2e8f0"
               strokeWidth={1.1}
@@ -761,6 +817,8 @@ export function SeaFrameSvg({
           }
 
           const isCurrentGF = val === clampedGF;
+          // The current cell is a little larger, so the marker sits inside its ring with a clear gap
+          const half = isCurrentGF ? GF_CELL_CURRENT_HALF : GF_CELL_HALF;
 
           return (
             <g
@@ -768,50 +826,39 @@ export function SeaFrameSvg({
               data-testid={`gf-space-${val}`}
               transform={`translate(${cx.toFixed(1)}, ${cy.toFixed(1)}) rotate(${cellRot.toFixed(1)})`}
             >
-              {/* Slightly larger cell (13.6 x 13.6) with curved corners */}
+              {/* Cell with curved corners; the current one wears a single yellow ring */}
               <rect
-                x={-6.8}
-                y={-6.8}
-                width={13.6}
-                height={13.6}
-                rx={2.8}
+                x={-half}
+                y={-half}
+                width={half * 2}
+                height={half * 2}
+                rx={isCurrentGF ? 3.8 : 2.8}
                 fill={cellFill}
                 stroke={isCurrentGF ? '#f5d11d' : 'rgba(238, 245, 228, 0.85)'}
-                strokeWidth={isCurrentGF ? 2.2 : 1.0}
+                strokeWidth={isCurrentGF ? 1.6 : 1.0}
               />
-              <text
-                x={0}
-                y={2.8}
-                textAnchor="middle"
-                fontSize="7.5"
-                fontWeight="900"
-                fill="#ffffff"
-              >
-                {val}
-              </text>
-
-              {/* 3D Black Cube Global Footprint Marker */}
-              {isCurrentGF && (
-                <g data-testid="gf-marker" transform="translate(0, -1)">
-                  {/* Shadow */}
-                  <rect x={-5.5} y={-5.5} width={12} height={12} rx={1.8} fill="rgba(0,0,0,0.52)" />
-                  {/* 3D Black Wooden Cube */}
-                  <polygon
-                    points="-6,-6 3.5,-6 7,-2.5 7,6.5 -2.5,6.5 -6,3"
-                    fill="#141619"
-                    stroke="#f5d11d"
-                    strokeWidth={1.4}
-                  />
+              {/* The marker stands on the current cell's number (the widget shows the value) */}
+              {isCurrentGF ? (
+                <>
+                  {/* Soft glow just outside the ring */}
                   <rect
-                    x={-6}
-                    y={-6}
-                    width={9.5}
-                    height={9.5}
-                    fill="#2b3038"
-                    stroke="#ffffff"
-                    strokeWidth={1.0}
+                    data-testid="gf-current-glow"
+                    x={-half - 2.3}
+                    y={-half - 2.3}
+                    width={half * 2 + 4.6}
+                    height={half * 2 + 4.6}
+                    rx={6}
+                    fill="none"
+                    stroke="#fff0a0"
+                    strokeOpacity={0.34}
+                    strokeWidth={3}
                   />
-                </g>
+                  <GfMarker counterRotateDeg={-cellRot} />
+                </>
+              ) : (
+                <text x={0} y={2.8} textAnchor="middle" fontSize="7.5" fontWeight="900" fill="#ffffff">
+                  {val}
+                </text>
               )}
             </g>
           );
