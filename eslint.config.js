@@ -3,7 +3,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['dist', 'node_modules', '.agents', 'handover'],
+    ignores: ['dist', 'dist-server', 'saves', 'node_modules', '.agents', 'handover'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

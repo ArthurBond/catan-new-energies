@@ -8,3 +8,7 @@ yarn-error.log*
 
 test-results/
 playwright-report/
+
+# Local game server
+saves/
+dist-server/
