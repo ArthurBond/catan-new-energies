@@ -6,7 +6,8 @@
  * is visible at once for screenshots and visual checks. Not reachable from the lobby.
  *
  * Variants: `showcase` (action phase), `discard` (roll of 7 discard prompt),
- * `cardchoice` (Climate Conference reward prompt), `victory` (game over summary).
+ * `cardchoice` (Climate Conference reward prompt), `victory` (game over summary),
+ * `draws2` / `draws3` (global footprint low / high, so the HUD shows 2 / 3 draws per turn).
  */
 
 import { computePlayerLF, computeTrueTotalLF, clampGF } from '../engine/footprint';
@@ -83,10 +84,10 @@ export function applyShowcaseScenario(input: GameState): GameState {
   return state;
 }
 
-export type DevScenario = 'showcase' | 'discard' | 'cardchoice' | 'victory';
+export type DevScenario = 'showcase' | 'discard' | 'cardchoice' | 'victory' | 'draws2' | 'draws3';
 
 export function applyDevScenario(input: GameState, scenario: string): GameState {
-  if (!['showcase', 'discard', 'cardchoice', 'victory'].includes(scenario)) return input;
+  if (!['showcase', 'discard', 'cardchoice', 'victory', 'draws2', 'draws3'].includes(scenario)) return input;
   const state = applyShowcaseScenario(input);
   if (scenario === 'discard') {
     state.phase = 'ProductionPhase';
@@ -106,6 +107,14 @@ export function applyDevScenario(input: GameState, scenario: string): GameState 
         isOptional: false,
       },
     ];
+  } else if (scenario === 'draws2') {
+    // Low global footprint: 2 event discs per turn
+    state.trueTotalLF = 3;
+    state.clampedGF = 3;
+  } else if (scenario === 'draws3') {
+    // Very high global footprint: 3 event discs per turn
+    state.trueTotalLF = 26;
+    state.clampedGF = 26;
   } else if (scenario === 'victory') {
     state.players.orange!.victoryPoints = 10;
     state.winner = 'orange';

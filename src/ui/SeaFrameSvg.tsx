@@ -619,18 +619,31 @@ export function SeaFrameSvg({
             <line x1={0} y1={-3.5} x2={0} y2={2.5} stroke="#ffffff" strokeWidth={1.8} strokeLinecap="round" />
           </g>
 
-          {/* Bottom Row: Bag Draw Indicator (Mini Bag + Disc + Draw Count) */}
+          {/* Bottom row: event bag icon, then "DRAW n/TURN" in a fixed-width run so it can never touch the icon */}
           <g transform="translate(0, 11)">
-            <rect x={-38} y={-8} width={74} height={16} rx={8} fill="rgba(11, 38, 65, 0.72)" />
-            <circle cx={-24} cy={0} r={5.5} fill="#8d6e63" stroke="#f5f0dc" strokeWidth={1} />
-            <path d="M -24 -5.5 A 5.5 5.5 0 0 1 -18.5 0 L -24 0 Z" fill="#689f38" />
+            <rect
+              data-testid="gf-draw-pill"
+              x={-42}
+              y={-8}
+              width={80}
+              height={16}
+              rx={8}
+              fill="rgba(11, 38, 65, 0.72)"
+            />
+            <g data-testid="gf-draw-icon">
+              <circle cx={-35} cy={0} r={4.4} fill="#8d6e63" stroke="#f5f0dc" strokeWidth={1} />
+              <path d="M -35 -4.4 A 4.4 4.4 0 0 1 -30.6 0 L -35 0 Z" fill="#689f38" />
+            </g>
             <text
-              x={5}
-              y={3}
-              textAnchor="middle"
-              fontSize="8.2"
+              data-testid="gf-draw-text"
+              x={-22}
+              y={2.7}
+              textAnchor="start"
+              fontSize="7.2"
               fontWeight="900"
               fill="#ffffff"
+              textLength={54}
+              lengthAdjust="spacingAndGlyphs"
             >
               DRAW {currentDrawCount}/TURN
             </text>
