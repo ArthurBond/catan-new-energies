@@ -6,6 +6,7 @@ const SCREENS = [
   { scale: 1, width: 2560, height: 1440 },
   { scale: 2, width: 1920, height: 1080 },
   { scale: 4, width: 1366, height: 768 },
+  { scale: 8, width: 1366, height: 768 },
 ];
 for (const { scale, width, height } of SCREENS) {
   test(`the 1 in 3:1 and 2:1 is the same height as the other digit (${width}x${height} at pixel ratio ${scale})`, async ({ browser }) => {
@@ -14,7 +15,7 @@ for (const { scale, width, height } of SCREENS) {
     await page.goto('/?scenario=showcase&bots=0');
     await page.evaluate(() => document.fonts.ready);
     for (const label of ['2:1', '3:1']) {
-      const text = page.locator('[data-testid^="harbor-"] text', { hasText: new RegExp(`^${label}$`) }).first();
+      const text = page.locator(`[data-ratio-label="${label}"]`).first();
       const box = (await text.boundingBox())!;
       const shot = await page.screenshot({ clip: { x: box.x - 2, y: box.y - 1, width: box.width + 4, height: box.height + 2 } });
       const heights = await page.evaluate(async (b64) => {
@@ -49,9 +50,32 @@ for (const { scale, width, height } of SCREENS) {
       }, shot.toString('base64'));
       expect(heights).toHaveLength(3); // digit, colon, 1
       const [digit, , one] = heights as [number, number, number];
-      // glyph heights snap to whole device pixels, so equal means within one of them
+      // anti-aliasing can move an edge by one device pixel; the geometry test below is exact
       expect(Math.abs(one - digit), `${label}: digit ${digit}px, one ${one}px`).toBeLessThanOrEqual(1);
     }
     await context.close();
   });
 }
+
+test('the digit and the 1 are drawn to exactly the same height, on screen', async ({ page }) => {
+  await page.goto('/?scenario=showcase&bots=0');
+  const labels = await page.locator('[data-ratio-label]').evaluateAll((els) =>
+    els.map((el) => {
+      const paths = el.querySelectorAll('path');
+      const screenHeight = (p: SVGPathElement) => p.getBoundingClientRect().height;
+      const own = (p: SVGPathElement) => p.getBBox().height;
+      return {
+        label: el.getAttribute('data-ratio-label'),
+        digit: own(paths[0]!),
+        one: own(paths[1]!),
+        digitOnScreen: screenHeight(paths[0]!),
+        oneOnScreen: screenHeight(paths[1]!),
+      };
+    })
+  );
+  expect(labels.length).toBeGreaterThanOrEqual(9);
+  for (const l of labels) {
+    expect(l.one, l.label!).toBe(l.digit);
+    expect(l.oneOnScreen, l.label!).toBeCloseTo(l.digitOnScreen, 6);
+  }
+});

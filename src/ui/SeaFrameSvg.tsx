@@ -262,6 +262,40 @@ export function eventLabelArcLength(text: string): number {
   return text.length * 3.9 + 4;
 }
 
+/**
+ * The "2:1" / "3:1" on a harbor, drawn as shapes rather than text. Every glyph is built to the same
+ * cap height (its top and bottom points sit exactly on the 0 and 10 lines), so the "1" can never
+ * be taller or shorter than the other digit, whatever font or screen resolution is in use.
+ */
+const RATIO_GLYPHS = {
+  2: 'M1.2 3.4 C1.2 1.2 2.9 0 5 0 C7.3 0 8.8 1.3 8.8 3.3 C8.8 5.6 5.5 7 1.3 10 H9',
+  3: 'M1.4 1.6 C2.4 0.5 3.6 0 5 0 C7.2 0 8.4 1.1 8.4 2.6 C8.4 4.1 7.2 5 4.8 5 C7.4 5 8.8 6 8.8 7.5 C8.8 9 7.2 10 5 10 C3.4 10 2 9.5 1 8.3',
+  1: 'M2.8 2.6 L5.5 0 V10 M2.8 10 H8.2',
+} as const;
+
+function HarborRatio({ ratio, x, baseline, height }: { ratio: 2 | 3; x: number; baseline: number; height: number }) {
+  const scale = height / 10;
+  const width = 23.2; // digit, colon and 1 laid out left to right in glyph units
+  return (
+    <g
+      data-ratio-label={`${ratio}:1`}
+      role="img"
+      aria-label={`${ratio}:1`}
+      transform={`translate(${x - (width / 2) * scale} ${baseline - height}) scale(${scale})`}
+      fill="none"
+      stroke="#12304d"
+      strokeWidth={1.9}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d={RATIO_GLYPHS[ratio]} />
+      <circle cx={12.4} cy={2.9} r={0.95} fill="#12304d" strokeWidth={0.6} />
+      <circle cx={12.4} cy={7.1} r={0.95} fill="#12304d" strokeWidth={0.6} />
+      <path d={RATIO_GLYPHS[1]} transform="translate(15 0)" />
+    </g>
+  );
+}
+
 export function SeaFrameSvg({
   board,
   playerCount,
@@ -490,29 +524,11 @@ export function SeaFrameSvg({
             {harbor.resource ? (
               <>
                 <ResourceIconSvg type={harbor.resource} cx={harborX} cy={harborY - 5} scale={0.85} />
-                <text
-                  x={harborX}
-                  y={harborY + 12.5}
-                  textAnchor="middle"
-                  fontSize="9"
-                  fontWeight="900"
-                  fill="#12304d"
-                >
-                  2:<tspan fontSize="8.8">1</tspan>
-                </text>
+                <HarborRatio ratio={2} x={harborX} baseline={harborY + 12.5} height={6.3} />
               </>
             ) : (
               <>
-                <text
-                  x={harborX}
-                  y={harborY - 1}
-                  textAnchor="middle"
-                  fontSize="10.5"
-                  fontWeight="900"
-                  fill="#12304d"
-                >
-                  3:<tspan fontSize="10.3">1</tspan>
-                </text>
+                <HarborRatio ratio={3} x={harborX} baseline={harborY - 1} height={7.4} />
                 <text
                   x={harborX}
                   y={harborY + 9.5}
