@@ -2621,3 +2621,52 @@ select.lb-input {
   opacity: 0.3;
   cursor: not-allowed;
 }
+
+/* Autoplay switch in the top bar, between the turn tracker and the footprint meter */
+.tt-autoplay {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px 0 5px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink-300);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tt-autoplay-knob {
+  position: relative;
+  width: 30px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--ink-700);
+  transition: background 160ms ease;
+}
+
+.tt-autoplay-knob::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: transform 160ms ease;
+}
+
+.tt-autoplay[data-on='true'] {
+  color: #ffffff;
+}
+
+.tt-autoplay[data-on='true'] .tt-autoplay-knob {
+  background: var(--leaf, #4f9d4a);
+}
+
+.tt-autoplay[data-on='true'] .tt-autoplay-knob::after {
+  transform: translateX(10px);
+}

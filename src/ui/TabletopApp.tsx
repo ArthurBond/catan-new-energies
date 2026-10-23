@@ -237,6 +237,21 @@ function saveGame(state: GameState, config: LobbyConfig) {
   }
 }
 
+/** What a bot's next step is called on the Next button. */
+function botStepLabel(action: GameAction): string {
+  switch (action.type) {
+    case 'DRAW_EVENT_DISC':
+      return 'draw disc';
+    case 'ROLL_DICE':
+    case 'SETUP_ROLL_DICE':
+      return 'roll dice';
+    case 'END_TURN':
+      return 'end turn';
+    default:
+      return 'next move';
+  }
+}
+
 function mapDifficulty(d: 'easy' | 'normal' | 'hard'): BotDifficulty {
   if (d === 'easy') return 'Easy';
   if (d === 'hard') return 'Hard';
@@ -398,7 +413,7 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
   const [dismissedVictoryModal, setDismissedVictoryModal] = useState(false);
   const [selectedEventInfo, setSelectedEventInfo] = useState<EventDiscType | null>(null);
   const [privacyCurtainForPlayer, setPrivacyCurtainForPlayer] = useState<PlayerId | null>(null);
-  const [botPaused, setBotPaused] = useState(false);
+  const [autoplay, setAutoplay] = useState(true);
   const [isMatOpen, setIsMatOpen] = useState(false);
   const [hoveredNodeId, setHoveredNodeId] = useState<NodeId | null>(null);
   const [hoveredEdgeId, setHoveredEdgeId] = useState<EdgeId | null>(null);
@@ -656,9 +671,26 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
     setActiveBuildMode(null);
   };
 
+  // The bot's next move, worked out only while autoplay is off so its name can be put on the Next button
+  const stepBotId = !online && !autoplay && !showLobby && gameState.phase !== 'GameEnd' && gameState.winner === null ? getActingPlayerId(gameState) : null;
+  const nextBotAction = useMemo(() => {
+    if (!stepBotId) return null;
+    const seat = lobbyConfig.seats[stepBotId];
+    if (!seat || seat.controller !== 'bot') return null;
+    try {
+      return chooseBotAction(gameState, stepBotId, {
+        personality: seat.botStrategy,
+        difficulty: mapDifficulty(seat.botDifficulty),
+      });
+    } catch (e) {
+      console.warn('Bot failed to choose action:', e);
+      return null;
+    }
+  }, [gameState, stepBotId, lobbyConfig]);
+
   // Automated bot turn scheduler (setup placements are paced so humans can follow them)
   useEffect(() => {
-    if (online || showLobby || botPaused || privacyCurtainForPlayer !== null) return;
+    if (online || showLobby || !autoplay || privacyCurtainForPlayer !== null) return;
     if (gameState.phase === 'GameEnd' || gameState.winner !== null) return;
 
     const currentActor = getActingPlayerId(gameState);
@@ -684,7 +716,7 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
     }, delayMs);
 
     return () => clearTimeout(timer);
-  }, [gameState, showLobby, botPaused, privacyCurtainForPlayer, lobbyConfig]);
+  }, [gameState, showLobby, autoplay, privacyCurtainForPlayer, lobbyConfig]);
 
   // Legal actions for the acting human drive board highlights and the build palette
   const currentLegalActions = useMemo(() => {
@@ -1035,10 +1067,19 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
               sub: myPlayerId ? 'It is their move' : 'You are watching this game',
             };
       }
+      if (!autoplay && nextBotAction) {
+        return {
+          label: `${actingName}: ${botStepLabel(nextBotAction)}`,
+          testId: 'action-bot-next-btn',
+          disabled: false,
+          onClick: () => dispatchAction(nextBotAction),
+          sub: 'Autoplay is off: press for the next step',
+        };
+      }
       return {
         label: `${actingName} is playing`,
         disabled: true,
-        sub: botPaused ? 'Bots are paused — resume them in the top bar' : 'Bots move on their own',
+        sub: 'Bots move on their own',
       };
     }
     if (headDecision && headDecision.playerId === actingPlayerId) {
@@ -1147,8 +1188,8 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
         canUndo={history.length > 0}
         onUndo={handleUndo}
         hasBots={hasBots}
-        botPaused={botPaused}
-        onToggleBots={() => setBotPaused((p) => !p)}
+        autoplay={autoplay}
+        onToggleAutoplay={() => setAutoplay((on) => !on)}
         botSpeed={lobbyConfig.botSpeed}
         onChangeBotSpeed={(botSpeed) => setLobbyConfig((c) => ({ ...c, botSpeed }))}
         isMatOpen={isMatOpen}

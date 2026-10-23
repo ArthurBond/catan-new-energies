@@ -139,7 +139,7 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
     expect(container.querySelector('[data-testid="organiser-slot-lumber"]')).not.toBeNull();
 
     // Pause bots so we can step cleanly
-    const pauseBtn = container.querySelector('[data-testid="bot-pause-btn"]') as HTMLButtonElement;
+    const pauseBtn = container.querySelector('[data-testid="autoplay-toggle"]') as HTMLButtonElement;
     act(() => {
       pauseBtn?.click();
     });
@@ -375,7 +375,7 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
       render(<TabletopApp />, container);
     });
     act(() => {
-      (container.querySelector('[data-testid="bot-pause-btn"]') as HTMLButtonElement).click();
+      (container.querySelector('[data-testid="autoplay-toggle"]') as HTMLButtonElement).click();
     });
     act(() => {
       (container.querySelector('[data-testid="action-draw-event-btn"]') as HTMLButtonElement).click();

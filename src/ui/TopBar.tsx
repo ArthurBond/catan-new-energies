@@ -56,8 +56,8 @@ export interface TopBarProps {
   canUndo: boolean;
   onUndo: () => void;
   hasBots: boolean;
-  botPaused: boolean;
-  onToggleBots: () => void;
+  autoplay: boolean;
+  onToggleAutoplay: () => void;
   botSpeed: BotSpeedMode;
   onChangeBotSpeed: (speed: BotSpeedMode) => void;
   isMatOpen: boolean;
@@ -80,8 +80,8 @@ export function TopBar({
   canUndo,
   onUndo,
   hasBots,
-  botPaused,
-  onToggleBots,
+  autoplay,
+  onToggleAutoplay,
   botSpeed,
   onChangeBotSpeed,
   isMatOpen,
@@ -144,7 +144,7 @@ export function TopBar({
             {active.name}
             <span className="tt-btn-label"> · {activeLabel}</span>
           </span>
-          {activeIsBot && !botPaused && (
+          {activeIsBot && autoplay && (
             <span className="tt-thinking" aria-hidden="true">
               <i />
               <i />
@@ -167,6 +167,26 @@ export function TopBar({
       </div>
 
       <div className="tt-topbar-tools">
+        {hasBots && (
+          <button
+            type="button"
+            role="switch"
+            aria-checked={autoplay}
+            className="tt-autoplay"
+            data-testid="autoplay-toggle"
+            data-on={autoplay ? 'true' : 'false'}
+            onClick={onToggleAutoplay}
+            title={
+              autoplay
+                ? 'Autoplay is on: bots take their turns by themselves. Turn it off to step them with Next.'
+                : 'Autoplay is off: bots wait for you to press Next for each step.'
+            }
+          >
+            <span className="tt-autoplay-knob" aria-hidden="true" />
+            Autoplay
+          </button>
+        )}
+
         <div
           className="tt-gf"
           data-testid="global-metrics-pill"
@@ -204,20 +224,6 @@ export function TopBar({
             aria-label="Undo last action"
           >
             <Icon name="undo" />
-          </button>
-        )}
-
-        {hasBots && (
-          <button
-            type="button"
-            className="tt-icon-btn"
-            data-testid="bot-pause-btn"
-            data-active={botPaused ? 'true' : 'false'}
-            onClick={onToggleBots}
-            title={botPaused ? 'Resume bots' : 'Pause bots'}
-          >
-            <Icon name={botPaused ? 'play' : 'pause'} size={14} />
-            <span className="tt-btn-label">{botPaused ? 'Resume bots' : 'Pause bots'}</span>
           </button>
         )}
 

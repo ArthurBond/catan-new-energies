@@ -12,7 +12,7 @@ test.describe('CATAN: New Energies — Tabletop layout, sea frame & zero-overlap
       await page.goto('/?seed=42&setup=first&placement=fixed&players=4');
 
       // Pause bots for deterministic screenshot & layout measurement
-      const pauseBtn = page.getByTestId('bot-pause-btn');
+      const pauseBtn = page.getByTestId('autoplay-toggle');
       await expect(pauseBtn).toBeVisible();
       await pauseBtn.click();
 
