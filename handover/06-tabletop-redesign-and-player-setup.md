@@ -77,6 +77,11 @@ Dev-only visual scenarios: `?scenario=showcase` (mid-game with plants, hazards, 
 - **Footprint widget:** the bag icon, label gap and pill are laid out explicitly and checked by `e2e/gf-widget.spec.ts` for 1, 2 and 3 draws per turn (`?scenario=draws2|draws3`).
 - **Wrong rule removed:** `applyBuildPowerPlant` used to place a hazard token when a fossil plant was built. The rulebook (p. 15) says only that the footprint rises. Hazards come only from events (Air Pollution, Environmental Pollution, Rain & Flooding). The 500-game fuzz suite now fails if any other action increases the hazards on the board.
 
+### 10. Follow-up: piece fit, plant layering
+- **Pieces are centred on their intersection** (`WoodenPiece` raises the top face by half the wall thickness), so a city reaches equally far toward a road above or below. `CITY_REACH` (13.5) is sized to end exactly where a road starts (`ROAD_LENGTH` 29); `piece-fit.test.ts` keeps them in step, so change both together. `?scenario=cityfit` shows roads on every side of every building.
+- **Plants sit in the notches, not on top of them.** The city (wall 5) is taller than a plant disc (thickness 0.3 x radius); `plantRestOffset` puts the disc on the board level with the building's base. Layering is per notch (`plantSlot` in `IslandBoardSvg.tsx`): plants up the screen are drawn behind their building, plants down the screen in front of it, so all six directions work. Placement targets live in their own top layer (`plant-targets-layer`). `?scenario=plantfit` fills every notch.
+- Steel and brick icons both show two pieces side by side with the third laid across the middle.
+
 ## New / changed files
 | File | Role |
 | :--- | :--- |
