@@ -451,7 +451,7 @@ export function SeaFrameSvg({
         <OceanWhaleSvg cx={330} cy={156} scale={0.9} rotate={-28} showSpout={true} />
         <OceanWhaleSvg cx={124} cy={392} scale={0.8} rotate={-75} flipX={true} showSpout={true} />
         <OceanWhaleSvg cx={270} cy={836} scale={0.88} rotate={22} showSpout={true} />
-        <OceanWhaleSvg cx={720} cy={826} scale={0.84} rotate={-24} flipX={true} showSpout={true} />
+        <OceanWhaleSvg cx={692} cy={838} scale={0.84} rotate={-24} flipX={true} showSpout={true} />
       </g>
 
       {/* =================================================================== */}
