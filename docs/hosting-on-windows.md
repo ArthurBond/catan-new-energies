@@ -16,9 +16,12 @@ The game only exists while your server is running, so nobody can play without yo
 
    This adds one inbound rule, "Catan New Energies (port 3210)", for private networks only.
    Remove it later with `-Remove`.
-4. Make sure your Wi-Fi is a **Private** network: Settings > Network & internet > Wi-Fi >
-   (your network) > Network profile type > Private. On a Public network the rule does not apply
-   and friends cannot connect.
+4. Make sure the connection your PC uses (Wi-Fi **or Ethernet**) is a **Private** network:
+   Settings > Network & internet > Wi-Fi (or Ethernet) > (your network) > Network profile type >
+   Private. On a Public network the rule does not apply and friends cannot connect. Check it
+   with `Get-NetConnectionProfile`; from an admin PowerShell you can also switch it with
+   `Set-NetConnectionProfile -InterfaceAlias Ethernet -NetworkCategory Private` (use your
+   adapter's name from that list). This PC's Ethernet connection was Public when last checked.
 
 ## Each game night
 

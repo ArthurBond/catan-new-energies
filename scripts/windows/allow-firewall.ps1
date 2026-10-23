@@ -69,7 +69,7 @@ if ($existing.Count -gt 0) {
 foreach ($net in @(Get-NetConnectionProfile -ErrorAction SilentlyContinue)) {
   if ($net.NetworkCategory -eq 'Public') {
     Write-Host ("Note: the network '{0}' ({1}) is set to Public, so friends cannot connect through it." -f $net.Name, $net.InterfaceAlias) -ForegroundColor Yellow
-    Write-Host '      Set it to Private: Settings > Network & internet > Wi-Fi > your network > Private network.'
+    Write-Host '      Set it to Private: Settings > Network & internet > Wi-Fi or Ethernet > your network > Private network.'
   }
 }
 
