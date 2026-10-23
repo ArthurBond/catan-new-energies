@@ -298,6 +298,14 @@ export function canPlayDevCard(
     }
 
     const opt = typedParams.option;
+    // The card is move the Inspector OR remove a hazard: never both in one play
+    const picked = opt as { newHexId?: unknown; hazardTarget?: unknown };
+    if (opt.type === 'INSPECTOR_MOVE_STEAL' && picked.hazardTarget !== undefined) {
+      return { canPlay: false, reason: 'Cleanup is move the Inspector OR remove a hazard, not both' };
+    }
+    if (opt.type === 'REMOVE_HAZARD_STEAL' && picked.newHexId !== undefined) {
+      return { canPlay: false, reason: 'Cleanup is move the Inspector OR remove a hazard, not both' };
+    }
     if (opt.type === 'INSPECTOR_MOVE_STEAL') {
       const hex = state.board.hexes[opt.newHexId];
       if (!hex) {
