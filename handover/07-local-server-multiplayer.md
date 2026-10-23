@@ -109,7 +109,7 @@ restarts, so the host link keeps working). Delete `saves/` to reset everything.
 | Phase | Owner | Scope | Status |
 | :--- | :--- | :--- | :---: |
 | A | subagent | Server, protocol, room logic, persistence, bots on the server, Windows scripts, server tests | done |
-| B | subagent | Online mode in the UI (lobby, join, seat, reconnect, status), two-browser Playwright test | in progress |
+| B | subagent | Online mode in the UI (lobby, join, seat, reconnect, status), two-browser Playwright test | done |
 | C | lead | Host guide `docs/hosting-on-windows.md`, LAN check, full verification, progress log | todo |
 
 ### Phase A — acceptance
@@ -228,15 +228,97 @@ build). Double-click `scripts\windows\host-game.cmd` on the host PC.
   re-validates anyway). Use `legalActions` on it only for highlighting own options.
 - Online mode must not run browser bots, undo, local save or the hotseat curtain.
 
-### Phase B — in progress
-**Done**
-- `118f34d` server hides opponents' resource breakdown by default (`DEFAULT_ROOM_REDACT_OPTIONS`
-  in `server/room.ts`); test in `server/__tests__/room.test.ts`.
-- `db092ae` `src/network/hydrate.ts` (`hydrateRedactedState`, `playerHandCount`, `isHandHidden`)
-  + `src/network/__tests__/hydrate.test.ts`; `handCount`/`stealVictimsOnHex` in `gameView.ts` use
-  `hiddenResourcesCount`.
+### Phase B — online mode in the browser (done)
+**What changed**
+- `src/main.tsx`: `App` probes `GET /api/server-info` (`detectGameServer`, 1.5 s timeout, needs
+  JSON and `app === 'catan-new-energies'`). Server answers: `OnlineApp`. Otherwise `TabletopApp`
+  exactly as before. **The Vite dev server never probes** (`import.meta.env.DEV`): the probe left
+  a blank first frame that made `e2e/setup-flow.spec.ts` flaky (it uses non-waiting `isVisible`).
+  Built clients still probe, so test online mode against `npm run server`, not `npm run dev`.
+- `src/ui/online/useOnlineGame.ts`: connection hook. `hello` with the stored name, seat token and
+  host key; `?host=` is read once, kept in `localStorage['catan-ne-online-host-key']` and removed
+  from the address bar with `history.replaceState` (a stale key is dropped when the server says
+  the socket is not host). Auto-reconnect with backoff 0.4/1/2/4/8 s (immediately on the browser's
+  `online` event); status `connecting|connected|reconnecting|offline|replaced`. Close code 4000
+  sets `replaced` and does not reconnect; `reconnect()` backs the "Use this window" button.
+  `state` frames go through `hydrateRedactedState`; `lastAction`/`prev` are only set when
+  `version === previous + 1` (a resync or gap replaces the state silently, no toast).
+- `src/ui/online/OnlineLobby.tsx`: `ConnectionBadge`, host lobby (seat rows with Host/Friend/Bot,
+  bot style and level, 3/4 players, island, starting pieces, bot speed, invite card with
+  `joinUrlFor(lanUrls)` + Copy link, who claimed which seat and who is connected, Start is
+  disabled until every Friend seat is claimed), friend lobby (name, `SeatPicker`, waiting panel),
+  `SeatPicker` also used mid-game.
+- `src/ui/online/OnlineApp.tsx` + `onlineTypes.ts` (`OnlineTable`): connection and replaced
+  screens, lobby, table, mid-game overlay for seatless visitors ("Take this seat" or "Just watch").
+  `New game` asks with `window.confirm` and sends `newGame`.
+- `src/ui/TabletopApp.tsx` takes an optional `online` prop. Online: `gameState` is the hydrated
+  server state, `waitingOnOthers` = acting player is not me (replaces `isActingPlayerBot`, which
+  blocks all clicks, highlights and primary buttons), the dock/player board always show my seat
+  (`ActionDock fixedViewer` hides the colour switches), `dispatchAction` only sends
+  `{type:'action', action, requestId}`, toast/dice/event reveal come from an effect on
+  `lastAction` + `drawnEventDisc` (`describeAction` got a `drawn` override), `rejected`/`error`
+  show as the error toast, `legalActions` is wrapped in try/catch. No bots, undo, local save,
+  curtain, BroadcastChannel or lobby modal online. Root div has `data-phase`,
+  `data-acting-player`, `data-my-seat` (`none` when watching) for tests.
+- Hidden hands: server default `DEFAULT_ROOM_REDACT_OPTIONS = {hideOpponentResources: true}`
+  (`118f34d`). `src/network/hydrate.ts` marks other players' hands (`handHidden`) and
+  `playerHandCount` reads `hiddenResourcesCount`; `gameView.handCount` uses it, so the players
+  rail, the steal chooser and Clean Up victims (`stealVictimsOnHex`, `footprintVictims`) work with
+  hidden hands. `TopBar` shows the badge instead of Undo and the host-only New game
+  (`online-new-game-btn`); `PlayersRail` takes `roleLabels` and has `corner-cards-<pid>`;
+  `VictoryModal.onOpenLobby` is optional (friends get no New game button).
+- Tests: `src/network/__tests__/hydrate.test.ts` (3), new case in `server/__tests__/room.test.ts`
+  (a socket never gets another player's resource breakdown, `hiddenResourcesCount` kept),
+  `e2e-online/two-laptops.spec.ts` with `playwright.online.config.ts` (port 3299,
+  `NO_OPEN=1`, `BOT_DELAY_MS=0`, `SAVES_DIR=<tmp>/catan-ne-online-e2e-saves` wiped by
+  `e2e-online/start-server.mjs`). Steps: host link key leaves the URL; host seats; friend claims;
+  start; same board; roll-off and all opening placements, each only on its own turn; friend
+  reload keeps the seat; wire check that every `state` frame hides the other player's resources
+  and the rail count equals their real hand; a watcher sees every seat taken; a second window
+  takes the seat (code 4000) and "Use this window" takes it back; a freed seat is claimed
+  mid-game by a late joiner.
+- Docs: `docs/hosting-on-windows.md` now names the real buttons (Copy link, Take this seat, Start
+  game, New game in the top bar, Use this window, host key stays in the browser).
 
-**Next** (plan): `src/ui/online/` (`useOnlineGame.ts` connection hook, `OnlineLobby.tsx`,
-`OnlineApp.tsx`), detection in `src/main.tsx`, `online` prop on `TabletopApp` (fixed viewer seat,
-dispatch over the socket, feedback from `lastAction`, no bots/undo/save/curtain/BroadcastChannel),
-`playwright.online.config.ts` + `e2e-online/`, screenshots `docs/online-*.png`.
+**Commands and results** (all on this branch, after the last code commit `1f32b62`)
+- `npm run typecheck` OK; `npm run lint` OK.
+- `npm run build`: `✓ built in 639ms`; `npm run build:server`: `dist-server/main.js 220.23 kB`,
+  `✓ built in 257ms`.
+- `npx vitest run`: `Test Files 20 passed (20)`, `Tests 211 passed (211)` (207 + 3 hydrate + 1 room).
+- `npx playwright test`: `36 passed` (26 original + 10 `gf-marker`), three runs in a row. It
+  rewrites `docs/ui-after-*.png`: `git checkout -- docs/ui-after-*.png` before committing.
+- `npm run test:e2e:online`: `1 passed (9.4s)`; three more direct runs `1 passed` each.
+
+**Screenshots** (1366x768, real server, two browser contexts): `docs/online-host-lobby.png`,
+`docs/online-friend-lobby.png`, `docs/online-ingame-friend.png`, `docs/online-ingame-host.png`.
+
+**Known issues / decisions**
+- Final standings in `VictoryModal` are computed on the client from the hydrated state, so other
+  players' unrevealed VP cards count as 0 there (`state.winner` itself comes from the server and
+  is right). A server fix would be to reveal every hand once `phase === 'GameEnd'`.
+- The browser test covers the opening (roll-off, towns, cities, roads). Discard on 7, stealing,
+  domestic trades and dev cards were checked by reading the code (decision UIs only read the
+  viewer's own hand and `hiddenResourcesCount`; the server validates) and by the hydrate tests
+  (`legalActions` does not throw on placeholders), not by an online browser test.
+- A friend cannot give up a seat mid-game from the UI (the server supports `leaveSeat`); freed
+  seats come from the server, and the e2e test sends `leaveSeat` over a raw socket.
+- The UI only lets the host start when every Friend seat is claimed (the server also allows
+  starting with open seats). Host rights are per origin: opening the LAN address instead of
+  `localhost` needs the `?host=` link once.
+- Online: no pause/resume bots, no bot speed change in game, no inspecting other players' boards
+  (rail clicks do nothing), `window.confirm` for New game.
+- The dev server never probes (see above). Offline mode and all 36 original tests are unchanged.
+
+**Notes for Phase C (manual LAN test, host PC + one other laptop/phone on the same Wi-Fi)**
+1. `scripts\windows\allow-firewall.ps1` once as admin; Wi-Fi profile Private; `npm run host`.
+2. Host page opens at `http://localhost:3210/?host=...`; check the address bar loses the key and
+   the Invite card shows the `192.168.x.x` address (not a WSL/Hyper-V one).
+3. Make seat 2 a Friend (Instant or Fast bots), open the invite link on the laptop, type a name,
+   Take this seat; the host sees it Connected; Start game.
+4. Roll-off and placements from both screens. Turn the laptop's Wi-Fi off for 10 s: badge goes
+   Reconnecting then Offline, and Connected again with the seat kept.
+5. Reload the laptop page, then open the link in a second tab: the first shows "Open in another
+   window" and "Use this window" takes it back.
+6. Check the laptop's rail shows the host's hand only as a number, and play a 7 and a steal.
+7. Host presses New game (confirm), seats are kept; stop the server with Ctrl+C, start it again
+   and confirm the game resumes with the same seats.
