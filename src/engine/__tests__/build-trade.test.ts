@@ -164,7 +164,7 @@ describe('Building, Trading & Longest Road Engine — ACT-01..ACT-06', () => {
   });
 
   describe('ACT-02: Building Power Plants & Warehouse', () => {
-    it('builds a Fossil Power Plant (+1 LF, 1 science, places hazard token, max 1/turn)', () => {
+    it('builds a Fossil Power Plant (+1 LF, 1 science, no hazard token, max 1/turn)', () => {
       state.players[activePid]!.science = 2;
 
       // City at node 10 has 3 cutouts
@@ -188,8 +188,11 @@ describe('Building, Trading & Longest Road Engine — ACT-01..ACT-06', () => {
       expect(player.localFootprint).toBe(initialLf + 1);
       expect(player.fossilPlantsBuilt).toBe(1);
       expect(player.fossilPlantsInReserve).toBe(5);
-      expect(state.board.hexes[hexId]!.hasHazard).toBe(true);
-      expect(state.supply.hazards).toBe(initialHazardsSupply - 1);
+      // Hazard tokens come only from events: building a plant never places one
+      expect(state.board.hexes[hexId]!.hasHazard).toBe(false);
+      expect(state.board.intersections[10]!.hasHazard).toBe(false);
+      expect(state.supply.hazards).toBe(initialHazardsSupply);
+      expect(state.pendingDecisions).toHaveLength(0);
       expect(state.turnStats.powerPlantsBuiltThisTurn).toBe(1);
 
       // Attempting to build a second plant in the same turn is rejected

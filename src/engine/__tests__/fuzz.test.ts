@@ -75,6 +75,16 @@ function assertUniversalInvariants(state: GameState): void {
   expect(state.clampedGF).toBe(clampGF(state.trueTotalLF, state.playerCount));
 }
 
+function countBoardHazards(state: GameState): number {
+  return (
+    state.board.hexes.filter((h) => h.hasHazard).length +
+    state.board.intersections.filter((n) => n.hasHazard).length
+  );
+}
+
+/** Hazard tokens are placed only by events (drawing the disc, or the owner answering it) - never by building. */
+const HAZARD_PLACING_ACTIONS = new Set<GameAction['type']>(['DRAW_EVENT_DISC', 'RESOLVE_PENDING_DECISION']);
+
 function selectBiasedAction(actions: GameAction[], prng: Mulberry32PRNG): GameAction {
   if (actions.length === 1) return actions[0]!;
 
@@ -185,7 +195,11 @@ describe('M2 Property-Based Fuzzing Suite (500 Complete Games)', () => {
             expect(actions.length).toBeGreaterThan(0); // Zero deadlocks!
 
             const chosenAction = selectBiasedAction(actions, simPrng);
+            const hazardsBefore = countBoardHazards(state);
             state = applyAction(state, chosenAction);
+            if (countBoardHazards(state) > hazardsBefore) {
+              expect(HAZARD_PLACING_ACTIONS.has(chosenAction.type)).toBe(true);
+            }
             assertUniversalInvariants(state);
             actionCount++;
           }

@@ -7,7 +7,7 @@
  * - ACT-02: Power Plant construction (Fossil and Renewable) enforcing:
  *   - Combined 1-plant-per-turn limit.
  *   - Cutout capacity: Town (1 max), City (3 max, distinct hexes).
- *   - Fossil: +1 LF, places 1 hazard token on the hex if available.
+ *   - Fossil: +1 LF (no hazard token: hazards only ever come from events).
  *   - Renewable: -1 LF, reveals green event disc into the event bag.
  *   - Warehouse tile construction (2 energy, 1/game, sets hasWarehouse).
  */
@@ -345,7 +345,6 @@ export function applyBuildPowerPlant(
 
   const player = state.players[playerId]!;
   const node = state.board.intersections[nodeId]!;
-  const hex = state.board.hexes[hexId]!;
 
   if (plantType === 'fossil') {
     player.science -= 1;
@@ -355,14 +354,8 @@ export function applyBuildPowerPlant(
     player.fossilPlantsInReserve -= 1;
     node.powerPlants.push({ playerId, type: 'fossil', hexId });
 
-    // Fossil hazard placement rule: draw 1 hazard from supply and place on hex if hazard-free (R L713-717)
-    let placedHazard = false;
-    if (!hex.hasHazard && !hex.hasInspector && state.supply.hazards > 0) {
-      hex.hasHazard = true;
-      state.supply.hazards -= 1;
-      placedHazard = true;
-    }
-
+    // Building a fossil plant only raises the footprint (R p.15). Hazard tokens come exclusively from
+    // events (Air Pollution, Environmental Pollution, Rain & Flooding), never from building.
     player.localFootprint = computePlayerLF(player);
     state.trueTotalLF = computeTrueTotalLF(state.players);
     state.clampedGF = clampGF(state.trueTotalLF, state.playerCount);
@@ -371,9 +364,7 @@ export function applyBuildPowerPlant(
 
     state.log.push({
       timestamp: state.log.length,
-      message: `${player.name} built a Fossil Power Plant on hex ${hexId} (+1 LF${
-        placedHazard ? ', placed hazard token' : ''
-      }).`,
+      message: `${player.name} built a Fossil Power Plant on hex ${hexId} (+1 LF).`,
     });
   } else {
     // Renewable plant
