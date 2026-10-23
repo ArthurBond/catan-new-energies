@@ -248,6 +248,8 @@ export type PendingDecision =
       targetPlayerId: PlayerId;
       give: Partial<Record<ResourceType | 'science' | 'energy', number>>;
       want: Partial<Record<ResourceType | 'science' | 'energy', number>>;
+      /** Players to offer the same trade to, in this order, one at a time as each one declines */
+      thenOffer?: PlayerId[];
     };
 
 export type GameAction =
@@ -287,7 +289,7 @@ export type GameAction =
     }
   | { type: 'TRADE_SUPPLY'; playerId: PlayerId; give: Partial<Record<ResourceType | 'science' | 'energy', number>>; receive: ResourceType | 'science' }
   | { type: 'TRADE_HARBOR'; playerId: PlayerId; harborId: HarborId; give: Partial<Record<ResourceType, number>>; receive: ResourceType | 'science' }
-  | { type: 'OFFER_TRADE'; playerId: PlayerId; targetPlayerId?: PlayerId; give: Partial<Record<ResourceType | 'science' | 'energy', number>>; want: Partial<Record<ResourceType | 'science' | 'energy', number>> }
+  | { type: 'OFFER_TRADE'; playerId: PlayerId; targetPlayerId?: PlayerId; thenOffer?: PlayerId[]; give: Partial<Record<ResourceType | 'science' | 'energy', number>>; want: Partial<Record<ResourceType | 'science' | 'energy', number>> }
 
   // Pending Decision Resolution
   | { type: 'RESOLVE_PENDING_DECISION'; playerId: PlayerId; decisionId: string; response: unknown };

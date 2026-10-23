@@ -2507,3 +2507,117 @@ select.lb-input {
     justify-content: flex-start;
   }
 }
+
+/* ========================================================================== */
+/* Trade dialog: who an offer goes to, and in which order                     */
+/* ========================================================================== */
+
+.md-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 12px 0 4px;
+  border: none;
+  border-radius: 999px;
+  background: var(--ink-950);
+  color: var(--ink-300);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.md-switch-knob {
+  position: relative;
+  width: 34px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--ink-700);
+  transition: background 160ms ease;
+}
+
+.md-switch-knob::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: transform 160ms ease;
+}
+
+.md-switch[data-on='true'] {
+  color: #ffffff;
+}
+
+.md-switch[data-on='true'] .md-switch-knob {
+  background: var(--leaf, #4f9d4a);
+}
+
+.md-switch[data-on='true'] .md-switch-knob::after {
+  transform: translateX(12px);
+}
+
+.md-offer-order {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 6px;
+}
+
+.md-offer-order li {
+  display: grid;
+  grid-template-columns: 1fr 28px 28px;
+  gap: 4px;
+  align-items: center;
+}
+
+.md-offer-order li[data-on='false'] .md-offer-name {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.md-offer-include {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 9px;
+  background: var(--ink-950);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.md-offer-pos {
+  min-width: 18px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-300);
+  text-align: right;
+}
+
+.md-offer-move {
+  width: 28px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: var(--ink-700);
+  color: #ffffff;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.md-offer-move:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}

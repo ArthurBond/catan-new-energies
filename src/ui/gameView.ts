@@ -421,3 +421,83 @@ export function logActor<T extends { name: string }>(message: string, players: T
   }
   return best?.player;
 }
+
+// ============================================================================
+// Offering a trade to other players: what to remember, and who to ask in which order
+// ============================================================================
+
+export type TradeItems = Partial<Record<ResourceType | 'science' | 'energy', number>>;
+
+/** A player's choices for who a trade offer goes to. */
+export interface TradePrefs {
+  /** true: ask everyone in `order` (minus `skip`) one after another; false: ask `single` only */
+  everyone: boolean;
+  /** Everyone else at the table, in the order they are asked */
+  order: PlayerId[];
+  /** Players left out of the sequence */
+  skip: PlayerId[];
+  single: PlayerId | null;
+}
+
+/** The last trade offer sent this turn, so it can be sent again to someone else. */
+export interface TradeMemory {
+  turnKey: string;
+  give: TradeItems;
+  want: TradeItems;
+}
+
+/** Changes whenever the turn passes to someone else (or comes round again), which resets the draft. */
+export function tradeTurnKey(state: GameState): string {
+  return `${state.currentTurn}:${state.activePlayerId}`;
+}
+
+/** By default: ask every other player, in the order their turns come after yours. */
+export function defaultTradePrefs(state: GameState, playerId: PlayerId): TradePrefs {
+  const seats = state.playerOrder.slice(0, state.playerCount);
+  const at = seats.indexOf(playerId);
+  const order = seats.map((_, i) => seats[(at + 1 + i) % seats.length]!).filter((pid) => pid !== playerId);
+  return { everyone: true, order, skip: [], single: order[0] ?? null };
+}
+
+/** Drops players who are no longer at the table and adds any that are missing, keeping the player's order. */
+export function normaliseTradePrefs(state: GameState, playerId: PlayerId, prefs?: TradePrefs): TradePrefs {
+  const fresh = defaultTradePrefs(state, playerId);
+  if (!prefs) return fresh;
+  const valid = new Set(fresh.order);
+  const order = [...new Set(prefs.order.filter((pid) => valid.has(pid)))];
+  for (const pid of fresh.order) if (!order.includes(pid)) order.push(pid);
+  return {
+    everyone: prefs.everyone,
+    order,
+    skip: prefs.skip.filter((pid) => valid.has(pid)),
+    single: prefs.single && valid.has(prefs.single) ? prefs.single : fresh.single,
+  };
+}
+
+/** The players an offer goes to, first to last. */
+export function tradeRecipients(prefs: TradePrefs): PlayerId[] {
+  if (!prefs.everyone) return prefs.single ? [prefs.single] : [];
+  return prefs.order.filter((pid) => !prefs.skip.includes(pid));
+}
+
+/** What to send: the first player, and the others to try in turn as each one declines. */
+export function tradeOfferTargets(prefs: TradePrefs): { targetPlayerId: PlayerId; thenOffer: PlayerId[] } | null {
+  const [first, ...rest] = tradeRecipients(prefs);
+  return first ? { targetPlayerId: first, thenOffer: rest } : null;
+}
+
+/** The remembered offer for this turn, cut down to what the player can still give; empty on a new turn. */
+export function rememberedTrade(
+  state: GameState,
+  memory: TradeMemory | null | undefined
+): { give: TradeItems; want: TradeItems } | null {
+  if (!memory || memory.turnKey !== tradeTurnKey(state)) return null;
+  const player = state.players[state.activePlayerId]!;
+  const give: TradeItems = {};
+  for (const [kind, n] of Object.entries(memory.give) as [keyof TradeItems, number][]) {
+    const held = kind === 'energy' ? player.energy : kind === 'science' ? player.science : player.resources[kind];
+    const count = Math.min(n, held);
+    if (count > 0) give[kind] = count;
+  }
+  return { give, want: { ...memory.want } };
+}

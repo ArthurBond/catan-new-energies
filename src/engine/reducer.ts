@@ -512,7 +512,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
     }
 
     case 'OFFER_TRADE': {
-      applyOfferTrade(next, action.playerId, action.targetPlayerId, action.give, action.want);
+      applyOfferTrade(next, action.playerId, action.targetPlayerId, action.give, action.want, action.thenOffer);
       break;
     }
 

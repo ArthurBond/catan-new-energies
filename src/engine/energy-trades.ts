@@ -14,12 +14,15 @@
 
 import { ResourceType } from './config';
 import { clampGF, computePlayerLF, computeTrueTotalLF } from './footprint';
+import { isHandBreakdownHidden } from './production';
 import {
   GameState,
   HarborId,
   HexId,
   NodeId,
+  PendingDecision,
   PlayerId,
+  PlayerState,
 } from './types';
 
 // ============================================================================
@@ -531,7 +534,8 @@ export function applyOfferTrade(
   playerId: PlayerId,
   targetPlayerId: PlayerId | undefined,
   give: TradeItems,
-  want: TradeItems
+  want: TradeItems,
+  thenOffer?: PlayerId[]
 ): void {
   const check = canOfferTrade(state, playerId, targetPlayerId, give, want);
   if (!check.canOffer) {
@@ -542,6 +546,15 @@ export function applyOfferTrade(
     ? [targetPlayerId]
     : state.playerOrder.filter((pid) => pid !== playerId);
 
+  // Players to try next, one at a time, if the first declines: real seats, no repeats, never the offerer
+  const queue: PlayerId[] = [];
+  for (const pid of thenOffer ?? []) {
+    if (!targetPlayerId) break;
+    if (pid === playerId || pid === targetPlayerId || queue.includes(pid)) continue;
+    if (!state.playerOrder.slice(0, state.playerCount).includes(pid)) continue;
+    queue.push(pid);
+  }
+
   for (const targetId of targets) {
     state.pendingDecisions.push({
       id: `trade-${playerId}-${targetId}-${state.currentTurn}-${state.pendingDecisions.length}`,
@@ -551,6 +564,7 @@ export function applyOfferTrade(
       targetPlayerId: targetId,
       give,
       want,
+      ...(queue.length > 0 ? { thenOffer: queue } : {}),
     });
   }
 
@@ -558,6 +572,68 @@ export function applyOfferTrade(
     timestamp: state.log.length,
     message: `${state.players[playerId]!.name} offered a trade.`,
   });
+}
+
+/** Whether `responder` holds what an offer asks of them, and has room for the energy it gives them. */
+function canCoverOffer(responder: PlayerState, give: TradeItems, want: TradeItems): boolean {
+  // A browser cannot see another player's cards; only the server (full state) can skip anyone
+  if (isHandBreakdownHidden(responder)) return true;
+  for (const [key, count] of Object.entries(want)) {
+    if (!count || count <= 0) continue;
+    if (key === 'energy') {
+      if (responder.energy < count) return false;
+    } else if (key === 'science') {
+      if (responder.science < count) return false;
+    } else if (responder.resources[key as ResourceType] < count) {
+      return false;
+    }
+  }
+  if ((give.energy || 0) > 0 && responder.energy + give.energy! - (want.energy || 0) > 5) return false;
+  return true;
+}
+
+/**
+ * After a decline, puts the same offer to the next player in the offerer's list. Players who cannot
+ * cover it are skipped (and logged) rather than shown a trade they could only decline.
+ */
+function offerToNextInLine(
+  state: GameState,
+  declined: Extract<PendingDecision, { type: 'DOMESTIC_TRADE_RESPONSE' }>
+): void {
+  const queue = [...(declined.thenOffer ?? [])];
+  while (queue.length > 0) {
+    const nextId = queue.shift()!;
+    const next = state.players[nextId]!;
+    if (!canCoverOffer(next, declined.give, declined.want)) {
+      state.log.push({
+        timestamp: state.log.length,
+        message: `${next.name} cannot cover the trade offer and was skipped.`,
+      });
+      continue;
+    }
+    state.pendingDecisions.push({
+      id: `trade-${declined.offeringPlayerId}-${nextId}-${state.currentTurn}-${state.pendingDecisions.length}-${state.log.length}`,
+      type: 'DOMESTIC_TRADE_RESPONSE',
+      playerId: nextId,
+      offeringPlayerId: declined.offeringPlayerId,
+      targetPlayerId: nextId,
+      give: declined.give,
+      want: declined.want,
+      thenOffer: queue,
+    });
+    state.log.push({
+      timestamp: state.log.length,
+      message: `${state.players[declined.offeringPlayerId]!.name} offered the trade to ${next.name} next.`,
+    });
+    return;
+  }
+  // A list (even an empty one) means this offer was part of a sequence, so say how it ended
+  if (declined.thenOffer) {
+    state.log.push({
+      timestamp: state.log.length,
+      message: `Nobody took ${state.players[declined.offeringPlayerId]!.name}'s trade offer.`,
+    });
+  }
 }
 
 export function applyTradeResponse(
@@ -586,6 +662,7 @@ export function applyTradeResponse(
       timestamp: state.log.length,
       message: `${state.players[head.playerId]!.name} declined the trade offer.`,
     });
+    offerToNextInLine(state, head);
     return;
   }
 

@@ -35,7 +35,17 @@ import {
 import { BroadcastChannelTransport } from '../network/transport';
 import { ActionDock, PrimaryAction } from './ActionDock';
 import { applyDevScenario } from './devScenarios';
-import { eventName, handCount, humanizeLog, stealVictimsOnHex } from './gameView';
+import {
+  eventName,
+  handCount,
+  humanizeLog,
+  normaliseTradePrefs,
+  rememberedTrade,
+  stealVictimsOnHex,
+  tradeTurnKey,
+  type TradeMemory,
+  type TradePrefs,
+} from './gameView';
 import { IslandBoardSvg } from './IslandBoardSvg';
 import { Icon } from './Icons';
 import {
@@ -371,6 +381,9 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
   const [activeBuildMode, setActiveBuildMode] = useState<ActiveBuildMode>(null);
   const [inspectedPlayerId, setInspectedPlayerId] = useState<PlayerId | null>(null);
   const [showTradeModal, setShowTradeModal] = useState(false);
+  // The last offer sent this turn (cleared by a new turn), and each player's choice of who offers go to
+  const [tradeMemory, setTradeMemory] = useState<TradeMemory | null>(null);
+  const [tradePrefs, setTradePrefs] = useState<Partial<Record<PlayerId, TradePrefs>>>({});
   const [showEnergyCardModal, setShowEnergyCardModal] = useState(false);
   const [devCardPrompt, setDevCardPrompt] = useState<{
     cardId: string;
@@ -1456,7 +1469,15 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
       )}
 
       {showTradeModal && (
-        <TradeModal state={gameState} onDispatch={dispatchAction} onClose={() => setShowTradeModal(false)} />
+        <TradeModal
+          state={gameState}
+          onDispatch={dispatchAction}
+          onClose={() => setShowTradeModal(false)}
+          remembered={rememberedTrade(gameState, tradeMemory)}
+          prefs={normaliseTradePrefs(gameState, gameState.activePlayerId, tradePrefs[gameState.activePlayerId])}
+          onPrefsChange={(prefs) => setTradePrefs((all) => ({ ...all, [gameState.activePlayerId]: prefs }))}
+          onOffered={(give, want) => setTradeMemory({ turnKey: tradeTurnKey(gameState), give, want })}
+        />
       )}
 
       {showEnergyCardModal && (

@@ -27,7 +27,14 @@ import {
 } from '../engine/types';
 import type { StartingPlacement } from '../engine/setup';
 import { evaluateEmptyBagVictory } from '../engine/victory';
-import { handCount } from './gameView';
+import {
+  handCount,
+  normaliseTradePrefs,
+  tradeOfferTargets,
+  tradeRecipients,
+  type TradeItems,
+  type TradePrefs,
+} from './gameView';
 import {
   CARD_METADATA,
   DEV_CARD_METADATA,
@@ -479,16 +486,26 @@ export function TradeModal({
   state,
   onDispatch,
   onClose,
+  remembered,
+  prefs: savedPrefs,
+  onPrefsChange,
+  onOffered,
 }: {
   state: GameState;
   onDispatch: (action: GameAction) => void;
   onClose: () => void;
+  /** The last offer sent this turn, to start from (null on the first trade of a turn) */
+  remembered?: { give: TradeItems; want: TradeItems } | null;
+  /** Who offers go to, and in what order (kept by the app between openings) */
+  prefs?: TradePrefs;
+  onPrefsChange?: (prefs: TradePrefs) => void;
+  onOffered?: (give: TradeItems, want: TradeItems) => void;
 }) {
   const playerId = state.activePlayerId;
   const player = state.players[playerId]!;
   const playerHarbors = getHarborsForPlayer(state.board, playerId);
 
-  const [tab, setTab] = useState<'supply' | 'harbor' | 'domestic'>('supply');
+  const [tab, setTab] = useState<'supply' | 'harbor' | 'domestic'>(remembered ? 'domestic' : 'supply');
   // Start on something the player can actually afford to give, and a different card to get
   const [supplyGiveType, setSupplyGiveType] = useState<ResourceType | 'science' | 'energy'>(
     () =>
@@ -506,15 +523,25 @@ export function TradeModal({
   const [harborGiveRes, setHarborGiveRes] = useState<ResourceType>('lumber');
   const [harborReceiveType, setHarborReceiveType] = useState<ResourceType | 'science'>('science');
 
-  const [domesticTarget, setDomesticTarget] = useState<PlayerId>(
-    state.playerOrder.find((p) => p !== playerId) ?? 'purple'
-  );
-  const [domesticGive, setDomesticGive] = useState<
-    Partial<Record<ResourceType | 'science' | 'energy', number>>
-  >({});
-  const [domesticWant, setDomesticWant] = useState<
-    Partial<Record<ResourceType | 'science' | 'energy', number>>
-  >({});
+  const [prefs, setPrefsState] = useState<TradePrefs>(() => normaliseTradePrefs(state, playerId, savedPrefs));
+  const setPrefs = (next: TradePrefs) => {
+    setPrefsState(next);
+    onPrefsChange?.(next);
+  };
+  const [domesticGive, setDomesticGive] = useState<TradeItems>(() => ({ ...remembered?.give }));
+  const [domesticWant, setDomesticWant] = useState<TradeItems>(() => ({ ...remembered?.want }));
+  const recipients = tradeRecipients(prefs);
+  const nameOf = (pid: PlayerId) => state.players[pid]!.name;
+  const moveInOrder = (pid: PlayerId, by: -1 | 1) => {
+    const order = [...prefs.order];
+    const at = order.indexOf(pid);
+    const to = at + by;
+    if (at < 0 || to < 0 || to >= order.length) return;
+    [order[at], order[to]] = [order[to]!, order[at]!];
+    setPrefs({ ...prefs, order });
+  };
+  const toggleSkip = (pid: PlayerId) =>
+    setPrefs({ ...prefs, skip: prefs.skip.includes(pid) ? prefs.skip.filter((p) => p !== pid) : [...prefs.skip, pid] });
 
   const requiredSupplyAmount =
     supplyGiveType === 'energy' ? 2 : supplyGiveType === 'science' ? 3 : 4;
@@ -756,26 +783,95 @@ export function TradeModal({
               <span className="md-sub" style={{ marginTop: 0, fontWeight: 700, color: '#ffffff' }}>
                 Offer to
               </span>
-              <div className="lb-segment" role="group" aria-label="Trade partner">
-                {state.playerOrder
-                  .filter((p) => p !== playerId)
-                  .map((pid) => (
-                    <button
-                      key={pid}
-                      type="button"
-                      data-testid={`domestic-target-${pid}`}
-                      data-selected={domesticTarget === pid ? 'true' : 'false'}
-                      onClick={() => setDomesticTarget(pid)}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                    >
-                      <svg width="14" height="14" viewBox="-7 -7 14 14" aria-hidden="true">
-                        <circle r="6.5" fill={PLAYER_THEMES[pid].fill} />
-                      </svg>
-                      {state.players[pid]!.name}
-                    </button>
-                  ))}
-              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={prefs.everyone}
+                className="md-switch"
+                data-testid="trade-auto-offer-toggle"
+                data-on={prefs.everyone ? 'true' : 'false'}
+                title="On: ask each player in turn until someone accepts. Off: ask one player only."
+                onClick={() => setPrefs({ ...prefs, everyone: !prefs.everyone })}
+              >
+                <span className="md-switch-knob" aria-hidden="true" />
+                {prefs.everyone ? 'Auto-offer to everyone' : 'One player only'}
+              </button>
             </div>
+
+            {prefs.everyone ? (
+              <ol className="md-offer-order" data-testid="trade-offer-order" aria-label="Order offers are made in">
+                {prefs.order.map((pid, i) => {
+                  const on = !prefs.skip.includes(pid);
+                  return (
+                    <li key={pid} data-testid={`offer-order-${pid}`} data-on={on ? 'true' : 'false'}>
+                      <button
+                        type="button"
+                        className="md-offer-include"
+                        role="checkbox"
+                        aria-checked={on}
+                        aria-label={`${on ? 'Skip' : 'Include'} ${nameOf(pid)}`}
+                        data-testid={`offer-include-${pid}`}
+                        onClick={() => toggleSkip(pid)}
+                      >
+                        <svg width="16" height="16" viewBox="-8 -8 16 16" aria-hidden="true">
+                          <circle r="7" fill={PLAYER_THEMES[pid].fill} opacity={on ? 1 : 0.35} />
+                          {on && (
+                            <path
+                              d="M-3.2 0.2 L-1 2.6 L3.4 -2.6"
+                              fill="none"
+                              stroke={PLAYER_THEMES[pid].textOnFill}
+                              strokeWidth="1.8"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          )}
+                        </svg>
+                        <span className="md-offer-name">{nameOf(pid)}</span>
+                        <span className="md-offer-pos">{on ? `${recipients.indexOf(pid) + 1}` : 'skipped'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="md-offer-move"
+                        aria-label={`Ask ${nameOf(pid)} earlier`}
+                        data-testid={`offer-up-${pid}`}
+                        disabled={i === 0}
+                        onClick={() => moveInOrder(pid, -1)}
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        className="md-offer-move"
+                        aria-label={`Ask ${nameOf(pid)} later`}
+                        data-testid={`offer-down-${pid}`}
+                        disabled={i === prefs.order.length - 1}
+                        onClick={() => moveInOrder(pid, 1)}
+                      >
+                        ▼
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            ) : (
+              <div className="lb-segment" role="group" aria-label="Trade partner" style={{ alignSelf: 'flex-start' }}>
+                {prefs.order.map((pid) => (
+                  <button
+                    key={pid}
+                    type="button"
+                    data-testid={`domestic-target-${pid}`}
+                    data-selected={prefs.single === pid ? 'true' : 'false'}
+                    onClick={() => setPrefs({ ...prefs, single: pid })}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <svg width="14" height="14" viewBox="-7 -7 14 14" aria-hidden="true">
+                      <circle r="6.5" fill={PLAYER_THEMES[pid].fill} />
+                    </svg>
+                    {nameOf(pid)}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {(
               [
@@ -830,7 +926,9 @@ export function TradeModal({
                   .join(', ');
               const give = describe(domesticGive);
               const want = describe(domesticWant);
-              const ready = give !== '' && want !== '';
+              const targets = tradeOfferTargets(prefs);
+              const ready = give !== '' && want !== '' && targets !== null;
+              const toWhom = recipients.map(nameOf).join(', then ');
               return (
                 <button
                   type="button"
@@ -839,19 +937,24 @@ export function TradeModal({
                   disabled={!ready}
                   style={{ marginTop: '16px' }}
                   onClick={() => {
+                    if (!targets) return;
                     onDispatch({
                       type: 'OFFER_TRADE',
                       playerId,
-                      targetPlayerId: domesticTarget,
+                      targetPlayerId: targets.targetPlayerId,
+                      ...(targets.thenOffer.length > 0 ? { thenOffer: targets.thenOffer } : {}),
                       give: domesticGive,
                       want: domesticWant,
                     });
+                    onOffered?.(domesticGive, domesticWant);
                     onClose();
                   }}
                 >
                   {ready
-                    ? `Offer ${give} for ${want}`
-                    : 'Choose what you offer and what you ask for'}
+                    ? `Offer ${give} for ${want} to ${toWhom}`
+                    : targets === null && give !== '' && want !== ''
+                      ? 'Include at least one player to offer to'
+                      : 'Choose what you offer and what you ask for'}
                 </button>
               );
             })()}

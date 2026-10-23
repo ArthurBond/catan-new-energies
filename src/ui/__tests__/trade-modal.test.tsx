@@ -82,11 +82,12 @@ describe('TradeModal card pickers', () => {
     const send = () => container.querySelector('[data-testid="send-domestic-offer-btn"]') as HTMLButtonElement;
     expect(send().disabled).toBe(true);
 
+    click(container, 'trade-auto-offer-toggle'); // off: one player only
     click(container, 'domestic-target-pink');
     click(container, 'domestic-give-steel');
     click(container, 'domestic-give-steel');
     click(container, 'domestic-want-food');
-    expect(send().textContent).toBe('Offer 2 steel for 1 food');
+    expect(send().textContent).toBe('Offer 2 steel for 1 food to Pink');
     click(container, 'send-domestic-offer-btn');
     expect(onDispatch).toHaveBeenCalledWith({
       type: 'OFFER_TRADE',
