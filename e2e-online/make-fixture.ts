@@ -1,7 +1,7 @@
 /**
  * Writes a saved game (`current-game.json` + `host-key.txt`) for the online dialog tests, so a
  * server started on that folder resumes in a prepared situation: a roll of 7 with two discards,
- * a Clean Up card in a friend's hand, a game one draw from its end.
+ * a Clean Up card in a friend's hand, a game one draw from its end, a win by revealing cards.
  *
  *   FIXTURE=seven SAVES_DIR=<folder> node node_modules/vite-node/vite-node.mjs e2e-online/make-fixture.ts
  *
@@ -77,6 +77,18 @@ export function buildFixture(name: FixtureName): SavedRoom {
     setHand(game, 'orange', { lumber: 2, steel: 1 });
     setHand(game, 'purple', { food: 1 });
     game.players.purple.devCards.unplayed = ['dev_cleanup_01'];
+  } else if (name === 'vp-reveal') {
+    // Orange (the host) is mid-turn on 8 points with two Victory Point cards, a Research Grant
+    // card and 4 lumber for the bank; revealing the cards wins on 10 points. Finn holds one
+    // hidden Victory Point card (6 + 1 = 7).
+    game.phase = 'ActionPhase';
+    game.activePlayerId = 'orange';
+    setHand(game, 'orange', { lumber: 4, steel: 1 });
+    game.players.orange.victoryPoints = 8;
+    game.players.orange.devCards.unplayed = ['dev_researchGrant_01', 'dev_victoryPoint_01', 'dev_victoryPoint_02'];
+    game.players.purple.victoryPoints = 6;
+    game.players.purple.devCards.unplayed = ['dev_victoryPoint_03'];
+    game.players.pink.victoryPoints = 5;
   } else {
     // The bag is empty and orange (the host) must draw: that ends the game on the clean-energy
     // balance. Finn and Pink hold Victory Point cards nobody has seen.

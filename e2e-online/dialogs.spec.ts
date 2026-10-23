@@ -275,3 +275,69 @@ test.describe('the end of a game', () => {
     await friend.context.close();
   });
 });
+
+test.describe('the bank, a Research Grant and a win by revealing Victory Point cards', () => {
+  let server: FixtureServer;
+  test.beforeAll(async () => {
+    server = await startFixtureServer('vp-reveal');
+  });
+  test.afterAll(async () => {
+    await server?.stop();
+  });
+
+  test('the host trades with the bank, plays the grant and wins on 10 points', async ({ browser }) => {
+    const host = await openHost(browser, server.baseURL);
+    const friend = await openFriend(browser, server.baseURL);
+    const A = host.page; // Hana, orange
+    const B = friend.page; // Finn, purple
+
+    await expect(app(A)).toHaveAttribute('data-phase', 'ActionPhase');
+    await expect(B.getByTestId('reveal-vp-cards-btn')).toHaveCount(0);
+    await expect(A.getByTestId('reveal-vp-cards-btn')).toBeVisible();
+
+    await test.step('4 lumber go to the bank for a brick', async () => {
+      await A.getByTestId('action-open-trade-btn').click();
+      await expect(A.getByTestId('trade-modal')).toBeVisible();
+      await A.getByTestId('supply-give-lumber').click();
+      await A.getByTestId('supply-receive-brick').click();
+      await A.getByTestId('execute-supply-trade-btn').click();
+      await expect(A.getByTestId('action-error-toast')).toHaveCount(0);
+      await expect.poll(async () => (await ownHand(A)).brick).toBe(1);
+      expect(await ownHand(A)).toMatchObject({ lumber: 0, brick: 1, steel: 1 });
+      await expect(B.getByTestId('corner-cards-orange')).toHaveText('2');
+      if (await A.getByTestId('trade-modal').isVisible()) await A.getByTestId('close-trade-modal').click();
+    });
+
+    await test.step('the Research Grant takes two cards from the supply', async () => {
+      await A.getByTestId('dev-card-dev_researchGrant_01').click();
+      await expect(A.getByTestId('dev-card-modal')).toBeVisible();
+      await A.getByTestId('grant1-food').click();
+      await A.getByTestId('grant2-steel').click();
+      await A.getByTestId('confirm-play-research-grant').click();
+      await expect(A.getByTestId('action-error-toast')).toHaveCount(0);
+      await expect(A.getByTestId('dev-card-dev_researchGrant_01')).toHaveCount(0);
+      expect(await ownHand(A)).toMatchObject({ brick: 1, food: 1, steel: 2 });
+      await expect(B.getByTestId('corner-cards-orange')).toHaveText('4');
+      await expect(B.getByTestId('live-action-banner')).toContainText('Research Grant');
+    });
+
+    await test.step('revealing both Victory Point cards wins on 10 points', async () => {
+      await A.getByTestId('reveal-vp-cards-btn').click();
+      for (const page of [A, B]) {
+        await expect(page.getByTestId('victory-modal')).toBeVisible();
+        await expect(page.getByTestId('victory-modal')).toContainText('Hana wins');
+        await expect(page.getByTestId('victory-modal')).toContainText('10 victory points');
+      }
+      const rows = async (page: Page) => page.getByTestId('victory-modal').locator('[role="row"]').allTextContents();
+      const hostRows = await rows(A);
+      expect(await rows(B)).toEqual(hostRows);
+      expect(hostRows[0]).toContain('10VP');
+      // Finn's own card is still hidden in play, but the finished game counts it: 6 + 1
+      expect(hostRows.find((r) => r.includes('Finn'))).toContain('7VP');
+      expect(hostRows.find((r) => r.includes('Pink'))).toContain('5VP');
+    });
+
+    await host.context.close();
+    await friend.context.close();
+  });
+});
