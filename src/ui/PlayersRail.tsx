@@ -5,7 +5,7 @@
 
 import 'preact/compat';
 import { GameState, PlayerId } from '../engine/types';
-import { handCount, humanizeLog } from './gameView';
+import { handCount, humanizeLog, logActor } from './gameView';
 import { Icon } from './Icons';
 import type { SeatConfig } from './Modals';
 import { PLAYER_THEMES } from './theme';
@@ -133,7 +133,7 @@ export function PlayersRail({ state, seats, inspectedPlayerId, onInspect, roleLa
         </div>
         <div className="tt-feed-list" aria-live="polite">
           {recent.map((entry, idx) => {
-            const who = names.find((n) => entry.message.includes(n.name));
+            const who = logActor(entry.message, names);
             return (
               <div key={`${entry.timestamp}-${idx}`} className="tt-feed-item">
                 <i style={{ background: who ? PLAYER_THEMES[who.pid].fill : 'var(--card-edge-deep)' }} />

@@ -377,3 +377,21 @@ export function humanizeLog(message: string): string {
 export function eventName(type: string): string {
   return EVENT_NAMES[type] ?? type;
 }
+
+/**
+ * Which player a log line is about: the one named earliest in the message, which is the actor
+ * ("Blue rolled 6. Orange rolled highest" is Blue's line). Where two names start at the same place
+ * the longer one wins, so "Ann" does not steal a line about "Anna".
+ */
+export function logActor<T extends { name: string }>(message: string, players: T[]): T | undefined {
+  let best: { player: T; index: number } | undefined;
+  for (const player of players) {
+    if (!player.name) continue;
+    const index = message.indexOf(player.name);
+    if (index < 0) continue;
+    if (!best || index < best.index || (index === best.index && player.name.length > best.player.name.length)) {
+      best = { player, index };
+    }
+  }
+  return best?.player;
+}
