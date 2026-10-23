@@ -188,6 +188,35 @@ function vpTitleArcPath(): string {
   return `M ${pt(polarPt(r, mid - VP_TITLE.spanDeg))} A ${r} ${r} 0 0 1 ${pt(polarPt(r, mid + VP_TITLE.spanDeg))}`;
 }
 
+// ---------------------------------------------------------------------------
+// Event disc islands: curved bands concentric with the rim
+// ---------------------------------------------------------------------------
+
+export const EVENT_TRACK = {
+  /** Centre line radius of every island */
+  rMid: 434,
+  /** Distance between neighbouring slot centres, along the arc */
+  slotStep: 23,
+  halfW: 15.5,
+  sandHalfW: 18.5,
+  reefHalfW: 22,
+  /** The name label sits on the inside: clear of the reef by labelGap */
+  labelThickness: 13,
+  labelGap: 5,
+  labelR: 434 - 22 - 5 - 13 / 2,
+};
+
+/** Angle (degrees) of slot i of an island whose middle sits at centerDeg. */
+export function eventSlotAngle(centerDeg: number, capacity: number, i: number): number {
+  const stepDeg = (EVENT_TRACK.slotStep / EVENT_TRACK.rMid) * (180 / Math.PI);
+  return centerDeg + (i - (capacity - 1) / 2) * stepDeg;
+}
+
+/** Length of the label pill's centre line (the round ends add half a thickness each side). */
+export function eventLabelArcLength(text: string): number {
+  return text.length * 3.9 + 4;
+}
+
 export function SeaFrameSvg({
   board,
   playerCount,
@@ -790,90 +819,87 @@ export function SeaFrameSvg({
       </g>
 
       {/* =================================================================== */}
-      {/* 4. 7 COASTAL EVENT DISC ISLANDS                                     */}
+      {/* 4. 7 COASTAL EVENT DISC ISLANDS: curved bands that follow the rim, labelled on their inner side */}
       {/* =================================================================== */}
       {(Object.keys(EVENT_TRACK_METADATA) as EventDiscType[]).map((trackKey) => {
         const meta = EVENT_TRACK_METADATA[trackKey];
         const filledCount = eventTracks[trackKey] ?? 0;
-        const rad = (meta.angleDeg * Math.PI) / 180;
-        const islandRadiusFromCenter = 434;
-
-        const ix = BOARD_CENTER_X + Math.cos(rad) * islandRadiusFromCenter;
-        const iy = BOARD_CENTER_Y + Math.sin(rad) * islandRadiusFromCenter;
-
-        // Tangent angle along the circular rim so the island hugs the outer coast like BGG board
-        const tangentDeg = meta.angleDeg + 90;
         const isGreen = meta.category === 'green' || meta.category === 'hybrid';
-        const pillHalfLen = meta.capacity === 4 ? 52 : 40;
+        const T = EVENT_TRACK;
 
-        // Keep label right-side up for bottom-half islands while always placing it on the inner (+Y local) side
-        const isBottomHalf = meta.angleDeg > 10 && meta.angleDeg < 170;
+        const slotAngle = (i: number) => eventSlotAngle(meta.angleDeg, meta.capacity, i);
+        const firstAngle = slotAngle(0);
+        const lastAngle = slotAngle(meta.capacity - 1);
+
+        // The label is upright on the lower half of the board only if its path runs the other way round
+        const flipped = Math.sin((meta.angleDeg * Math.PI) / 180) > 0;
+        const labelText = `${meta.shortTitle} (${filledCount}/${meta.capacity})`;
+        const labelArcLength = eventLabelArcLength(labelText);
+        const labelSpanDeg = ((labelArcLength / T.labelR) * 180) / Math.PI;
+        const labelStart = meta.angleDeg + (flipped ? labelSpanDeg / 2 : -labelSpanDeg / 2);
+        const labelEnd = meta.angleDeg + (flipped ? -labelSpanDeg / 2 : labelSpanDeg / 2);
+        const labelPath = `M ${pt(polarPt(T.labelR, labelStart))} A ${T.labelR} ${T.labelR} 0 0 ${flipped ? 0 : 1} ${pt(polarPt(T.labelR, labelEnd))}`;
+        const labelId = `event-label-arc-${trackKey}`;
+
+        // '?' badge just past the start of the track
+        const badgeAngle = firstAngle - ((T.sandHalfW + 9.5) / T.rMid) * (180 / Math.PI);
+        const [badgeX, badgeY] = polarPt(T.rMid, badgeAngle);
 
         return (
           <g
             key={trackKey}
             data-testid={`event-track-${trackKey}`}
-            transform={`translate(${ix.toFixed(1)}, ${iy.toFixed(1)}) rotate(${tangentDeg})`}
             style={{ cursor: 'pointer' }}
             onClick={() => onSelectEventTrackInfo?.(trackKey)}
             role="button"
             tabIndex={0}
             aria-label={`${meta.title} Event Track: ${filledCount} of ${meta.capacity} discs`}
           >
-            {/* Shallow Turquoise Reef Halo */}
-            <rect
-              x={-pillHalfLen - 7}
-              y={-22}
-              width={(pillHalfLen + 7) * 2}
-              height={44}
-              rx={22}
+            {/* Shallow turquoise reef halo */}
+            <path
+              data-testid={`event-reef-${trackKey}`}
+              d={vpBandPath(firstAngle, lastAngle, T.rMid, T.reefHalfW)}
               fill="rgba(130, 228, 255, 0.28)"
             />
 
-            {/* Coastal Foam / Sandy Beach Outline */}
-            <rect
-              x={-pillHalfLen - 3.5}
-              y={-18.5}
-              width={(pillHalfLen + 3.5) * 2}
-              height={37}
-              rx={18.5}
+            {/* Coastal foam / sandy beach outline */}
+            <path
+              d={vpBandPath(firstAngle, lastAngle, T.rMid, T.sandHalfW)}
               fill="#ece2c6"
               stroke="rgba(255,255,255,0.75)"
               strokeWidth={1.8}
+              strokeLinejoin="round"
             />
-            {/* Island Terrain Fill (Lush Green on Left Rim, Rocky Brown on Right/Bottom Rim) */}
-            <rect
-              x={-pillHalfLen}
-              y={-15.5}
-              width={pillHalfLen * 2}
-              height={31}
-              rx={15.5}
+
+            {/* Island terrain (lush green for the beneficial events, rocky brown for the harmful ones) */}
+            <path
+              data-testid={`event-band-${trackKey}`}
+              d={vpBandPath(firstAngle, lastAngle, T.rMid, T.halfW)}
               fill={isGreen ? 'url(#greenIslandGrad)' : 'url(#brownIslandGrad)'}
               stroke={isGreen ? '#35591b' : '#4a3f2f'}
               strokeWidth={1.4}
+              strokeLinejoin="round"
             />
 
-            {/* BGG-Style '?' Info Badge on the End of Each Event Island */}
-            <g transform={`translate(${-pillHalfLen - 6}, -4) ${isBottomHalf ? 'rotate(180)' : ''}`}>
+            {/* '?' info badge */}
+            <g transform={`translate(${badgeX.toFixed(2)}, ${badgeY.toFixed(2)})`}>
               <circle r={7.5} fill="#c8ba9e" stroke="#2d261c" strokeWidth={1.2} />
-              <text x={0} y={2.8} textAnchor="middle" fontSize="8.5" fontWeight="900" fill="#1e1a14">
+              <text x={0} y={2.9} textAnchor="middle" fontSize="8.5" fontWeight="900" fill="#1e1a14">
                 ?
               </text>
             </g>
 
-            {/* Slots along the Island */}
+            {/* Slots along the band (icons stay upright) */}
             {Array.from({ length: meta.capacity }, (_, sIdx) => {
-              const step = 23;
-              const startX = -((meta.capacity - 1) * step) / 2;
-              const sx = startX + sIdx * step;
+              const [sx, sy] = polarPt(T.rMid, slotAngle(sIdx));
               const isFilled = sIdx < filledCount;
 
               return (
                 <g key={sIdx} data-testid={`event-slot-${trackKey}-${sIdx}`}>
-                  {/* Stone Slot Crater */}
+                  {/* Stone slot crater */}
                   <circle
                     cx={sx}
-                    cy={0}
+                    cy={sy}
                     r={9}
                     fill="rgba(20, 24, 20, 0.42)"
                     stroke="rgba(244, 242, 232, 0.8)"
@@ -881,25 +907,25 @@ export function SeaFrameSvg({
                     strokeDasharray={isFilled ? undefined : '2.5 2'}
                   />
                   {!isFilled && (
-                    <g transform={`translate(${sx}, 0)`} opacity={0.42}>
+                    <g transform={`translate(${sx.toFixed(2)}, ${sy.toFixed(2)})`} opacity={0.42}>
                       <EventIconSvg type={trackKey} scale={0.4} />
                     </g>
                   )}
 
-                  {/* Drawn Event Disc Token when filled */}
+                  {/* Drawn event disc when filled */}
                   {isFilled && (
                     <g data-testid={`event-disc-${trackKey}-${sIdx}`}>
-                      <circle cx={sx + 1} cy={1.5} r={8.5} fill="rgba(0,0,0,0.35)" />
+                      <circle cx={sx + 1} cy={sy + 1.5} r={8.5} fill="rgba(0,0,0,0.35)" />
                       <circle
                         cx={sx}
-                        cy={0}
+                        cy={sy}
                         r={8.2}
                         fill={isGreen ? '#7cb342' : '#8d6e63'}
                         stroke="#f5f2e6"
                         strokeWidth={1.4}
                       />
-                      <circle cx={sx} cy={0} r={5.8} fill="#fbf6ea" />
-                      <g transform={`translate(${sx}, 0)`}>
+                      <circle cx={sx} cy={sy} r={5.8} fill="#fbf6ea" />
+                      <g transform={`translate(${sx.toFixed(2)}, ${sy.toFixed(2)})`}>
                         <EventIconSvg type={trackKey} scale={0.4} />
                       </g>
                     </g>
@@ -908,32 +934,34 @@ export function SeaFrameSvg({
               );
             })}
 
-            {/* Track Name Banner (Always placed on the inner side `y = +24` toward the island, away from the outer rim) */}
-            <g transform={`translate(0, 24.5) ${isBottomHalf ? 'rotate(180)' : ''}`}>
-              <rect
-                x={-45}
-                y={-6.5}
-                width={90}
-                height={13}
-                rx={6.5}
-                fill="rgba(12, 32, 54, 0.9)"
+            {/* Name label: a pill that follows the rim, set apart from the band with a clear gap */}
+            <g data-testid={`event-label-${trackKey}`}>
+              <path
+                id={labelId}
+                data-testid={`event-label-arc-${trackKey}`}
+                d={labelPath}
+                fill="none"
                 stroke="rgba(190, 232, 255, 0.45)"
-                strokeWidth={0.9}
+                strokeWidth={T.labelThickness + 1.8}
+                strokeLinecap="round"
               />
-              <text
-                x={0}
-                y={2.4}
-                textAnchor="middle"
-                fontSize="6.8"
-                fontWeight="800"
-                fill="#f4f8fc"
-              >
-                {meta.shortTitle} ({filledCount}/{meta.capacity})
+              <path
+                d={labelPath}
+                fill="none"
+                stroke="rgba(12, 32, 54, 0.92)"
+                strokeWidth={T.labelThickness}
+                strokeLinecap="round"
+              />
+              <text fontSize="7" fontWeight="800" fill="#f4f8fc" textAnchor="middle" dy="2.5">
+                <textPath href={`#${labelId}`} startOffset="50%">
+                  {labelText}
+                </textPath>
               </text>
             </g>
           </g>
         );
       })}
+
     </g>
   );
 }
