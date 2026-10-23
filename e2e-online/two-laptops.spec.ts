@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import WebSocket from 'ws';
 
 /**
  * Two browser contexts are two laptops: separate storage, one shared game on the host's server.
@@ -222,6 +223,35 @@ test('host and a friend on separate laptops play the opening on the host server'
     await expect(friend.getByTestId('tabletop-board')).toBeVisible();
     await expect(second.getByTestId('online-replaced')).toBeVisible();
     await second.close();
+  });
+
+  await test.step('a freed seat can be claimed mid-game by a late joiner', async () => {
+    const lateCtx = await browser.newContext({ viewport: { width: 1366, height: 768 } });
+    const late = await lateCtx.newPage();
+    await late.goto('/');
+    await expect(late.getByTestId('online-midgame-join')).toBeVisible();
+    await expect(late.locator('[data-testid^="online-claim-"]')).toHaveCount(0);
+
+    // The friend gives up the seat (sent straight to the server with the friend's seat token)
+    const token = await friend.evaluate(() => localStorage.getItem('catan-ne-online-seat-token'));
+    expect(token).toBeTruthy();
+    const ws = new WebSocket(`ws://localhost:${new URL(friend.url()).port}/ws`);
+    await new Promise<void>((resolve, reject) => {
+      ws.once('open', () => resolve());
+      ws.once('error', reject);
+    });
+    ws.send(JSON.stringify({ type: 'hello', name: '', seatToken: token }));
+    ws.send(JSON.stringify({ type: 'leaveSeat' }));
+
+    await expect(late.getByTestId('online-claim-purple')).toBeDisabled();
+    await late.getByTestId('online-name-input').fill('Lena');
+    await late.getByTestId('online-claim-purple').click();
+    await expect(late.getByTestId('online-midgame-join')).toHaveCount(0);
+    await expect(app(late)).toHaveAttribute('data-my-seat', 'purple');
+    await expect(late.getByTestId('corner-station-purple')).toContainText('Lena');
+    await expect(host.getByTestId('corner-station-purple')).toContainText('Lena');
+    ws.close();
+    await lateCtx.close();
   });
 
   await hostCtx.close();
