@@ -322,3 +322,14 @@ build). Double-click `scripts\windows\host-game.cmd` on the host PC.
 6. Check the laptop's rail shows the host's hand only as a number, and play a 7 and a steal.
 7. Host presses New game (confirm), seats are kept; stop the server with Ctrl+C, start it again
    and confirm the game resumes with the same seats.
+
+### Phase C — in progress (playability gaps for whole online games)
+Done so far
+- Task 1 (soak test) done: `server/__tests__/full-game.integration.test.ts` plays whole games through
+  the real server with host + friend as browser-like WebSocket clients (hydrate + `legalActions`)
+  and two server bots (4 seats seeds 1/2/3/11/12, 3 seats seed 7). Two real bugs found and fixed in
+  `ad3f071`: hidden hands made `legalActions` omit "Accept" on domestic trades and the victims of
+  Cleanup steals. Zero rejected moves; every state frame equals an independent replay.
+Next
+- Task 2: reveal every hand once the game is over (standings in the victory dialog).
+- Task 3: browser check of the discard / steal / trade / dev card dialogs online.
