@@ -13,9 +13,9 @@ Verification at hand-off (latest commit on `goal/04-full-game-ui-bots-multiplaye
 ```text
 npm run typecheck   -> exit 0
 npm run lint        -> exit 0
-npm run build       -> dist/assets/index-*.js 297 kB (85 kB gzip), css 30 kB
-npx vitest run      -> 15 files, 177 tests passed
-npx playwright test -> 9 passed (tabletop x2, setup-flow x2, dev-cards x3, visual verification x2 viewports)
+npm run build       -> dist/assets/index-*.js 299 kB (86 kB gzip), css 31 kB
+npx vitest run      -> 16 files, 186 tests passed
+npx playwright test -> 10 passed (tabletop x2, setup-flow x2, dev-cards x4 incl. discard, visual verification x2 viewports)
 ```
 Also checked by hand in a browser: a full all-bot game to the end (0 console errors), keyboard-only setup
 (Tab to the roll button, focus a glowing corner, Enter to place), reduced-motion mode, and layouts at
@@ -63,6 +63,12 @@ npm run dev            # http://localhost:5173/
 ```
 URL params: `setup=first|standard`, `placement=draft|fixed`, `players=3|4`, `seed=N`, `mode=hotseat` (all human) or `bots=all`, `lobby=1` (open the New game sheet), `room=CODE` (multi-tab sync).
 Dev-only visual scenarios: `?scenario=showcase` (mid-game with plants, hazards, moved inspector), `discard`, `cardchoice`, `victory`.
+
+### 8. Follow-up: discard bug, rule audit, player board redraw
+- **Discarding on a 7 did nothing.** `applyAction` only accepts actions that exactly match `legalActions`; for discards that list stopped at 50 combinations and was compared with raw `JSON.stringify`, so the dialog's answer (click order, zero entries) was rejected and the error swallowed. Fixed with `canResolveDiscard` (validates against the rules directly: exactly half rounded down, whole numbers, never more than held, right player) and a key-order-insensitive `isActionEqual` (`canonicalJson`). Rejected moves now show a red "That move is not allowed" toast with the reason.
+- **Rule audit** against `rules_text.txt`: production and hazard clearing (incl. the inspector exception and the hex+city example), roll of 7, inspector moves and steals, roads (not past opponent buildings), towns (distance rule), cities, power plant cutouts and the one-per-turn limit, energy uses and the 5-energy cap, supply/harbor/player trades, warehouse, development cards and both win conditions all match. Hardened: trade offers must be whole non-negative numbers of real cards; Research Grant must name resource/science cards. The empty-bag tie-breaks after "most points" (most renewables, lowest LF) are engine additions the rules do not specify.
+- Tests: `src/engine/__tests__/decision-validation.test.ts` (discards, key order, malformed trades, Research Grant, a full real roll of 7 → discards → inspector → steal), a UI discard test, and an e2e discard test.
+- **Player board** (`PlayerMat.tsx`) redrawn: full rounded cardboard rectangle (no stepped corners), piece-shaped slots using the exported `TOWN_PATH_D`/`CITY_PATH_D` with upright pieces, a bridge window bordered on all four corners, puffy smoke/clouds instead of pale wedges, new factory and hills, card-stock cost tabs and energy tiles. The visual e2e checks all 24 slots sit inside the printed area.
 
 ## New / changed files
 | File | Role |

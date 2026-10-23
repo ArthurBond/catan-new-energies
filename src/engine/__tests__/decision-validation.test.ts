@@ -88,6 +88,75 @@ describe('Other answers from the UI', () => {
   });
 });
 
+describe('A real roll of 7, start to finish', () => {
+  it('rolls 7, takes the discards, moves the inspector, steals, then opens the action phase', () => {
+    // Find a seed whose first production roll is a 7 (deterministic PRNG)
+    let state: GameState | null = null;
+    for (let seed = 1; seed < 500 && !state; seed++) {
+      let s = createInitialGameState({ setupMode: 'first', placement: 'fixed', seed });
+      s.players.orange!.resources = { lumber: 3, brick: 2, natural_fiber: 2, food: 1, steel: 1 }; // 9 + 1 science
+      s.players.purple!.resources = { lumber: 2, brick: 2, natural_fiber: 2, food: 2, steel: 2 }; // 10 + 1 science
+      while (s.phase === 'EventPhase' && s.pendingDecisions.length === 0) {
+        s = applyAction(s, { type: 'DRAW_EVENT_DISC', playerId: s.activePlayerId });
+      }
+      if (s.phase !== 'ProductionPhase' || s.pendingDecisions.length > 0) continue;
+      const rolled = applyAction(s, { type: 'ROLL_DICE', playerId: 'orange' });
+      if (rolled.lastDiceRoll![0] + rolled.lastDiceRoll![1] === 7) state = rolled;
+    }
+    expect(state).not.toBeNull();
+    let s = state!;
+
+    // Orange (10 cards) and Purple (11 cards) both owe half, clockwise from the roller
+    expect(s.pendingDecisions.map((d) => [d.type, d.playerId])).toEqual([
+      ['DISCARD_ON_SEVEN', 'orange'],
+      ['DISCARD_ON_SEVEN', 'purple'],
+    ]);
+    s = applyAction(s, {
+      type: 'RESOLVE_PENDING_DECISION',
+      playerId: 'orange',
+      decisionId: s.pendingDecisions[0]!.id,
+      response: { cards: { science: 1, lumber: 3, brick: 1 } },
+    });
+    s = applyAction(s, {
+      type: 'RESOLVE_PENDING_DECISION',
+      playerId: 'purple',
+      decisionId: s.pendingDecisions[0]!.id,
+      response: { cards: { steel: 2, food: 2, natural_fiber: 1 } },
+    });
+    expect(s.players.orange!.resources.lumber).toBe(0);
+    expect(s.players.purple!.resources.steel).toBe(0);
+
+    // Inspector moves to a hex next to Purple's buildings, then Orange steals from Purple
+    const purpleNode = s.board.intersections.find((n) => n.building?.playerId === 'purple')!;
+    const target = purpleNode.adjacentHexIds
+      .map((h) => s.board.hexes[h]!)
+      .find((h) => !h.hasInspector && !h.hasHazard)!;
+    expect(s.pendingDecisions[0]?.type).toBe('MOVE_INSPECTOR');
+    s = applyAction(s, {
+      type: 'RESOLVE_PENDING_DECISION',
+      playerId: 'orange',
+      decisionId: s.pendingDecisions[0]!.id,
+      response: { hexId: target.id },
+    });
+    if (s.pendingDecisions[0]?.type === 'STEAL_TARGET') {
+      const before = s.players.orange!;
+      const handBefore =
+        Object.values(before.resources).reduce((a, b) => a + b, 0) + before.science;
+      s = applyAction(s, {
+        type: 'RESOLVE_PENDING_DECISION',
+        playerId: 'orange',
+        decisionId: s.pendingDecisions[0]!.id,
+        response: { targetPlayerId: 'purple' },
+      });
+      const after = s.players.orange!;
+      expect(Object.values(after.resources).reduce((a, b) => a + b, 0) + after.science).toBe(handBefore + 1);
+    }
+    expect(s.phase).toBe('ActionPhase');
+    expect(s.pendingDecisions).toHaveLength(0);
+    expect(s.board.hexes[target.id]!.hasInspector).toBe(true);
+  });
+});
+
 describe('DISCARD_ON_SEVEN validation', () => {
   it('accepts any legal discard, including combinations late in the enumeration', () => {
     const state = stateAwaitingDiscard();

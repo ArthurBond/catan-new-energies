@@ -40,3 +40,8 @@
   - **Persistence**: unfinished games resume after reload.
   - **Later in the session**: hex tile bevel and grain, richer forest/mountain/pasture art, event disc reveal and island icons, card-based trading on all tabs, Road Construction and Clean Up played on the board, bag-end standings ranked by clean-energy balance.
   - **Verification**: `npm run typecheck` (exit 0), `npm run lint` (exit 0), `npm run build` (exit 0), `npx vitest run` (15 files, 177 tests passed), `npx playwright test` (9 passed incl. new `e2e/setup-flow.spec.ts` and `e2e/dev-cards.spec.ts`).
+- **Discard-on-7 Fix, Rule Validation Audit & Player Board Redraw (`src/engine/actions.ts`, `src/engine/reducer.ts`, `src/engine/energy-trades.ts`, `src/engine/dev-cards.ts`, `src/ui/PlayerMat.tsx`)**:
+  - Discards were rejected because legal discards were matched against a 50-item list by raw JSON; now validated directly by `canResolveDiscard`, and all action matching ignores key order. Rejected moves show a visible error toast.
+  - Full rule audit against the rulebook; hardened trade item and Research Grant validation. New `decision-validation.test.ts` incl. a real roll-of-7 sequence.
+  - Player board redrawn with a complete rounded frame, piece-shaped slots, fully bordered bridge window and proper clouds.
+  - **Verification**: `npm run typecheck` (exit 0), `npm run lint` (exit 0), `npm run build` (exit 0), `npx vitest run` (16 files, 186 tests passed), `npx playwright test` (10 passed).
