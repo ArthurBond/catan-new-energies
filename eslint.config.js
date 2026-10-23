@@ -9,7 +9,7 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   {
     // Node scripts (asset generators) run outside the browser
-    files: ['scripts/**/*.mjs'],
+    files: ['scripts/**/*.mjs', 'e2e-online/**/*.mjs'],
     languageOptions: { globals: { console: 'readonly', process: 'readonly' } },
   },
   {

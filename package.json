@@ -19,6 +19,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
+    "test:e2e:online": "npm run build && npm run build:server && playwright test -c playwright.online.config.ts",
     "cursors:build": "node scripts/make-cursors.mjs"
   },
   "dependencies": {

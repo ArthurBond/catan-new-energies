@@ -26,10 +26,12 @@
     "src",
     "server",
     "e2e",
+    "e2e-online",
     "vite.config.ts",
     "vite.server.config.ts",
     "vitest.config.ts",
-    "playwright.config.ts"
+    "playwright.config.ts",
+    "playwright.online.config.ts"
   ],
   "exclude": ["node_modules", "dist", "dist-server"]
 }
