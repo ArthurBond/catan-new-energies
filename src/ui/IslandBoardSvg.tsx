@@ -315,6 +315,230 @@ function HillsArtworkSvg({ hexId }: { hexId: number }) {
   );
 }
 
+/** A mountain as a lit (left) and a shaded (right) face split by a kinked ridge line, light from the top-left. */
+interface MountainPeak {
+  apex: [number, number];
+  left: [number, number];
+  right: [number, number];
+  /** Ridge from the apex down to the foot that divides the lit and shaded faces */
+  ridge: [number, number][];
+}
+
+/** Back to front. The two tall peaks stand behind the mine yard; the shoulders frame the sides. */
+const MOUNTAIN_PEAKS: MountainPeak[] = [
+  { apex: [-21, -41], left: [-56, 2], right: [8, -2], ridge: [[-18, -30], [-21, -18], [-12, -2]] },
+  { apex: [19, -47], left: [-8, -2], right: [56, 4], ridge: [[22, -34], [18, -20], [27, -2]] },
+  { apex: [-37, -11], left: [-60, 24], right: [-12, 20], ridge: [[-34, -2], [-30, 20]] },
+  { apex: [37, -7], left: [12, 22], right: [60, 26], ridge: [[39, 4], [35, 23]] },
+];
+
+/** Snow caps [apex index, jagged lower edge from left to right] on the two tall peaks. */
+const MOUNTAIN_SNOW: [number, [number, number][]][] = [
+  [0, [[-29.5, -23], [-26, -27], [-23, -22], [-20, -26], [-17.5, -21], [-15, -26]]],
+  [1, [[10.5, -26], [14, -31], [17, -25], [20, -30], [23, -24], [26.5, -29]]],
+];
+
+/** Mine yard: a raised flat terrace centred under the number disc, with a short cliff face at the front. */
+const MINE_YARD = { cx: 0, cy: 2, rx: 25, ry: 21, drop: 3.2 };
+
+/** Deterministic grit [x, y, r] for the gravel yard and the talus. */
+const MOUNTAIN_SPECKS: [number, number, number][] = Array.from({ length: 80 }, (_, i) => {
+  const r1 = Math.abs(Math.sin(i * 31.17 + 3.3) * 43758.5453) % 1;
+  const r2 = Math.abs(Math.sin(i * 67.91 + 8.1) * 24634.6345) % 1;
+  return [-44 + r1 * 88, -10 + r2 * 60, 0.35 + ((i * 5) % 4) * 0.12] as [number, number, number];
+}).filter(([x, y]) => Math.hypot(x, y) > 19);
+
+/** Heap of iron ore: dark rock with rusty glints. */
+function OreHeap({ x, y, s = 1 }: { x: number; y: number; s?: number }) {
+  return (
+    <g transform={`translate(${x}, ${y}) scale(${s})`}>
+      <ellipse cx={0.8} cy={0.6} rx={6.4} ry={1.7} fill="rgba(20,16,24,0.4)" />
+      <path d="M -6 0.4 Q -4.6 -3.4, -1.6 -4.4 Q 1.4 -5.6, 3.6 -3.2 Q 5.8 -1.6, 6 0.4 Z" fill="#4a3b3a" stroke="#241a1c" strokeWidth={0.4} />
+      <path d="M -4.2 -1.6 Q -2.6 -3.8, -0.6 -3.9" fill="none" stroke="#8e8a96" strokeWidth={0.7} strokeLinecap="round" opacity={0.7} />
+      {([[-3.4, -1.2], [-0.6, -2.6], [1.8, -1.4], [3.6, -0.6], [0.6, -0.4]] as [number, number][]).map(([ox, oy], i) => (
+        <circle key={i} cx={ox} cy={oy} r={0.55} fill={i % 2 ? '#c4643c' : '#a5502f'} />
+      ))}
+    </g>
+  );
+}
+
+/** Timber-framed tunnel mouth (adit) cut into a mountain foot. */
+function MineAdit({ x, y }: { x: number; y: number }) {
+  return (
+    <g transform={`translate(${x}, ${y})`}>
+      <path d="M -4.6 2 L -4.6 -3.6 Q 0 -7.6, 4.6 -3.6 L 4.6 2 Z" fill="#1d1a22" />
+      <path d="M -3.6 2 L -3.6 -3 Q 0 -6.2, 3.6 -3 L 3.6 2 Z" fill="#0e0c12" />
+      <rect x={-5.4} y={-4.6} width={1.5} height={6.8} fill="#8a5a32" stroke="#3d2412" strokeWidth={0.35} />
+      <rect x={3.9} y={-4.6} width={1.5} height={6.8} fill="#7a4d2a" stroke="#3d2412" strokeWidth={0.35} />
+      <rect x={-6} y={-5.8} width={12} height={1.6} rx={0.3} fill="#a06a3c" stroke="#3d2412" strokeWidth={0.35} />
+      <circle cx={0} cy={-2.4} r={0.7} fill="#f6c453" />
+      <circle cx={0} cy={-2.4} r={1.6} fill="#f6c453" opacity={0.25} />
+    </g>
+  );
+}
+
+/** Small mine cart of ore on the rails. */
+function OreCart({ x, y }: { x: number; y: number }) {
+  return (
+    <g transform={`translate(${x}, ${y})`}>
+      <ellipse cx={0.4} cy={0.9} rx={3.6} ry={0.9} fill="rgba(20,16,24,0.4)" />
+      <path d="M -3 -3 L 3 -3 L 2.3 0 L -2.3 0 Z" fill="#6b7280" stroke="#2a2e36" strokeWidth={0.35} />
+      <path d="M -2.6 -3 Q 0 -5.2, 2.6 -3 Z" fill="#4a3b3a" stroke="#241a1c" strokeWidth={0.3} />
+      <circle cx={-0.6} cy={-3.8} r={0.45} fill="#c4643c" />
+      <circle cx={1} cy={-3.5} r={0.4} fill="#a5502f" />
+      <circle cx={-1.5} cy={0.3} r={0.8} fill="#2a2e36" />
+      <circle cx={1.5} cy={0.3} r={0.8} fill="#2a2e36" />
+    </g>
+  );
+}
+
+/**
+ * Iron mine in the mountains for the steel tile: a hazy far range, two snow-capped peaks with warm
+ * lit and cool shaded faces, and a raised mine yard centred under the number disc, with a tunnel,
+ * an ore cart on its rails, heaps of iron ore and miners at work.
+ */
+function MountainsArtworkSvg({ hexId }: { hexId: number }) {
+  const id = (name: string) => `mtn-${name}-${hexId}`;
+  const pts = (list: [number, number][]) => list.map(([px, py]) => `${px},${py}`).join(' ');
+  const railPath = 'M 23.5 -9.5 Q 24.5 -2, 21.5 7';
+  return (
+    <g>
+      <defs>
+        <radialGradient id={id('base')} gradientUnits="userSpaceOnUse" cx={-10} cy={-20} r={90}>
+          <stop offset="0" stopColor="#7e8fb6" />
+          <stop offset="1" stopColor="#434f78" />
+        </radialGradient>
+        {/* Sunlit faces: warm alpenglow near the summits, cooling to lavender grey lower down */}
+        <linearGradient id={id('lit')} x1="0" y1="0" x2="0.4" y2="1">
+          <stop offset="0" stopColor="#f2dcc6" />
+          <stop offset="0.4" stopColor="#cbc3cd" />
+          <stop offset="1" stopColor="#8f95b4" />
+        </linearGradient>
+        {/* Faces turned from the light: deep blue */}
+        <linearGradient id={id('shade')} x1="1" y1="0" x2="0.6" y2="1">
+          <stop offset="0" stopColor="#4b5d94" />
+          <stop offset="1" stopColor="#33406c" />
+        </linearGradient>
+        <linearGradient id={id('yard')} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#b3aca2" />
+          <stop offset="1" stopColor="#968f86" />
+        </linearGradient>
+        <linearGradient id={id('talus')} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#9195b3" />
+          <stop offset="1" stopColor="#585e88" />
+        </linearGradient>
+      </defs>
+
+      {/* Cool slate base */}
+      <rect x={-60} y={-60} width={120} height={120} fill={`url(#${id('base')})`} />
+
+      {/* Far range, hazy and blue with distance */}
+      <polygon points="-60,-14 -46,-34 -36,-26 -24,-50 -10,-36 2,-54 14,-40 30,-56 42,-34 60,-44 60,4 -60,4" fill="#8ea8d3" />
+      <path d="M -60 -14 L -46 -34 L -43 -22 Z M -36 -26 L -24 -50 L -21 -36 Z M -10 -36 L 2 -54 L 5 -40 Z M 14 -40 L 30 -56 L 33 -38 Z M 42 -34 L 60 -44 L 60 -30 Z" fill="#c2d3ee" opacity={0.85} />
+      <path d="M -24 -50 L -20 -38 L -24 -30 M 2 -54 L 6 -44 L 2 -36 M 30 -56 L 34 -42 L 30 -34" fill="none" stroke="#7d90ae" strokeWidth={0.6} opacity={0.7} />
+
+      {/* Talus slope across the lower half, with fans of lighter scree and darker gullies */}
+      <path d="M -60 10 Q -30 2, 0 8 Q 30 2, 60 12 L 60 60 L -60 60 Z" fill={`url(#${id('talus')})`} />
+      <path d="M -42 14 Q -45 28, -50 44 M -30 24 Q -32 36, -37 50 M 26 24 Q 29 36, 33 50 M 42 16 Q 45 30, 50 44 M -6 30 Q -6 40, -8 52 M 8 30 Q 9 40, 12 52" fill="none" stroke="#c4c8de" strokeWidth={1.3} strokeLinecap="round" opacity={0.35} />
+      <path d="M -36 18 Q -38 32, -43 48 M 34 20 Q 37 33, 41 48 M 0 31 Q 1 41, 2 52" fill="none" stroke="#3b416a" strokeWidth={0.9} strokeLinecap="round" opacity={0.35} />
+
+      {/* Peaks: lit face, shaded face, a cast shadow down the right foot, crevices */}
+      {MOUNTAIN_PEAKS.map((peak, i) => {
+        const ridgeLine = [peak.apex, ...peak.ridge];
+        return (
+          <g key={`peak-${i}`}>
+            <polygon points={pts([peak.left, ...ridgeLine])} fill={`url(#${id('lit')})`} />
+            <polygon points={pts([...ridgeLine, peak.right])} fill={`url(#${id('shade')})`} />
+            <polyline points={pts(ridgeLine)} fill="none" stroke="#2f3550" strokeWidth={0.7} strokeLinejoin="round" opacity={0.55} />
+            {/* Warm rim light along the sunlit skyline */}
+            <polyline points={pts([peak.left, peak.apex])} fill="none" stroke="#fff1de" strokeWidth={0.6} strokeLinecap="round" opacity={0.55} />
+            <path
+              d={`M ${peak.apex[0] - 4} ${peak.apex[1] + 14} L ${peak.apex[0] - 7} ${peak.apex[1] + 22} M ${peak.apex[0] + 6} ${peak.apex[1] + 12} L ${peak.apex[0] + 10} ${peak.apex[1] + 22} L ${peak.apex[0] + 8} ${peak.apex[1] + 28}`}
+              fill="none"
+              stroke="#2f3550"
+              strokeWidth={0.55}
+              strokeLinecap="round"
+              opacity={0.4}
+            />
+          </g>
+        );
+      })}
+
+      {/* Snow caps: bright on the lit side, blue in the shade */}
+      {MOUNTAIN_SNOW.map(([peakIdx, edge], i) => {
+        const apex = MOUNTAIN_PEAKS[peakIdx]!.apex;
+        const ridgeX = MOUNTAIN_PEAKS[peakIdx]!.ridge[0]![0];
+        const split = edge.findIndex(([ex]) => ex >= ridgeX);
+        const litEdge = edge.slice(0, split + 1);
+        const shadeEdge = edge.slice(split);
+        return (
+          <g key={`snow-${i}`}>
+            <polygon points={pts([apex, ...litEdge])} fill="#f7f9fd" />
+            <polygon points={pts([apex, ...shadeEdge])} fill="#c3d0e6" />
+            <polyline points={pts([apex, MOUNTAIN_PEAKS[peakIdx]!.ridge[0]!])} fill="none" stroke="#9fb0cc" strokeWidth={0.6} opacity={0.8} />
+          </g>
+        );
+      })}
+
+      {/* Tunnel mouth at the foot of the tall peak */}
+      <MineAdit x={23.5} y={-10} />
+
+      {/* Raised mine yard under the number disc: rock face at the front, gravel on top */}
+      <ellipse cx={MINE_YARD.cx} cy={MINE_YARD.cy + MINE_YARD.drop} rx={MINE_YARD.rx} ry={MINE_YARD.ry} fill="#4f5163" />
+      <ellipse cx={MINE_YARD.cx + 0.6} cy={MINE_YARD.cy + MINE_YARD.drop + 0.6} rx={MINE_YARD.rx - 1} ry={MINE_YARD.ry - 0.6} fill="#5f6176" opacity={0.6} />
+      <ellipse cx={MINE_YARD.cx} cy={MINE_YARD.cy} rx={MINE_YARD.rx} ry={MINE_YARD.ry} fill={`url(#${id('yard')})`} />
+      <path
+        d={`M ${-MINE_YARD.rx + 2} ${MINE_YARD.cy - 6} A ${MINE_YARD.rx - 1} ${MINE_YARD.ry - 1} 0 0 1 ${MINE_YARD.rx - 2} ${MINE_YARD.cy - 6}`}
+        fill="none"
+        stroke="#5a5866"
+        strokeOpacity={0.35}
+        strokeWidth={1.4}
+        strokeLinecap="round"
+      />
+
+      {/* Gravel grit on the yard */}
+      {MOUNTAIN_SPECKS.filter(([sx, sy]) => ((sx - MINE_YARD.cx) / MINE_YARD.rx) ** 2 + ((sy - MINE_YARD.cy) / MINE_YARD.ry) ** 2 < 0.9).map(([sx, sy, sr], i) => (
+        <circle key={`grit-${i}`} cx={sx} cy={sy} r={sr} fill={i % 2 ? '#efebe4' : '#6e6a72'} opacity={0.4} />
+      ))}
+
+      {/* Rails from the tunnel down into the yard, with an ore cart */}
+      <path d={railPath} transform="translate(-1.1, 0)" fill="none" stroke="#3a3540" strokeWidth={0.5} />
+      <path d={railPath} transform="translate(1.1, 0)" fill="none" stroke="#3a3540" strokeWidth={0.5} />
+      <path d={railPath} fill="none" stroke="#7a5230" strokeWidth={2.6} strokeDasharray="0.5 1.4" opacity={0.8} />
+      <OreCart x={23.3} y={-1.5} />
+
+      {/* Iron ore heaps on the yard */}
+      <OreHeap x={-19} y={6} s={0.95} />
+      <OreHeap x={-11} y={17.5} s={0.75} />
+
+      {/* Boulders on the talus with lit tops */}
+      {([[-30, 33, 3], [-14, 40, 2.4], [30, 34, 2.8], [12, 42, 2.2], [40, 18, 2], [-41, 16, 2]] as [number, number, number][]).map(([bx, by, br], i) => (
+        <g key={`boulder-${i}`}>
+          <ellipse cx={bx + 0.8} cy={by + br * 0.6} rx={br * 1.3} ry={br * 0.45} fill="rgba(20,18,30,0.4)" />
+          <path d={`M ${bx - br} ${by + br * 0.4} Q ${bx - br * 0.9} ${by - br * 0.7}, ${bx} ${by - br * 0.8} Q ${bx + br} ${by - br * 0.6}, ${bx + br} ${by + br * 0.4} Z`} fill="#6c6f84" stroke="#33364a" strokeWidth={0.45} />
+          <path d={`M ${bx - br * 0.7} ${by - br * 0.1} Q ${bx - br * 0.5} ${by - br * 0.65}, ${bx + br * 0.1} ${by - br * 0.7}`} fill="none" stroke="#c9c8d6" strokeWidth={0.7} strokeLinecap="round" opacity={0.8} />
+        </g>
+      ))}
+
+      {/* A few hardy pines in the lower corners */}
+      {([[-34, 28, 0.8], [-25, 40, 0.7], [35, 26, 0.75], [24, 41, 0.65]] as [number, number, number][]).map(([tx, ty, sc], i) => (
+        <g key={`pine-${i}`} transform={`translate(${tx}, ${ty}) scale(${sc})`}>
+          <ellipse cx={1.5} cy={5.5} rx={5.5} ry={2} fill="rgba(10,14,20,0.35)" />
+          <rect x={-0.8} y={2} width={1.6} height={3.6} fill="#4a3424" />
+          <polygon points="0,-4 5.6,4 -5.6,4" fill="#2c5a42" stroke="#142a1e" strokeWidth={0.6} strokeLinejoin="round" />
+          <polygon points="0,-9 4.4,-1 -4.4,-1" fill="#3a7454" stroke="#142a1e" strokeWidth={0.6} strokeLinejoin="round" />
+          <path d="M 0 -8.5 L -2.6 -2 M 0 -3.4 L -3.8 3.2" stroke="#7fb894" strokeWidth={0.7} strokeLinecap="round" opacity={0.7} />
+        </g>
+      ))}
+
+      {/* Miners: one breaking ore, one wheeling a barrow from the cart, one at the tunnel mouth */}
+      <Miner x={-24.5} y={9} shirt="#2f6ea8" pose="pick" />
+      <Miner x={15.5} y={13} shirt="#d9402e" pose="barrow" flip />
+      <Miner x={17} y={-6.5} shirt="#f4f1e6" pose="carry" s={1.05} />
+    </g>
+  );
+}
+
 /**
  * Renders original clean vector topographic/architectural terrain artwork inside a pointy-top hex centered at (0,0)
  */
@@ -503,33 +727,7 @@ function TerrainArtworkSvg({ terrain, hexId }: { terrain: TerrainType; hexId: nu
           </g>
         )}
 
-        {terrain === 'mountains' && (
-          <g>
-            {/* Distant range */}
-            <polygon points="-56,18 -30,-22 -8,10 10,-14 34,8 56,-6 56,40 -56,40" fill={theme.secondaryFill} opacity={0.55} />
-            {/* Left peak: lit and shaded faces */}
-            <polygon points="-46,34 -18,-30 -6,34" fill={theme.secondaryFill} />
-            <polygon points="-18,-30 -6,34 8,34" fill={theme.accentFill} />
-            {/* Main peak */}
-            <polygon points="-12,38 18,-38 30,38" fill="#7d8899" />
-            <polygon points="18,-38 30,38 50,38" fill={theme.accentFill} />
-            <path d="M 18 -38 L 12 -6 L 20 10 L 16 38" fill="none" stroke="#3b424c" strokeWidth={1} opacity={0.6} />
-            {/* Jagged snow caps */}
-            <polygon points="-18,-30 -11,-13 -15,-16 -19,-11 -23,-17 -27,-12" fill="#f4f7fb" />
-            <polygon points="18,-38 26,-16 21,-20 17,-14 12,-21 8,-15" fill="#f4f7fb" />
-            <path d="M 18 -38 L 26 -16" stroke="#c7d2df" strokeWidth={1.2} />
-            {/* Scree at the foot */}
-            {[
-              [-30, 30],
-              [-4, 36],
-              [36, 32],
-              [44, 24],
-              [-38, 24],
-            ].map(([rx, ry], i) => (
-              <ellipse key={i} cx={rx} cy={ry} rx={3} ry={1.8} fill="#9aa5b4" stroke="#3b424c" strokeWidth={0.6} />
-            ))}
-          </g>
-        )}
+        {terrain === 'mountains' && <MountainsArtworkSvg hexId={hexId} />}
 
         {terrain === 'desert' && (
           <g>
