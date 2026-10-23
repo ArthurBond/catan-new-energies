@@ -1230,13 +1230,16 @@ button:not(:disabled):active {
 }
 
 .tt-build {
+  /* The piece icon column; the "pieces left" badge is pinned to its right edge */
+  --build-pad: 7px;
+  --build-icon: 30px;
   position: relative;
   display: grid;
-  grid-template-columns: 30px 1fr;
+  grid-template-columns: var(--build-icon) 1fr;
   grid-template-rows: auto auto;
   align-items: center;
   column-gap: 6px;
-  padding: 4px 7px;
+  padding: 4px var(--build-pad);
   min-height: 42px;
   border-radius: 10px;
   border: 1.5px solid var(--card-edge);
@@ -1266,7 +1269,10 @@ button:not(:disabled):active {
 
 .tt-build-left {
   position: absolute;
-  left: 25px;
+  /* Anchored by its right edge at the end of the icon column, so a second digit grows leftward over
+     the piece icon instead of rightward into the cost icons */
+  left: calc(var(--build-pad) + var(--build-icon));
+  transform: translateX(-100%);
   bottom: 3px;
   min-width: 16px;
   padding: 0 3px;
@@ -2212,8 +2218,8 @@ select.lb-input {
     font-size: 11.5px;
   }
   .tt-build {
-    grid-template-columns: 26px 1fr;
-    padding: 4px 5px;
+    --build-pad: 5px;
+    --build-icon: 26px;
   }
   .tt-action-panel {
     grid-column: 1 / -1;
