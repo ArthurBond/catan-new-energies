@@ -5,6 +5,8 @@ import path from 'node:path';
 
 export default defineConfig({
   plugins: [preact()],
+  // Separate dependency caches when several dev servers share one node_modules (see PW_PORT in playwright.config.ts)
+  cacheDir: process.env.PW_PORT ? `node_modules/.vite-${process.env.PW_PORT}` : 'node_modules/.vite',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
