@@ -29,7 +29,6 @@ import { redactForPlayer } from '@/network/redact';
 import {
   createDefaultOnlineLobbyConfig,
   type ClientMessage,
-  type OnlineLobbyConfig,
   type ServerMessage,
   type StateMessage,
 } from '@/network/server-protocol';
@@ -74,6 +73,8 @@ interface Tally {
   devBuy: number;
   devPlay: number;
   build: number;
+  /** Answers to event prompts (hazard placement, card choice, production increase). */
+  eventChoice: number;
   actions: number;
 }
 
@@ -89,6 +90,7 @@ const emptyTally = (): Tally => ({
   devBuy: 0,
   devPlay: 0,
   build: 0,
+  eventChoice: 0,
   actions: 0,
 });
 
@@ -123,11 +125,30 @@ class Replay {
     return state;
   }
 
-  check(seat: PlayerId, msg: StateMessage): void {
+  /** Resyncs (reconnects) for a version the other client has not replayed yet. */
+  private deferred: { seat: PlayerId; msg: StateMessage }[] = [];
+
+  private verify(seat: PlayerId, msg: StateMessage): void {
     const expected = wire(redactForPlayer(this.truthAt(msg), seat, DEFAULT_ROOM_REDACT_OPTIONS));
     if (!isDeepStrictEqual(msg.state, expected)) {
       expect(msg.state, `${seat} view at version ${msg.version} drifted from the server's truth`).toEqual(expected);
     }
+  }
+
+  check(seat: PlayerId, msg: StateMessage): void {
+    if (!this.states.has(msg.version) && !msg.lastAction) {
+      this.deferred.push({ seat, msg });
+      return;
+    }
+    this.verify(seat, msg);
+    const ready = this.deferred.filter((d) => this.states.has(d.msg.version));
+    this.deferred = this.deferred.filter((d) => !this.states.has(d.msg.version));
+    for (const d of ready) this.verify(d.seat, d.msg);
+  }
+
+  /** Resyncs still waiting for their version at the end of the game. */
+  get unverified(): number {
+    return this.deferred.length;
   }
 }
 
@@ -153,13 +174,25 @@ class Human {
   private readonly refused = new Set<string>();
   private lastOfferTurn = -99;
   private readonly rng: Mulberry32PRNG;
+  /** The seat token the server gave this client, kept like a browser keeps it in localStorage. */
+  seatToken: string | null = null;
+  /** Drop the connection at the first state from this version on (on this seat's own move or not). */
+  dropAtVersion: number | null = null;
+  dropOnOwnTurn = false;
+  reconnects = 0;
   private constructor(
-    private readonly ws: WebSocket,
+    private ws: WebSocket,
+    private readonly url: string,
     readonly seat: PlayerId,
+    private readonly name: string,
     private readonly difficulty: 'Easy' | 'Normal' | 'Hard',
     private readonly table: () => Table
   ) {
     this.rng = new Mulberry32PRNG(0xc0ffee ^ seat.length ^ seat.charCodeAt(0));
+    this.listen(ws);
+  }
+
+  private listen(ws: WebSocket) {
     ws.on('message', (data) => {
       try {
         this.onMessage(JSON.parse(data.toString()) as ServerMessage);
@@ -169,13 +202,34 @@ class Human {
     });
   }
 
-  static async open(url: string, seat: PlayerId, difficulty: 'Easy' | 'Normal' | 'Hard', table: () => Table) {
+  private static async connect(url: string): Promise<WebSocket> {
     const ws = new WebSocket(url);
     await new Promise<void>((resolve, reject) => {
       ws.once('open', () => resolve());
       ws.once('error', reject);
     });
-    return new Human(ws, seat, difficulty, table);
+    return ws;
+  }
+
+  static async open(
+    url: string,
+    seat: PlayerId,
+    name: string,
+    difficulty: 'Easy' | 'Normal' | 'Hard',
+    table: () => Table
+  ) {
+    return new Human(await Human.connect(url), url, seat, name, difficulty, table);
+  }
+
+  /** The Wi-Fi drops and comes back: a new socket says hello with the stored seat token. */
+  private async reconnect(): Promise<void> {
+    const old = this.ws;
+    old.removeAllListeners('message');
+    old.close();
+    this.ws = await Human.connect(this.url);
+    this.listen(this.ws);
+    this.reconnects++;
+    this.send({ type: 'hello', name: this.name, seatToken: this.seatToken });
   }
 
   send(msg: ClientMessage) {
@@ -208,6 +262,10 @@ class Human {
       return;
     }
     if (msg.type === 'rejected') return this.onRejected(msg.requestId, msg.message);
+    if (msg.type === 'welcome') {
+      if (msg.seatToken) this.seatToken = msg.seatToken;
+      return;
+    }
     if (msg.type !== 'state') return;
 
     const table = this.table();
@@ -215,8 +273,20 @@ class Human {
     const before = this.view;
     this.lastState = msg;
     this.version = msg.version;
-    this.view = hydrateRedactedState(msg.state, msg.yourPlayerId);
+    const view = hydrateRedactedState(msg.state, msg.yourPlayerId);
+    this.view = view;
     if (msg.lastAction && msg.lastAction.playerId === this.seat && before) this.count(before, msg.lastAction);
+    if (
+      this.dropAtVersion !== null &&
+      msg.version >= this.dropAtVersion &&
+      (getActingPlayerId(view) === this.seat) === this.dropOnOwnTurn &&
+      view.phase !== 'GameEnd'
+    ) {
+      // Gone before acting: the move (if it is ours) is made from the resync after reconnecting
+      this.dropAtVersion = null;
+      void this.reconnect().catch((e: unknown) => table.fail(e instanceof Error ? e : new Error(String(e))));
+      return;
+    }
     this.maybeAct();
   }
 
@@ -252,6 +322,7 @@ class Human {
       case 'RESOLVE_PENDING_DECISION': {
         if (head?.type === 'DISCARD_ON_SEVEN') t.discard++;
         else if (head?.type === 'STEAL_TARGET') t.steal++;
+        else if (head?.type.startsWith('EVENT_')) t.eventChoice++;
         else if (head?.type === 'DOMESTIC_TRADE_RESPONSE') {
           if ((a.response as { accept?: boolean }).accept) t.tradeAccept++;
           else t.tradeDecline++;
@@ -417,7 +488,7 @@ async function playWholeGame(
   tmpRoot: string,
   seed: number,
   playerCount: 3 | 4,
-  setup: Partial<Pick<OnlineLobbyConfig, 'setupMode' | 'placement'>> = {},
+  options: { friendDropsAtVersion?: number; dropOnOwnTurn?: boolean } = {},
   timeoutMs = 240_000
 ): Promise<GameOutcome> {
   const distDir = path.join(tmpRoot, 'dist');
@@ -437,7 +508,6 @@ async function playWholeGame(
   cfg.playerCount = playerCount;
   cfg.seats.purple.controller = 'human';
   cfg.botSpeed = 'instant';
-  Object.assign(cfg, setup);
 
   const names = { orange: 'Hana', purple: 'Finn' } as const;
   const humans: Human[] = [];
@@ -452,8 +522,10 @@ async function playWholeGame(
     fail: (e) => failure?.(e),
   };
   const wsUrl = `ws://127.0.0.1:${server.port}/ws`;
-  const host = await Human.open(wsUrl, 'orange', 'Normal', () => table);
-  const friend = await Human.open(wsUrl, 'purple', 'Easy', () => table);
+  const host = await Human.open(wsUrl, 'orange', names.orange, 'Normal', () => table);
+  const friend = await Human.open(wsUrl, 'purple', names.purple, 'Easy', () => table);
+  friend.dropAtVersion = options.friendDropsAtVersion ?? null;
+  friend.dropOnOwnTurn = options.dropOnOwnTurn ?? false;
   humans.push(host, friend);
   sockets.push(host, friend);
 
@@ -536,6 +608,7 @@ function report(label: string, outcome: GameOutcome): string {
 
 function expectCleanFinish(outcome: GameOutcome): void {
   const { humans, state, server } = outcome;
+  expect(outcome.replay.unverified).toBe(0);
   // The game ended with a winner and nobody was left waiting.
   expect(state.phase).toBe('GameEnd');
   expect(state.winner).not.toBeNull();
@@ -579,6 +652,19 @@ describe('a whole game through the real server (2 browsers + bots)', () => {
     console.log(report('3p seed 7', outcome));
     expectCleanFinish(outcome);
   }, 300_000);
+
+  it.each([[false], [true]])(
+    'keeps playing when the friend loses the connection (on their own move: %s) and returns with the seat token',
+    async (dropOnOwnTurn) => {
+      const outcome = await playWholeGame(tmp(), 5, 4, { friendDropsAtVersion: 90, dropOnOwnTurn });
+      console.log(report(`4p seed 5, friend reconnects (own move ${dropOnOwnTurn})`, outcome));
+      const friend = outcome.humans.find((h) => h.seat === 'purple')!;
+      expect(friend.reconnects).toBe(1);
+      expect(friend.seatToken).toEqual(expect.any(String));
+      expectCleanFinish(outcome);
+    },
+    300_000
+  );
 
   it('has both browsers discard, steal, trade and use dev cards', async () => {
     const perSeat: Record<'orange' | 'purple', Tally[]> = { orange: [], purple: [] };
