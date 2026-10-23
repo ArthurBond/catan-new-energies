@@ -86,10 +86,10 @@ export function applyShowcaseScenario(input: GameState): GameState {
   return state;
 }
 
-export type DevScenario = 'showcase' | 'discard' | 'cardchoice' | 'victory' | 'draws2' | 'draws3' | 'cityfit' | 'plantfit';
+export type DevScenario = 'showcase' | 'discard' | 'cardchoice' | 'victory' | 'draws2' | 'draws3' | 'cityfit' | 'plantfit' | 'airpollution';
 
 export function applyDevScenario(input: GameState, scenario: string): GameState {
-  if (!['showcase', 'discard', 'cardchoice', 'victory', 'draws2', 'draws3', 'cityfit', 'plantfit'].includes(scenario)) return input;
+  if (!['showcase', 'discard', 'cardchoice', 'victory', 'draws2', 'draws3', 'cityfit', 'plantfit', 'airpollution'].includes(scenario)) return input;
   const state = applyShowcaseScenario(input);
   if (scenario === 'discard') {
     state.phase = 'ProductionPhase';
@@ -132,6 +132,11 @@ export function applyDevScenario(input: GameState, scenario: string): GameState 
         if (edge.road === null) edge.road = { playerId: node.building.playerId };
       }
     }
+  } else if (scenario === 'airpollution') {
+    // The next disc fills the Air Pollution track (it already holds two) and orange has the highest footprint
+    state.phase = 'EventPhase';
+    state.eventBag = ['airPollution', ...state.eventBag.filter((d) => d !== 'airPollution')];
+    state.players.orange!.localFootprint = 9;
   } else if (scenario === 'draws2') {
     // Low global footprint: 2 event discs per turn
     state.trueTotalLF = 3;

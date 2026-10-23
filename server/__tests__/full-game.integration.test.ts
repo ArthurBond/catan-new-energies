@@ -647,7 +647,7 @@ function expectCleanFinish(outcome: GameOutcome): void {
  * of the two browsers. The bots' choices decide this, so a change to the bot brain can move it:
  * re-pick seeds by reading the per-game report lines this test prints.
  */
-const PINNED_SEEDS = [1, 2, 3];
+const PINNED_SEEDS = [1, 4, 5];
 
 describe('a whole game through the real server (2 browsers + bots)', () => {
   it.each([[11], [12]])('plays a 4-seat game to the end (seed %i)', async (seed) => {

@@ -363,15 +363,41 @@ export function humanizeLog(message: string): string {
     .replace(/ (on|at) (intersection|node|path) \d+( facing hex \d+)?/g, '')
     .replace(/ on hex \d+/g, '')
     .replace(/ on (node|hex) \d+\./g, '.')
-    .replace(/^Triggering event resolver for: (.+)$/, '$1 takes effect')
+    .replace(/^Triggering event resolver for: .+$/, '')
     .replace(/^Event draw count locked at (\d+) disc\(s\) \(Clamped GF: (\d+)\)\.$/, (_, n: string, gf: string) =>
       `Global footprint ${gf}: ${n} event disc${n === '1' ? '' : 's'} this turn.`
     )
     .replace(/^Event Phase completed\. Entering Production Phase for (.+)\.$/, '$1 moves on to production.')
-    .replace(/ Discs returned to box; event triggers!/, ' The event happens.')
+    .replace(/ \(\d+\)! Discs returned to box; event triggers!/, ' is full.')
+    .replace(/ track reached capacity/, ' track')
     .replace(/ \(\d+\/\d+\)\.$/, '.')
     .replace(/ \(\+1 net VP, \+1 net LF\)| \(\+1 VP, \+1 LF\)/g, '');
   return m;
+}
+
+/** A piece of a log line: plain text, or a player's name (shown in that player's colour). */
+export type LogSegment<T> = { text: string; player?: T };
+
+/** Splits a log line around the player names in it, so the feed can colour each one. */
+export function splitLogNames<T extends { name: string }>(message: string, players: T[]): LogSegment<T>[] {
+  const named = players.filter((p) => p.name).sort((a, b) => b.name.length - a.name.length);
+  const segments: LogSegment<T>[] = [];
+  let plain = '';
+  let i = 0;
+  while (i < message.length) {
+    const hit = named.find((p) => message.startsWith(p.name, i));
+    if (hit) {
+      if (plain) segments.push({ text: plain });
+      plain = '';
+      segments.push({ text: hit.name, player: hit });
+      i += hit.name.length;
+    } else {
+      plain += message[i];
+      i++;
+    }
+  }
+  if (plain) segments.push({ text: plain });
+  return segments;
 }
 
 export function eventName(type: string): string {

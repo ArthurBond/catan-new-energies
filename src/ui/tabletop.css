@@ -610,6 +610,11 @@ button:not(:disabled):active {
   color: var(--text-muted);
 }
 
+/* A player's name inside a log line keeps their colour, even on the muted older lines. */
+.tt-feed-name {
+  font-weight: 700;
+}
+
 /* ========================================================================== */
 /* Table components (right rail)                                              */
 /* ========================================================================== */

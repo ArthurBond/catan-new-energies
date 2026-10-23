@@ -130,7 +130,7 @@ export function resolveEnvironmentalPollution(state: GameState): void {
 
   state.log.push({
     timestamp: state.log.length,
-    message: `Environmental Pollution: Final roll is ${sum} (${roll[0]}, ${roll[1]}).`,
+    message: `Environmental Pollution: ${state.players[state.activePlayerId]!.name} rolled ${sum} (${roll[0]} + ${roll[1]}).`,
   });
 
   const matchingHexes = state.board.hexes.filter((h) => h.numberDisc === sum);
@@ -139,7 +139,7 @@ export function resolveEnvironmentalPollution(state: GameState): void {
     if (hex.hasInspector) {
       state.log.push({
         timestamp: state.log.length,
-        message: `Environmental Pollution: Hex ${hex.id} (${hex.terrain} #${hex.numberDisc}) contains the Inspector and is protected from hazards.`,
+        message: `Environmental Pollution: The Inspector protects hex ${hex.id} (${hex.terrain} #${hex.numberDisc}) from a hazard token.`,
       });
       continue;
     }
@@ -147,7 +147,7 @@ export function resolveEnvironmentalPollution(state: GameState): void {
     if (hex.hasHazard) {
       state.log.push({
         timestamp: state.log.length,
-        message: `Environmental Pollution: Hex ${hex.id} already contains a hazard token.`,
+        message: `Environmental Pollution: Hex ${hex.id} (${hex.terrain} #${hex.numberDisc}) already has a hazard token.`,
       });
       continue;
     }
@@ -164,7 +164,7 @@ export function resolveEnvironmentalPollution(state: GameState): void {
     state.supply.hazards--;
     state.log.push({
       timestamp: state.log.length,
-      message: `Environmental Pollution: Placed hazard token on hex ${hex.id} (${hex.terrain} #${hex.numberDisc}).`,
+      message: `Environmental Pollution: A hazard token was placed on hex ${hex.id} (${hex.terrain} #${hex.numberDisc}).`,
     });
   }
 }
@@ -398,11 +398,6 @@ export function resolveSustainableProduction(state: GameState): void {
  * Master dispatcher for resolving an event track when its track fills.
  */
 export function resolveEventTrack(state: GameState, track: EventDiscType): void {
-  state.log.push({
-    timestamp: state.log.length,
-    message: `Triggering event resolver for: ${track}`,
-  });
-
   switch (track) {
     case 'airPollution':
       resolveAirPollution(state);
@@ -427,6 +422,40 @@ export function resolveEventTrack(state: GameState, track: EventDiscType): void 
       break;
   }
 }
+
+/**
+ * Who an event line is about, phrased by the rule that picked them, e.g.
+ * "Air Pollution: Highest local footprint (Pink)". The activity feed colours the name.
+ */
+function hazardActor(source: 'AirPollution' | 'RainAndFlooding', name: string): string {
+  return source === 'AirPollution' ? `Air Pollution: Highest local footprint (${name})` : `Rain & Flooding: ${name}`;
+}
+
+type CardChoiceEvent =
+  | 'ClimateConferenceReward'
+  | 'ClimateConferencePenalty'
+  | 'GovernmentFunding'
+  | 'SustainableProduction';
+
+function cardChoiceActor(event: CardChoiceEvent, name: string): string {
+  switch (event) {
+    case 'ClimateConferenceReward':
+      return `Climate Conference: Lowest local footprint (${name})`;
+    case 'ClimateConferencePenalty':
+      return `Climate Conference: Highest local footprint (${name})`;
+    case 'GovernmentFunding':
+      return `Government Funding: Lowest local footprint (${name})`;
+    case 'SustainableProduction':
+      return `Sustainable Production: Most renewable plants (${name})`;
+  }
+}
+
+const CARD_CHOICE_PASS: Record<CardChoiceEvent, string> = {
+  ClimateConferenceReward: 'a free card',
+  ClimateConferencePenalty: 'discarding',
+  GovernmentFunding: 'a free development card',
+  SustainableProduction: 'a free card',
+};
 
 /**
  * Applies player's response to an event pending decision.
@@ -460,14 +489,19 @@ export function applyEventDecision(
       state.supply.hazards--;
       state.log.push({
         timestamp: state.log.length,
-        message: `${player.name} placed a hazard token on their ${node.building.type} at intersection ${nodeId}.`,
+        message: `${hazardActor(decision.source, player.name)} placed a hazard token on one of their ${node.building.type === 'city' ? 'cities' : 'towns'}.`,
+      });
+    } else {
+      state.log.push({
+        timestamp: state.log.length,
+        message: `${hazardActor(decision.source, player.name)} could not place a hazard token: none left.`,
       });
     }
   } else if (decision.type === 'EVENT_CARD_CHOICE') {
     if (resp.pass) {
       state.log.push({
         timestamp: state.log.length,
-        message: `${player.name} passed on ${decision.event}.`,
+        message: `${cardChoiceActor(decision.event, player.name)} passed on ${CARD_CHOICE_PASS[decision.event] ?? 'the card'}.`,
       });
       return;
     }
@@ -478,7 +512,7 @@ export function applyEventDecision(
         player.devCards.unplayed.push(devCard);
         state.log.push({
           timestamp: state.log.length,
-          message: `${player.name} drew a development card from Government Funding.`,
+          message: `${cardChoiceActor(decision.event, player.name)} took a development card from the supply.`,
         });
       }
     } else if (
@@ -492,7 +526,7 @@ export function applyEventDecision(
           state.supply.science--;
           state.log.push({
             timestamp: state.log.length,
-            message: `${player.name} took 1 Science card from ${decision.event}.`,
+            message: `${cardChoiceActor(decision.event, player.name)} took 1 science card from the supply.`,
           });
         }
       } else if (cardType) {
@@ -501,7 +535,7 @@ export function applyEventDecision(
           state.supply.resources[cardType]--;
           state.log.push({
             timestamp: state.log.length,
-            message: `${player.name} took 1 ${cardType} card from ${decision.event}.`,
+            message: `${cardChoiceActor(decision.event, player.name)} took 1 ${cardType} card from the supply.`,
           });
         }
       }
@@ -513,7 +547,7 @@ export function applyEventDecision(
           state.supply.science++;
           state.log.push({
             timestamp: state.log.length,
-            message: `${player.name} discarded 1 Science card for Climate Conference.`,
+            message: `${cardChoiceActor(decision.event, player.name)} discarded 1 science card.`,
           });
         }
       } else if (cardType) {
@@ -522,7 +556,7 @@ export function applyEventDecision(
           state.supply.resources[cardType]++;
           state.log.push({
             timestamp: state.log.length,
-            message: `${player.name} discarded 1 ${cardType} card for Climate Conference.`,
+            message: `${cardChoiceActor(decision.event, player.name)} discarded 1 ${cardType} card.`,
           });
         }
       }
@@ -531,7 +565,7 @@ export function applyEventDecision(
     if (resp.pass) {
       state.log.push({
         timestamp: state.log.length,
-        message: `${player.name} passed on building a free fossil fuel power plant.`,
+        message: `Production Increase: Highest local footprint (${player.name}) passed on a free fossil fuel plant.`,
       });
       return;
     }
@@ -587,7 +621,7 @@ export function applyEventDecision(
 
       state.log.push({
         timestamp: state.log.length,
-        message: `${player.name} built a free fossil plant at node ${nodeId} facing hex ${hexId} and took 1 ${res}.`,
+        message: `Production Increase: Highest local footprint (${player.name}) built a free fossil fuel plant at node ${nodeId} facing hex ${hexId} and took 1 ${res}.`,
       });
     }
   }

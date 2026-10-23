@@ -5,7 +5,7 @@
 
 import 'preact/compat';
 import { GameState, PlayerId } from '../engine/types';
-import { handCount, humanizeLog, logActor } from './gameView';
+import { handCount, humanizeLog, logActor, splitLogNames } from './gameView';
 import { Icon } from './Icons';
 import type { SeatConfig } from './Modals';
 import { PLAYER_THEMES } from './theme';
@@ -133,11 +133,23 @@ export function PlayersRail({ state, seats, inspectedPlayerId, onInspect, roleLa
         </div>
         <div className="tt-feed-list" aria-live="polite">
           {recent.map((entry, idx) => {
+            const text = humanizeLog(entry.message);
+            if (!text) return null;
             const who = logActor(entry.message, names);
             return (
               <div key={`${entry.timestamp}-${idx}`} className="tt-feed-item">
                 <i style={{ background: who ? PLAYER_THEMES[who.pid].fill : 'var(--card-edge-deep)' }} />
-                <span>{humanizeLog(entry.message)}</span>
+                <span>
+                  {splitLogNames(text, names).map((seg, n) =>
+                    seg.player ? (
+                      <b key={n} className="tt-feed-name" style={{ color: PLAYER_THEMES[seg.player.pid].sideFill }}>
+                        {seg.text}
+                      </b>
+                    ) : (
+                      seg.text
+                    )
+                  )}
+                </span>
               </div>
             );
           })}

@@ -84,7 +84,7 @@ export function stepEventDraw(state: GameState): GameState {
     state.eventTracks[disc] = 0;
     state.log.push({
       timestamp: state.log.length,
-      message: `The ${disc} track reached capacity (${trackCapacity})! Discs returned to box; event triggers!`,
+      message: `The ${disc} track is full.`,
     });
     resolveEventTrack(state, disc);
   }

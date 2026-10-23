@@ -301,7 +301,7 @@ function describeAction(
         title: `${name} drew ${eventName(disc)}`,
         detail:
           onTrack === 0
-            ? `The track filled up — ${eventName(disc)} takes effect.`
+            ? `The ${eventName(disc)} track filled up.`
             : `${onTrack} of ${meta.capacity} on the track`,
       };
     }
@@ -1263,7 +1263,7 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
               <div className="tt-event-reveal-name">{eventName(eventReveal.disc)}</div>
               <div className="tt-event-reveal-sub">
                 {eventReveal.onTrack === 0
-                  ? 'The track is full — it happens now'
+                  ? 'The track is full'
                   : `${eventReveal.onTrack} of ${eventReveal.capacity} on the track`}
               </div>
             </div>
