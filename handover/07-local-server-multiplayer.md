@@ -330,6 +330,8 @@ Done so far
   and two server bots (4 seats seeds 1/2/3/11/12, 3 seats seed 7). Two real bugs found and fixed in
   `ad3f071`: hidden hands made `legalActions` omit "Accept" on domestic trades and the victims of
   Cleanup steals. Zero rejected moves; every state frame equals an independent replay.
+- Task 2 done (`bf8e89d`): `redactForPlayer` reveals every hand, dev card and green disc to every
+  socket once `phase === 'GameEnd'` or a winner exists; the VictoryModal standings from each
+  seat's hydrated view equal the true ones (unit test, soak test).
 Next
-- Task 2: reveal every hand once the game is over (standings in the victory dialog).
 - Task 3: browser check of the discard / steal / trade / dev card dialogs online.
