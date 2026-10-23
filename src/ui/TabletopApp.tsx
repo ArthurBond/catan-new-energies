@@ -18,7 +18,6 @@ import { BotDifficulty, chooseBotAction, getActingPlayerId } from '../ai/bot';
 import { legalActions } from '../engine/actions';
 import { getEventDiscDrawCount } from '../engine/config';
 import { getDevCardType, isEdgeConnectedToPlayerNetwork } from '../engine/dev-cards';
-import { getEligibleStealVictims, getHandSizeForSeven } from '../engine/production';
 import { applyAction } from '../engine/reducer';
 import { createInitialGameState, StartingPlacement } from '../engine/setup';
 import {
@@ -36,7 +35,7 @@ import {
 import { BroadcastChannelTransport } from '../network/transport';
 import { ActionDock, PrimaryAction } from './ActionDock';
 import { applyDevScenario } from './devScenarios';
-import { eventName, humanizeLog } from './gameView';
+import { eventName, handCount, humanizeLog, stealVictimsOnHex } from './gameView';
 import { IslandBoardSvg } from './IslandBoardSvg';
 import { Icon } from './Icons';
 import {
@@ -770,7 +769,7 @@ export function TabletopApp() {
       (pid) =>
         pid !== actingPlayerId &&
         gameState.players[pid]!.localFootprint >= mine &&
-        getHandSizeForSeven(gameState.players[pid]!) > 0
+        handCount(gameState, pid) > 0
     );
   };
 
@@ -782,7 +781,7 @@ export function TabletopApp() {
         finishCleanup(
           devTargeting.cardId,
           { type: 'INSPECTOR_MOVE_STEAL', newHexId: hexId },
-          getEligibleStealVictims(gameState, hexId)
+          stealVictimsOnHex(gameState, hexId)
         );
       } else if (devTargeting.kind === 'hazard') {
         finishCleanup(

@@ -16,7 +16,6 @@ import { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import { getHarborsForPlayer } from '../engine/board';
 import { RESOURCE_TYPES } from '../engine/config';
-import { getHandSizeForSeven } from '../engine/production';
 import {
   DevelopmentCardType,
   GameAction,
@@ -28,6 +27,7 @@ import {
 } from '../engine/types';
 import type { StartingPlacement } from '../engine/setup';
 import { evaluateEmptyBagVictory } from '../engine/victory';
+import { handCount } from './gameView';
 import {
   CARD_METADATA,
   DEV_CARD_METADATA,
@@ -1209,7 +1209,7 @@ export function StealChooserModal({
                 </svg>
                 <span className="lb-option-title">{state.players[pid]!.name}</span>
                 <span className="lb-option-desc" style={{ marginTop: 0 }}>
-                  {getHandSizeForSeven(state.players[pid]!)} cards
+                  {handCount(state, pid)} cards
                 </span>
               </button>
             );

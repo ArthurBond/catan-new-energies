@@ -12,11 +12,13 @@ import {
   Board,
   GameAction,
   GameState,
+  HexId,
   NodeId,
   PlayerId,
   ResourceType,
   TerrainType,
 } from '../engine/types';
+import { playerHandCount } from '../network/hydrate';
 import { getNumberDiscPips } from './theme';
 import type { ActiveBuildMode } from './PlayerMat';
 
@@ -303,15 +305,24 @@ export function describeIntersection(board: Board, nodeId: NodeId): Intersection
 
 /** Number of hidden cards for a player (resources + science), as everyone at the table can see. */
 export function handCount(state: GameState, playerId: PlayerId): number {
-  const p = state.players[playerId]!;
-  return (
-    p.resources.lumber +
-    p.resources.brick +
-    p.resources.natural_fiber +
-    p.resources.food +
-    p.resources.steel +
-    p.science
-  );
+  // Online, other players' breakdown is blanked out but the server still sends the total.
+  return playerHandCount(state.players[playerId]!);
+}
+
+/**
+ * Players on `hexId` the active player could take a card from. Same as the engine's
+ * `getEligibleStealVictims`, but counts hands with `handCount` so hidden online hands work.
+ */
+export function stealVictimsOnHex(state: GameState, hexId: HexId): PlayerId[] {
+  const victims = new Set<PlayerId>();
+  if (!state.board.hexes[hexId]) return [];
+  for (const node of state.board.intersections) {
+    const pid = node.building?.playerId;
+    if (pid && pid !== state.activePlayerId && node.adjacentHexIds.includes(hexId) && handCount(state, pid) > 0) {
+      victims.add(pid);
+    }
+  }
+  return [...victims];
 }
 
 export function vpCardIdsOf(state: GameState, playerId: PlayerId): string[] {
