@@ -98,7 +98,7 @@ const MODAL_CARD_STYLE: Record<string, string | number> = {
 // 1. SETUP / LOBBY MODAL
 // ============================================================================
 
-function LobbyOption({
+export function LobbyOption({
   testId,
   selected,
   disabled,
@@ -137,7 +137,7 @@ function LobbyOption({
   );
 }
 
-const STRATEGY_OPTIONS: { value: BotStrategyName; label: string }[] = [
+export const STRATEGY_OPTIONS: { value: BotStrategyName; label: string }[] = [
   { value: 'Balanced', label: 'Balanced' },
   { value: 'GreenInnovator', label: 'Green innovator' },
   { value: 'IndustrialExpansionist', label: 'Industrialist' },
@@ -1762,7 +1762,8 @@ export function VictoryModal({
 }: {
   state: GameState;
   onInspectBoard: () => void;
-  onOpenLobby: () => void;
+  /** Omitted online for friends: only the host starts the next game. */
+  onOpenLobby?: () => void;
 }) {
   const emptyBagEval = evaluateEmptyBagVictory(state);
   const isCollapse = state.winner === 'collapse';
@@ -1944,9 +1945,11 @@ export function VictoryModal({
             >
               Look at the board
             </button>
-            <button type="button" className="tt-cta is-ready" data-testid="victory-new-game-btn" onClick={onOpenLobby}>
-              New game
-            </button>
+            {onOpenLobby && (
+              <button type="button" className="tt-cta is-ready" data-testid="victory-new-game-btn" onClick={onOpenLobby}>
+                New game
+              </button>
+            )}
           </div>
         </div>
       </div>
