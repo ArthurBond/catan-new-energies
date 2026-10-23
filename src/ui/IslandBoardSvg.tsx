@@ -88,65 +88,18 @@ const FOREST_TREES: [number, number, number][] = [
   [26, 6, 0.8],
 ];
 
-/** Radius wobble shared by every quarry terrace, so the nested rings stay organic but never cross. */
-const PIT_WOBBLE = [1.0, 1.07, 0.97, 1.05, 0.93, 1.02, 1.04, 0.94, 1.06, 0.98, 1.01, 0.95];
-
-/** Closed smooth blob (Catmull-Rom through wobbled points on an ellipse), as an SVG path. */
-function blobPath(cx: number, cy: number, rx: number, ry: number, round: number): string {
-  const n = PIT_WOBBLE.length;
-  const pts = PIT_WOBBLE.map((m, i) => {
-    const a = (2 * Math.PI * i) / n - 0.35;
-    const k = 1 + (m - 1) * (1 - round);
-    return [cx + rx * k * Math.cos(a), cy + ry * k * Math.sin(a)] as const;
-  });
-  const f = (v: number) => v.toFixed(1);
-  let d = `M ${f(pts[0]![0])} ${f(pts[0]![1])}`;
-  for (let i = 0; i < n; i++) {
-    const p0 = pts[(i + n - 1) % n]!;
-    const p1 = pts[i]!;
-    const p2 = pts[(i + 1) % n]!;
-    const p3 = pts[(i + 2) % n]!;
-    d += ` C ${f(p1[0] + (p2[0] - p0[0]) / 6)} ${f(p1[1] + (p2[1] - p0[1]) / 6)}, ${f(p2[0] - (p3[0] - p1[0]) / 6)} ${f(p2[1] - (p3[1] - p1[1]) / 6)}, ${f(p2[0])} ${f(p2[1])}`;
-  }
-  return `${d} Z`;
-}
-
-const PIT_RX = 40;
-const PIT_RY = 36;
+/** Quarry pit centre and half-axes: smooth ellipses sitting a little right of the hex centre. */
+const PIT = { cx: 3, cy: 2, rx: 36, ry: 31 };
 
 /**
- * Open-pit clay quarry levels, outermost first. `s` scales the pit, (dx, dy) slides it down-right
- * so the far (upper-left) walls show tall and the near walls thin; `top` levels are sunlit
- * terrace tops, the others are the shadowed walls stepping down to the floor.
+ * Terrace benches, outermost first: each is a flat sunlit ellipse slightly smaller than the last and
+ * slid down-right, so a thin shadowed wall shows only on the upper-left side of every step.
  */
-const PIT_LEVELS: { s: number; dx: number; dy: number; kind: 'top' | 'wall' | 'floor' }[] = [
-  { s: 1.0, dx: 0, dy: -1, kind: 'top' },
-  { s: 0.94, dx: 0.3, dy: 0.2, kind: 'wall' },
-  { s: 0.85, dx: 0.8, dy: 2.4, kind: 'top' },
-  { s: 0.79, dx: 1.1, dy: 3.2, kind: 'wall' },
-  { s: 0.7, dx: 1.5, dy: 5.2, kind: 'top' },
-  { s: 0.64, dx: 1.8, dy: 6, kind: 'wall' },
-  { s: 0.56, dx: 2.2, dy: 7.4, kind: 'floor' },
+const PIT_STEPS = [
+  { s: 1, dx: 0, dy: 0 },
+  { s: 0.74, dx: 3, dy: 4.5 },
+  { s: 0.5, dx: 6, dy: 7.5 },
 ];
-
-const PIT_PATHS = PIT_LEVELS.map((l, i) =>
-  blobPath(l.dx, l.dy, PIT_RX * l.s, PIT_RY * l.s, Math.min(0.5, i * 0.07)),
-);
-
-/** Track spiralling from the rim down to the pit floor, as a polyline. */
-const PIT_RAMP = (() => {
-  const steps = 34;
-  const pts: string[] = [];
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const a = ((-140 + 255 * t) * Math.PI) / 180;
-    const s = 0.93 - 0.27 * t;
-    const cx = 0.3 + 1.9 * t;
-    const cy = 0.5 + 7 * t;
-    pts.push(`${(cx + PIT_RX * s * Math.cos(a)).toFixed(1)} ${(cy + PIT_RY * s * Math.sin(a)).toFixed(1)}`);
-  }
-  return `M ${pts.join(' L ')}`;
-})();
 
 /** Small brick pyramid used beside the quarry. */
 function BrickStack({ x, y, s = 1 }: { x: number; y: number; s?: number }) {
@@ -206,109 +159,77 @@ function QuarryWorker({ x, y, shirt, cart = false, flip = false }: { x: number; 
   );
 }
 
-/** Open-pit clay quarry for the hills (brick) tile: stepped terraces spiralling down to a dark floor. */
+/** Open-pit clay quarry for the hills (brick) tile: three broad terraces stepping down to a floor. */
 function HillsArtworkSvg({ hexId }: { hexId: number }) {
   const id = (name: string) => `hills-${name}-${hexId}`;
+  const floor = { cx: PIT.cx + 9, cy: PIT.cy + 10.5, rx: PIT.rx * 0.3, ry: PIT.ry * 0.3 };
   return (
     <g>
       <defs>
         <linearGradient id={id('ground')} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#e9b07d" />
-          <stop offset="0.55" stopColor="#d9915f" />
-          <stop offset="1" stopColor="#bf6c43" />
+          <stop offset="0" stopColor="#e9a872" />
+          <stop offset="1" stopColor="#d08752" />
         </linearGradient>
-        <linearGradient id={id('top')} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#f0b685" />
-          <stop offset="1" stopColor="#d58a5a" />
+        <linearGradient id={id('bench')} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#f5c696" />
+          <stop offset="1" stopColor="#e6a674" />
         </linearGradient>
-        <linearGradient id={id('wall')} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#5a2615" />
-          <stop offset="0.5" stopColor="#8d4224" />
-          <stop offset="1" stopColor="#c46c40" />
+        <linearGradient id={id('floor')} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#a35a36" />
+          <stop offset="1" stopColor="#c47b50" />
         </linearGradient>
-        <radialGradient id={id('floor')} cx="0.5" cy="0.5" r="0.6">
-          <stop offset="0" stopColor="#7b3820" />
-          <stop offset="1" stopColor="#5a2515" />
-        </radialGradient>
       </defs>
 
-      {/* Sandy-clay ground with soft dunes */}
+      {/* Sandy-clay ground with soft light and shade */}
       <rect x={-60} y={-60} width={120} height={120} fill={`url(#${id('ground')})`} />
-      <ellipse cx={-26} cy={-30} rx={34} ry={22} fill="#f6cfa4" opacity={0.28} />
-      <ellipse cx={30} cy={34} rx={34} ry={20} fill="#9c4c28" opacity={0.28} />
+      <ellipse cx={-24} cy={-26} rx={34} ry={22} fill="#f8d8b2" opacity={0.3} />
+      <ellipse cx={32} cy={36} rx={34} ry={20} fill="#c98456" opacity={0.25} />
 
-      {/* Boulders and clay patches on the ground */}
-      {([[-36, -4, 2.4], [38, -12, 1.8], [-14, 40, 2], [18, -41, 1.6], [37, 20, 1.5]] as [number, number, number][]).map(([bx, by, br], i) => (
+      {/* Boulders on the ground */}
+      {([[-36, 2, 2.2], [40, -14, 1.7], [-12, 41, 1.8], [20, -40, 1.5]] as [number, number, number][]).map(([bx, by, br], i) => (
         <g key={`rock-${i}`}>
-          <ellipse cx={bx + 0.6} cy={by + br * 0.6} rx={br * 1.2} ry={br * 0.45} fill="rgba(60,20,8,0.3)" />
-          <ellipse cx={bx} cy={by} rx={br} ry={br * 0.75} fill="#b8734d" stroke="#6a3018" strokeWidth={0.45} />
-          <ellipse cx={bx - br * 0.3} cy={by - br * 0.3} rx={br * 0.45} ry={br * 0.28} fill="#e0a37a" opacity={0.8} />
+          <ellipse cx={bx + 0.6} cy={by + br * 0.6} rx={br * 1.2} ry={br * 0.45} fill="rgba(110,50,20,0.25)" />
+          <ellipse cx={bx} cy={by} rx={br} ry={br * 0.75} fill="#cf9168" stroke="#9a5a36" strokeWidth={0.4} />
+          <ellipse cx={bx - br * 0.3} cy={by - br * 0.3} rx={br * 0.45} ry={br * 0.28} fill="#f0c9a2" opacity={0.8} />
         </g>
       ))}
 
       {/* Soft shadow the pit casts on the surrounding ground */}
-      <path d={blobPath(2.4, 2.6, PIT_RX + 2.5, PIT_RY + 2.5, 0)} fill="#6a2a14" opacity={0.18} />
-      <path d={blobPath(1.6, 1.6, PIT_RX + 1.2, PIT_RY + 1.2, 0)} fill="#6a2a14" opacity={0.22} />
+      <ellipse cx={PIT.cx + 1.6} cy={PIT.cy + 2} rx={PIT.rx + 2} ry={PIT.ry + 2} fill="#a8623a" opacity={0.2} />
 
-      {/* Terraces and walls stepping down to the floor */}
-      {PIT_LEVELS.map((lvl, i) => (
-        <path
-          key={i}
-          d={PIT_PATHS[i]}
-          fill={lvl.kind === 'top' ? `url(#${id('top')})` : lvl.kind === 'wall' ? `url(#${id('wall')})` : `url(#${id('floor')})`}
-          stroke={lvl.kind === 'top' ? '#7a3a20' : '#4a1d0e'}
-          strokeOpacity={lvl.kind === 'top' ? 0.55 : 0.5}
-          strokeWidth={lvl.kind === 'top' ? 0.7 : 0.5}
-        />
-      ))}
+      {/* Terraces: a thin shadowed wall on the upper-left, then a wide flat sunlit bench */}
+      {PIT_STEPS.map((step, i) => {
+        const cx = PIT.cx + step.dx;
+        const cy = PIT.cy + step.dy;
+        return (
+          <g key={i}>
+            <ellipse cx={cx - 3.4} cy={cy - 3.4} rx={PIT.rx * step.s + 0.8} ry={PIT.ry * step.s + 0.8} fill="#9a502e" opacity={0.9} />
+            <ellipse cx={cx - 1.8} cy={cy - 1.8} rx={PIT.rx * step.s + 0.5} ry={PIT.ry * step.s + 0.5} fill="#c4774b" />
+            <ellipse cx={cx} cy={cy} rx={PIT.rx * step.s} ry={PIT.ry * step.s} fill={`url(#${id('bench')})`} stroke="#a65a35" strokeOpacity={0.45} strokeWidth={0.5} />
+          </g>
+        );
+      })}
+      <ellipse cx={floor.cx - 2.6} cy={floor.cy - 2.6} rx={floor.rx + 0.5} ry={floor.ry + 0.5} fill="#8a4627" opacity={0.9} />
+      <ellipse cx={floor.cx} cy={floor.cy} rx={floor.rx} ry={floor.ry} fill={`url(#${id('floor')})`} stroke="#a85f3a" strokeOpacity={0.5} strokeWidth={0.5} />
 
-      {/* Layered clay strata streaking the shadowed walls */}
-      {PIT_LEVELS.map((lvl, i) =>
-        lvl.kind === 'wall' ? (
-          <path
-            key={`strata-${i}`}
-            d={PIT_PATHS[i]}
-            transform="translate(0, 0.9)"
-            fill="none"
-            stroke="#3d170a"
-            strokeOpacity={0.3}
-            strokeWidth={0.6}
-            strokeDasharray="7 3 2 6 11 4"
-          />
-        ) : null,
-      )}
+      {/* Haul road cutting down across the terraces from the rim */}
+      <path d="M -28 40 Q -14 31, -2 17" transform="translate(0.5, 0.8)" fill="none" stroke="#a8623a" strokeOpacity={0.4} strokeWidth={4} strokeLinecap="round" />
+      <path d="M -28 40 Q -14 31, -2 17" fill="none" stroke="#f3d3a8" strokeWidth={3.2} strokeLinecap="round" />
+      <path d="M -28 40 Q -14 31, -2 17" transform="translate(-0.3, -0.5)" fill="none" stroke="#fff3df" strokeOpacity={0.6} strokeWidth={0.8} strokeLinecap="round" />
 
-      {/* Sunlit lip catching the light on the lower-right terraces */}
-      {[2, 4].map((i) => (
-        <path
-          key={i}
-          d={PIT_PATHS[i]}
-          fill="none"
-          stroke="#fbd9b0"
-          strokeOpacity={0.5}
-          strokeWidth={0.8}
-          strokeDasharray="40 200"
-          strokeDashoffset={-110 - i * 6}
-        />
-      ))}
-
-      {/* Track spiralling down into the pit */}
-      <path d={PIT_RAMP} transform="translate(0.5, 0.8)" fill="none" stroke="#4a1d0e" strokeOpacity={0.4} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-      <path d={PIT_RAMP} fill="none" stroke="#dfa673" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
-      <path d={PIT_RAMP} transform="translate(-0.3, -0.4)" fill="none" stroke="#f8dfb8" strokeOpacity={0.45} strokeWidth={0.7} strokeLinecap="round" strokeLinejoin="round" />
-
-      {/* Workers and a clay cart on the terraces */}
-      <QuarryWorker x={-27} y={-6} shirt="#2f6ea8" cart />
-      <QuarryWorker x={21} y={19} shirt="#d9402e" flip />
-      <QuarryWorker x={-6} y={-27} shirt="#f4f1e6" />
+      {/* Workers and a clay cart on the benches */}
+      <g transform="translate(-27, -3) scale(1.25)"><QuarryWorker x={0} y={0} shirt="#2f6ea8" cart /></g>
+      <g transform="translate(36, 5) scale(1.25)"><QuarryWorker x={0} y={0} shirt="#d9402e" flip /></g>
+      <g transform="translate(13, -23) scale(1.25)"><QuarryWorker x={0} y={0} shirt="#f4f1e6" /></g>
 
       {/* Brick stacks and scrub around the rim */}
-      <BrickStack x={-26} y={-32} s={0.85} />
-      <BrickStack x={25} y={37} s={0.85} />
-      <ScrubBush x={29} y={-34} s={0.8} />
-      <ScrubBush x={-31} y={34} s={0.8} />
-      <ScrubBush x={0} y={-46} s={0.6} />
-      <ScrubBush x={4} y={47} s={0.6} />
+      <BrickStack x={-27} y={-30} s={0.9} />
+      <BrickStack x={26} y={37} s={0.9} />
+      <ScrubBush x={28} y={-31} s={0.85} />
+      <ScrubBush x={-34} y={21} s={0.85} />
+      <ScrubBush x={-24} y={35} s={0.7} />
+      <ScrubBush x={4} y={-42} s={0.7} />
+      <ScrubBush x={36} y={-20} s={0.6} />
     </g>
   );
 }
