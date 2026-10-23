@@ -1059,9 +1059,8 @@ export function TabletopApp() {
         />
 
         <main
-          className="tt-board-area"
+          className={`tt-board-area${isDragging ? ' is-dragging' : ''}`}
           aria-label="Board"
-          style={{ cursor: isDragging ? 'grabbing' : undefined }}
           onWheel={(e) => {
             e.preventDefault();
             setZoom((z) => clampZoom(z + (e.deltaY < 0 ? 0.2 : -0.2)));

@@ -145,11 +145,19 @@ button:not(:disabled):active {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  /* Open hand over the board (drag to pan). The browser's own grab cursor is a small bitmap that looks
+     pixelated on 4K / high-scaling screens, so these are drawn at 1x-4x (scripts/make-cursors.mjs).
+     Declarations the browser does not understand are skipped, leaving the native cursor. */
   cursor: grab;
+  cursor: -webkit-image-set(url('/cursors/grab-1x.png') 1x, url('/cursors/grab-2x.png') 2x, url('/cursors/grab-3x.png') 3x, url('/cursors/grab-4x.png') 4x) 16 16, grab;
+  cursor: image-set(url('/cursors/grab-1x.png') 1x, url('/cursors/grab-2x.png') 2x, url('/cursors/grab-3x.png') 3x, url('/cursors/grab-4x.png') 4x) 16 16, grab;
 }
 
-.tt-board-area:active {
+.tt-board-area:active,
+.tt-board-area.is-dragging {
   cursor: grabbing;
+  cursor: -webkit-image-set(url('/cursors/grabbing-1x.png') 1x, url('/cursors/grabbing-2x.png') 2x, url('/cursors/grabbing-3x.png') 3x, url('/cursors/grabbing-4x.png') 4x) 16 16, grabbing;
+  cursor: image-set(url('/cursors/grabbing-1x.png') 1x, url('/cursors/grabbing-2x.png') 2x, url('/cursors/grabbing-3x.png') 3x, url('/cursors/grabbing-4x.png') 4x) 16 16, grabbing;
 }
 
 .tt-board-stage {
