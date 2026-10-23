@@ -10,6 +10,9 @@
  * - PRNG state (seed and calls are hidden).
  * - Tracks `hiddenResourcesCount` (total resource + science cards in hand) and optionally
  *   masks opponent resource/science breakdown when `hideOpponentResources` is enabled.
+ * - Identities of development cards bought this turn (`devCardsBoughtThisTurn`) unless the
+ *   viewer owns them (other viewers see the placeholder 'hidden').
+ * - A `null` viewer (spectator / unseated socket) sees every hand redacted.
  */
 
 import { GameState, PlayerId, PlayerState } from '../engine/types';
@@ -52,9 +55,12 @@ function computeTotalHandCards(p: PlayerState): number {
   );
 }
 
+/** Placeholder that replaces dev card ids the viewer is not allowed to see. */
+export const HIDDEN_DEV_CARD_ID = 'hidden';
+
 export function redactForPlayer(
   state: GameState,
-  viewerId: PlayerId,
+  viewerId: PlayerId | null,
   options?: RedactOptions
 ): RedactedGameState {
   const cloned: GameState = structuredClone(state);
@@ -117,8 +123,18 @@ export function redactForPlayer(
   const { devDeck: _unusedDeck, ...restSupply } = cloned.supply;
   const { eventBag: _unusedBag, prng: _unusedPrng, ...restCloned } = cloned;
 
+  // Cards bought this turn are listed by id at the top level; only their owner may see them.
+  const viewer = viewerId ? cloned.players[viewerId] : undefined;
+  const ownCards = new Set<string>(viewer ? [...viewer.devCards.unplayed, ...viewer.devCards.played] : []);
+  const maskBought = (ids: string[]) => ids.map((id) => (ownCards.has(id) ? id : HIDDEN_DEV_CARD_ID));
+
   const redacted: RedactedGameState = {
     ...restCloned,
+    devCardsBoughtThisTurn: maskBought(restCloned.devCardsBoughtThisTurn),
+    turnStats: {
+      ...restCloned.turnStats,
+      devCardsBoughtThisTurn: maskBought(restCloned.turnStats.devCardsBoughtThisTurn),
+    },
     players: redactedPlayers,
     supply: {
       ...restSupply,
@@ -129,4 +145,9 @@ export function redactForPlayer(
   };
 
   return redacted;
+}
+
+/** View for a socket without a seat: no private hand, deck or bag contents at all. */
+export function redactForSpectator(state: GameState, options?: RedactOptions): RedactedGameState {
+  return redactForPlayer(state, null, options);
 }
