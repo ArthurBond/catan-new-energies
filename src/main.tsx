@@ -11,11 +11,14 @@ type Mode = { kind: 'detecting' } | { kind: 'offline' } | { kind: 'online'; info
 
 /**
  * Served by the host's game server (`GET /api/server-info` answers): online mode. Anywhere else
- * (`npm run dev`, a static host) the app plays on its own: bots, hotseat, tab sync, resume.
+ * (a static host) the app plays on its own: bots, hotseat, tab sync, resume.
+ * The Vite dev server (`npm run dev`) never probes: the app is offline from the first frame, so
+ * the offline tests do not wait on a network round trip.
  */
 export function App() {
-  const [mode, setMode] = useState<Mode>({ kind: 'detecting' });
+  const [mode, setMode] = useState<Mode>(import.meta.env.DEV ? { kind: 'offline' } : { kind: 'detecting' });
   useEffect(() => {
+    if (import.meta.env.DEV) return;
     let cancelled = false;
     void detectGameServer().then((info) => {
       if (!cancelled) setMode(info ? { kind: 'online', info } : { kind: 'offline' });
