@@ -13,7 +13,8 @@ import {
   type StateMessage,
 } from '@/network/server-protocol';
 import { createFileStore } from '../persistence';
-import { GameRoom, type GameRoomOptions, type RoomTimers, type SavedRoom } from '../room';
+import { drawnEventDisc, GameRoom, type GameRoomOptions, type RoomTimers, type SavedRoom } from '../room';
+import { createInitialGameState } from '@/engine/setup';
 
 const HOST_KEY = 'test-host-key-123';
 
@@ -371,5 +372,14 @@ describe('GameRoom bots', () => {
     expect(pending.size).toBe(1); // purple (bot) is next
     room.shutdown();
     expect(pending.size).toBe(0);
+  });
+});
+
+describe('drawnEventDisc', () => {
+  it('names the disc that left the bag, so clients can reveal it without seeing the bag', () => {
+    const prev = createInitialGameState({ seed: 3 });
+    const next = { ...prev, eventBag: prev.eventBag.slice(0, -1) };
+    expect(drawnEventDisc(prev, next)).toBe(prev.eventBag.at(-1));
+    expect(drawnEventDisc(prev, prev)).toBeNull();
   });
 });

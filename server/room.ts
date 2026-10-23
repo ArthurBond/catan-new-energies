@@ -19,7 +19,7 @@ import {
 } from '@/ai/bot';
 import { applyAction } from '@/engine/reducer';
 import { createInitialGameState } from '@/engine/setup';
-import type { GameAction, GameState, PlayerId } from '@/engine/types';
+import type { EventDiscType, GameAction, GameState, PlayerId } from '@/engine/types';
 import { redactForPlayer, redactForSpectator, type RedactOptions } from '@/network/redact';
 import {
   activeSeatIds,
@@ -161,6 +161,15 @@ export function createGameFromOnlineConfig(
     setupRoll: drafted,
     playerNames,
   });
+}
+
+/** The event disc type that left the bag between two states, if any (same as the UI's helper). */
+export function drawnEventDisc(prev: GameState, next: GameState): EventDiscType | null {
+  const counts = new Map<EventDiscType, number>();
+  for (const d of prev.eventBag) counts.set(d, (counts.get(d) ?? 0) + 1);
+  for (const d of next.eventBag) counts.set(d, (counts.get(d) ?? 0) - 1);
+  for (const [d, n] of counts) if (n > 0) return d;
+  return null;
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -446,7 +455,7 @@ export class GameRoom {
     this.log(`Game started (${this.config.playerCount} players, seed ${this.config.seed}).`);
     this.persist();
     this.broadcastLobby();
-    this.broadcastState();
+    this.broadcastState(null);
     this.scheduleBot();
   }
 
@@ -492,11 +501,12 @@ export class GameRoom {
       const detail = e instanceof Error ? e.message : String(e);
       return `That move is not allowed right now (${detail}).`;
     }
+    const drawn = drawnEventDisc(this.game, next);
     this.game = next;
     this.version += 1;
     this.lastAction = action;
     this.persist();
-    this.broadcastState();
+    this.broadcastState(action, drawn);
     if (next.phase === 'GameEnd' || next.winner !== null) this.log('Game over.');
     this.scheduleBot();
     return null;
@@ -677,16 +687,23 @@ export class GameRoom {
   }
 
   /** Each socket gets its own redaction; nothing is shared between sockets. */
-  private broadcastState(lastAction: GameAction | null = this.lastAction): void {
-    for (const r of this.greetedClients()) this.sendState(r, lastAction);
+  private broadcastState(lastAction: GameAction | null, drawn: EventDiscType | null = null): void {
+    for (const r of this.greetedClients()) this.sendState(r, lastAction, drawn);
   }
 
-  private sendState(rec: ClientRecord, lastAction: GameAction | null): void {
+  private sendState(rec: ClientRecord, lastAction: GameAction | null, drawn: EventDiscType | null = null): void {
     if (!this.game) return;
     const state = rec.playerId
       ? redactForPlayer(this.game, rec.playerId, this.opts.redactOptions)
       : redactForSpectator(this.game, this.opts.redactOptions);
-    this.send(rec, { type: 'state', state, version: this.version, lastAction, yourPlayerId: rec.playerId });
+    this.send(rec, {
+      type: 'state',
+      state,
+      version: this.version,
+      lastAction,
+      drawnEventDisc: drawn,
+      yourPlayerId: rec.playerId,
+    });
   }
 
   // -------------------------------------------------------------------------
