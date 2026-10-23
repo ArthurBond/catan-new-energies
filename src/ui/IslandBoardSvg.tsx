@@ -69,25 +69,6 @@ export interface IslandBoardSvgProps {
   onSelectEventTrackInfo?: (track: EventDiscType) => void;
 }
 
-/** Conifer positions [x, y, scale] for the forest tile, leaving the number disc clear. */
-const FOREST_TREES: [number, number, number][] = [
-  [-30, -18, 1],
-  [-18, -32, 0.95],
-  [-4, -40, 0.85],
-  [12, -34, 1],
-  [26, -24, 1.05],
-  [36, -6, 0.9],
-  [-38, 0, 0.9],
-  [-30, 16, 1.05],
-  [-16, 30, 0.95],
-  [0, 40, 0.85],
-  [16, 32, 1],
-  [30, 22, 1.05],
-  [40, 10, 0.85],
-  [-26, -4, 0.8],
-  [26, 6, 0.8],
-];
-
 /**
  * Quarry levels from the rim down to the floor. The floor is centred on the number disc, so the disc
  * sits at the bottom of the mine; every level above it is larger and drawn a little higher (seen
@@ -156,31 +137,81 @@ function BrickStack({ x, y, s = 1 }: { x: number; y: number; s?: number }) {
   );
 }
 
-/** Tiny clay miner in a hard hat: swinging a pick, pushing a barrow of clay, or carrying bricks. */
-function Miner({ x, y, shirt, pose, flip = false, s = 1.25 }: { x: number; y: number; shirt: string; pose: 'pick' | 'barrow' | 'carry'; flip?: boolean; s?: number }) {
+type WorkerPose = 'pick' | 'axe' | 'fork' | 'crook' | 'barrow' | 'carry';
+
+/**
+ * Tiny worker on a resource tile: a miner in a hard hat, a lumberjack in a cap or a farmer or
+ * shepherd in a straw hat, swinging a pick or axe, raising a pitchfork, leaning on a crook,
+ * pushing a barrow or carrying a load (`load` colours the barrow's contents or what is carried).
+ */
+function Worker({
+  x,
+  y,
+  shirt,
+  pose,
+  flip = false,
+  s = 1.25,
+  hat = 'hard',
+  load = '#c8673c',
+}: {
+  x: number;
+  y: number;
+  shirt: string;
+  pose: WorkerPose;
+  flip?: boolean;
+  s?: number;
+  hat?: 'hard' | 'cap' | 'straw';
+  load?: string;
+}) {
   return (
     <g transform={`translate(${x}, ${y}) scale(${flip ? -s : s}, ${s})`}>
-      <ellipse cx={0.6} cy={0.4} rx={2.5} ry={0.7} fill="rgba(60,20,6,0.38)" />
+      <ellipse cx={0.6} cy={0.4} rx={2.5} ry={0.7} fill="rgba(30,20,6,0.38)" />
       {pose === 'barrow' && (
         <g transform="translate(4, -0.5)">
           <path d="M -2.3 -2.1 L -4 -1.3" stroke="#5b3a22" strokeWidth={0.45} strokeLinecap="round" />
           <path d="M -2.6 -2.7 L 2.8 -2.7 L 2 -0.6 L -1.9 -0.6 Z" fill="#6b4a2f" stroke="#2f1a0c" strokeWidth={0.3} />
-          <path d="M -2.2 -2.7 Q 0.2 -4.8, 2.5 -2.7 Z" fill="#c8673c" stroke="#6a2a14" strokeWidth={0.25} />
+          <path d="M -2.2 -2.7 Q 0.2 -4.8, 2.5 -2.7 Z" fill={load} stroke="#3a2010" strokeWidth={0.25} />
           <circle cx={1.5} cy={0} r={0.85} fill="#2f1a0c" />
         </g>
+      )}
+      {pose === 'crook' && (
+        <path d="M 1.5 0.2 L 1.5 -6.4 Q 1.5 -7.6, 2.5 -7.6 Q 3.4 -7.6, 3.3 -6.7" fill="none" stroke="#7a5230" strokeWidth={0.45} strokeLinecap="round" />
       )}
       <path d="M -0.45 -1.6 L -0.7 0.2 M 0.45 -1.6 L 0.75 0.2" stroke="#3b2a1e" strokeWidth={0.6} strokeLinecap="round" />
       <rect x={-0.95} y={-3.9} width={1.9} height={2.6} rx={0.6} fill={shirt} stroke="#2f1a0c" strokeWidth={0.25} />
       <circle cx={0} cy={-4.7} r={0.9} fill="#e8b48a" stroke="#2f1a0c" strokeWidth={0.25} />
-      <path d="M -1.1 -4.95 Q 0 -6.3, 1.1 -4.95 Z" fill="#f2c230" stroke="#2f1a0c" strokeWidth={0.22} />
-      <path d="M -1.4 -4.95 L 1.4 -4.95" stroke="#2f1a0c" strokeWidth={0.3} strokeLinecap="round" />
+      {hat === 'hard' && (
+        <>
+          <path d="M -1.1 -4.95 Q 0 -6.3, 1.1 -4.95 Z" fill="#f2c230" stroke="#2f1a0c" strokeWidth={0.22} />
+          <path d="M -1.4 -4.95 L 1.4 -4.95" stroke="#2f1a0c" strokeWidth={0.3} strokeLinecap="round" />
+        </>
+      )}
+      {hat === 'cap' && <path d="M -1 -5 Q 0 -6.2, 1 -5 L 1.6 -4.9 Z" fill="#b8332a" stroke="#2f1a0c" strokeWidth={0.22} />}
+      {hat === 'straw' && (
+        <>
+          <ellipse cx={0} cy={-5.05} rx={1.9} ry={0.45} fill="#e9c46a" stroke="#7a5a1c" strokeWidth={0.2} />
+          <path d="M -0.8 -5.1 Q 0 -6.1, 0.8 -5.1 Z" fill="#f0d27a" stroke="#7a5a1c" strokeWidth={0.2} />
+        </>
+      )}
       {pose === 'pick' && (
         <g>
           <path d="M 0.5 -3.2 L -2.2 -6.3" stroke="#7a5230" strokeWidth={0.45} strokeLinecap="round" />
           <path d="M -3.2 -5.35 Q -2.6 -6.75, -1.2 -7.25" fill="none" stroke="#9aa3ad" strokeWidth={0.6} strokeLinecap="round" />
         </g>
       )}
-      {pose === 'carry' && <rect x={-1.7} y={-3.5} width={3.4} height={1.3} rx={0.2} fill="#c9552d" stroke="#6a2a14" strokeWidth={0.25} />}
+      {pose === 'axe' && (
+        <g>
+          <path d="M 0.5 -3.2 L -2.2 -6.3" stroke="#7a5230" strokeWidth={0.45} strokeLinecap="round" />
+          <path d="M -2.6 -6.9 L -1.5 -5.6 L -2.9 -4.9 Z" fill="#b9c0c8" stroke="#3b3f46" strokeWidth={0.2} />
+        </g>
+      )}
+      {pose === 'fork' && (
+        <g>
+          <path d="M 0.6 -3 L -1.6 -7" stroke="#7a5230" strokeWidth={0.4} strokeLinecap="round" />
+          <path d="M -2.6 -6.8 L -1.8 -8.2 M -1.6 -7 L -1.2 -8.6 M -0.7 -7.3 L -0.6 -8.6" stroke="#8b939c" strokeWidth={0.3} strokeLinecap="round" />
+        </g>
+      )}
+      {pose === 'carry' && <rect x={-1.7} y={-3.5} width={3.4} height={1.3} rx={0.2} fill={load} stroke="#3a2010" strokeWidth={0.25} />}
     </g>
   );
 }
@@ -307,10 +338,10 @@ function HillsArtworkSvg({ hexId }: { hexId: number }) {
       <BrickStack x={-2} y={44} s={0.72} />
 
       {/* Miners: two cutting clay from the far walls, one wheeling a barrow up the road, one carrying bricks */}
-      <Miner x={-22.5} y={-27.5} shirt="#2f6ea8" pose="pick" />
-      <Miner x={13.3} y={-23.9} shirt="#d9402e" pose="pick" flip />
-      <Miner x={-24.5} y={23.6} shirt="#f4f1e6" pose="barrow" flip />
-      <Miner x={8} y={41} shirt="#3f7f4a" pose="carry" />
+      <Worker x={-22.5} y={-27.5} shirt="#2f6ea8" pose="pick" />
+      <Worker x={13.3} y={-23.9} shirt="#d9402e" pose="pick" flip />
+      <Worker x={-24.5} y={23.6} shirt="#f4f1e6" pose="barrow" flip />
+      <Worker x={8} y={41} shirt="#3f7f4a" pose="carry" load="#c9552d" />
     </g>
   );
 }
@@ -532,9 +563,485 @@ function MountainsArtworkSvg({ hexId }: { hexId: number }) {
       ))}
 
       {/* Miners: one breaking ore, one wheeling a barrow from the cart, one at the tunnel mouth */}
-      <Miner x={-24.5} y={9} shirt="#2f6ea8" pose="pick" />
-      <Miner x={15.5} y={13} shirt="#d9402e" pose="barrow" flip />
-      <Miner x={17} y={-6.5} shirt="#f4f1e6" pose="carry" s={1.05} />
+      <Worker x={-24.5} y={9} shirt="#2f6ea8" pose="pick" />
+      <Worker x={15.5} y={13} shirt="#d9402e" pose="barrow" flip load="#4a3b3a" />
+      <Worker x={17} y={-6.5} shirt="#f4f1e6" pose="carry" s={1.05} load="#5a4a48" />
+    </g>
+  );
+}
+
+/** Stable pseudo-random number in [0, 1) so tile layouts never change between renders. */
+function hash01(i: number, salt: number): number {
+  return Math.abs(Math.sin(i * 12.9898 + salt * 78.233) * 43758.5453) % 1;
+}
+
+/** Whether a point lies inside the tile's pointy-top hex (art coordinates), shrunk by `margin`. */
+function inTileHex(x: number, y: number, margin = 0): boolean {
+  const r = HEX_RADIUS - 4.8 - margin;
+  return Math.abs(x) <= r * Math.cos(Math.PI / 6) && Math.abs(y) <= r - Math.abs(x) * Math.tan(Math.PI / 6);
+}
+
+/** A point on an ellipse at `deg` (y pointing down), as "x y". */
+function ellipsePt(cx: number, cy: number, rx: number, ry: number, deg: number): string {
+  const t = (deg * Math.PI) / 180;
+  return `${(cx + rx * Math.cos(t)).toFixed(2)} ${(cy + ry * Math.sin(t)).toFixed(2)}`;
+}
+
+const CONIFER_TONES = [
+  { lit: '#6fbb72', mid: '#438d55', shade: '#24543a' },
+  { lit: '#5aa868', mid: '#367a4a', shade: '#1d4831' },
+  { lit: '#8cc46c', mid: '#55955a', shade: '#2f603c' },
+];
+
+/** Side-view conifer in three tiers, lit on the left and shaded on the right, with a cast shadow. */
+function Conifer({ x, y, s = 1, tone = 0 }: { x: number; y: number; s?: number; tone?: number }) {
+  const c = CONIFER_TONES[tone % CONIFER_TONES.length]!;
+  const tiers: [number, number, number][] = [
+    [4, -4, 6.5],
+    [-1, -9, 5.2],
+    [-6, -13, 3.8],
+  ];
+  return (
+    <g transform={`translate(${x.toFixed(2)}, ${y.toFixed(2)}) scale(${s.toFixed(2)})`}>
+      <ellipse cx={2.6} cy={5} rx={6.8} ry={2.3} fill="rgba(6,22,10,0.4)" />
+      <rect x={-0.8} y={2} width={1.6} height={3.8} fill="#5b3f26" />
+      {tiers.map(([by, ay, hw], i) => (
+        <g key={i}>
+          <polygon points={`0,${ay} ${hw},${by} ${-hw},${by}`} fill={c.shade} stroke="#12301c" strokeWidth={0.5} strokeLinejoin="round" />
+          <polygon points={`0,${ay} 0,${by} ${-hw},${by}`} fill={c.mid} />
+          <path d={`M -0.3 ${ay + 0.8} L ${(-hw * 0.6).toFixed(2)} ${by - 0.6}`} stroke={c.lit} strokeWidth={0.8} strokeLinecap="round" opacity={0.85} />
+        </g>
+      ))}
+    </g>
+  );
+}
+
+const BROADLEAF_TONES = [
+  { lit: '#a6d46e', mid: '#6aa84f', shade: '#3b7638' },
+  { lit: '#cfdc72', mid: '#93b14c', shade: '#5b7d2f' },
+  { lit: '#8fc77c', mid: '#4f8f4a', shade: '#2b5c33' },
+];
+
+/** Round-crowned broadleaf tree: shaded crown, lit upper-left, cast shadow. */
+function Broadleaf({ x, y, s = 1, tone = 0 }: { x: number; y: number; s?: number; tone?: number }) {
+  const c = BROADLEAF_TONES[tone % BROADLEAF_TONES.length]!;
+  return (
+    <g transform={`translate(${x.toFixed(2)}, ${y.toFixed(2)}) scale(${s.toFixed(2)})`}>
+      <ellipse cx={2.8} cy={4.6} rx={6.4} ry={2.2} fill="rgba(6,22,10,0.4)" />
+      <rect x={-0.8} y={0} width={1.6} height={4.6} fill="#5b3f26" />
+      <circle cx={0.6} cy={-4} r={5.6} fill={c.shade} stroke="#173a1e" strokeWidth={0.5} />
+      <circle cx={-0.8} cy={-5.2} r={4.3} fill={c.mid} />
+      <circle cx={-2.1} cy={-6.7} r={2.1} fill={c.lit} opacity={0.9} />
+      <circle cx={2.7} cy={-2.4} r={1.2} fill={c.mid} opacity={0.75} />
+    </g>
+  );
+}
+
+/** Tall narrow poplar for field edges. */
+function Poplar({ x, y, s = 1 }: { x: number; y: number; s?: number }) {
+  return (
+    <g transform={`translate(${x.toFixed(2)}, ${y.toFixed(2)}) scale(${s.toFixed(2)})`}>
+      <ellipse cx={3.2} cy={3.4} rx={6.5} ry={1.5} fill="rgba(70,40,0,0.32)" transform="rotate(12 3.2 3.4)" />
+      <rect x={-0.6} y={0} width={1.2} height={3.4} fill="#5b3f26" />
+      <ellipse cx={0.4} cy={-6} rx={2.9} ry={7.6} fill="#3f7a35" stroke="#1f4219" strokeWidth={0.45} />
+      <ellipse cx={-0.6} cy={-7} rx={1.7} ry={6} fill="#5f9e43" />
+      <ellipse cx={-1.1} cy={-9} rx={0.8} ry={3} fill="#9ccc64" opacity={0.85} />
+    </g>
+  );
+}
+
+/** Tree stump with a cut face. */
+function Stump({ x, y }: { x: number; y: number }) {
+  return (
+    <g transform={`translate(${x}, ${y})`}>
+      <ellipse cx={1} cy={1.4} rx={2.8} ry={0.9} fill="rgba(20,14,6,0.35)" />
+      <path d="M -1.8 -0.6 L -1.9 1 Q 0 1.8, 1.9 1 L 1.8 -0.6 Z" fill="#6b4223" stroke="#3d2412" strokeWidth={0.3} />
+      <ellipse cx={0} cy={-0.6} rx={1.8} ry={0.85} fill="#e2b77c" stroke="#6b4223" strokeWidth={0.3} />
+      <ellipse cx={0} cy={-0.6} rx={0.9} ry={0.4} fill="none" stroke="#b8864e" strokeWidth={0.25} />
+    </g>
+  );
+}
+
+/** Stacked felled logs, end grain to the front. */
+function LogPile({ x, y, s = 1 }: { x: number; y: number; s?: number }) {
+  const logs: [number, number][] = [
+    [-3.4, 0],
+    [0, 0],
+    [3.4, 0],
+    [-1.7, -2.9],
+    [1.7, -2.9],
+    [0, -5.8],
+  ];
+  return (
+    <g transform={`translate(${x}, ${y}) scale(${s})`}>
+      <ellipse cx={3} cy={1.6} rx={8.5} ry={2} fill="rgba(20,14,6,0.35)" />
+      {logs.map(([lx, ly], i) => (
+        <path key={`b-${i}`} d={`M ${lx} ${ly - 1.7} L ${lx + 4.5} ${ly - 3.4} L ${lx + 4.5} ${ly} L ${lx} ${ly + 1.7} Z`} fill="#7a4e2c" stroke="#3d2412" strokeWidth={0.3} />
+      ))}
+      {logs.map(([lx, ly], i) => (
+        <g key={`e-${i}`}>
+          <circle cx={lx} cy={ly} r={1.7} fill="#e2b77c" stroke="#6b4223" strokeWidth={0.35} />
+          <circle cx={lx} cy={ly} r={0.8} fill="none" stroke="#b8864e" strokeWidth={0.3} />
+        </g>
+      ))}
+    </g>
+  );
+}
+
+/** Round hay bale lying on its side, end face to the front. */
+function HayBale({ x, y, s = 1 }: { x: number; y: number; s?: number }) {
+  return (
+    <g transform={`translate(${x}, ${y}) scale(${s})`}>
+      <ellipse cx={3.2} cy={2.4} rx={5.6} ry={1.4} fill="rgba(90,55,0,0.35)" />
+      <path d="M 0 -2.6 L 3.6 -3.6 Q 6.2 -3.6, 6.2 -0.9 Q 6.2 1.7, 3.6 1.7 L 0 2.6 Z" fill="#c99a3e" stroke="#7a5a1c" strokeWidth={0.3} />
+      <circle cx={0} cy={0} r={2.6} fill="#eac56a" stroke="#7a5a1c" strokeWidth={0.35} />
+      <path d="M 0 0 m -1.6 0 a 1.6 1.6 0 1 1 1.6 1.6 a 0.9 0.9 0 1 1 0.9 -0.9" fill="none" stroke="#b8913a" strokeWidth={0.3} />
+    </g>
+  );
+}
+
+/** Woolly sheep grazing; `dir` -1 faces left. */
+function Sheep({ x, y, dir = 1, s = 0.72 }: { x: number; y: number; dir?: number; s?: number }) {
+  return (
+    <g transform={`translate(${x}, ${y}) scale(${dir * s}, ${s})`}>
+      <ellipse cx={1.2} cy={3.6} rx={5.6} ry={1.5} fill="rgba(20,50,10,0.3)" />
+      <path d="M -3 1.5 L -3 3.6 M -1 1.8 L -1 3.8 M 1.5 1.8 L 1.5 3.8 M 3 1.5 L 3 3.6" stroke="#2a2a2a" strokeWidth={0.9} strokeLinecap="round" />
+      <path d="M -4.6 1 C -6.2 0.6, -6 -2.4, -4.2 -2.6 C -3.8 -4.4, -1 -4.6, 0 -3.4 C 1.2 -4.8, 3.8 -4.2, 4 -2.4 C 5.6 -2, 5.4 1.2, 3.8 1.4 Z" fill="#fbfbf6" stroke="#5c6f3a" strokeWidth={0.7} />
+      <path d="M -3.6 -2 C -2.6 -3.4, -0.6 -3.4, 0.2 -2.4" fill="none" stroke="#ffffff" strokeWidth={0.9} strokeLinecap="round" opacity={0.9} />
+      <ellipse cx={5.6} cy={-1.2} rx={1.9} ry={1.5} fill="#2d2a26" />
+    </g>
+  );
+}
+
+/** Dry-stone wall along a path: soft shadow, grey stones, pale capstones. */
+function StoneWall({ d }: { d: string }) {
+  return (
+    <g fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <path d={d} transform="translate(0.6, 0.9)" stroke="#24461a" strokeOpacity={0.35} strokeWidth={2.8} />
+      <path d={d} stroke="#8a8778" strokeWidth={2.3} />
+      <path d={d} stroke="#d9d5c3" strokeWidth={1.1} strokeDasharray="1.3 0.9" />
+    </g>
+  );
+}
+
+/** Forest layout: trees on a jittered grid, outside the clearing and off the logging trail, back to front. */
+const FOREST_CLEARING = { cx: 0, cy: 1, rx: 27, ry: 24 };
+const FOREST_TRAIL: [number, number][] = [
+  [-16, 19],
+  [-27, 26],
+  [-40, 32],
+];
+const FOREST_STAND = (() => {
+  const trees: { x: number; y: number; s: number; conifer: boolean; tone: number }[] = [];
+  let i = 0;
+  for (let gy = -52; gy <= 54; gy += 8.6) {
+    const row = Math.round((gy + 52) / 8.6);
+    for (let gx = -48; gx <= 48; gx += 9.2) {
+      i++;
+      const x = gx + (row % 2) * 4.6 + (hash01(i, 1) - 0.5) * 5;
+      const y = gy + (hash01(i, 2) - 0.5) * 4.5;
+      const inClearing = ((x - FOREST_CLEARING.cx) / (FOREST_CLEARING.rx + 4)) ** 2 + ((y - FOREST_CLEARING.cy) / (FOREST_CLEARING.ry + 4)) ** 2 < 1;
+      const nearTrail = FOREST_TRAIL.some(([tx, ty]) => Math.hypot(x - tx, y - ty) < 7);
+      if (inClearing || nearTrail || !inTileHex(x, y + 3, -7)) continue;
+      trees.push({ x, y, s: 0.82 + hash01(i, 3) * 0.36, conifer: hash01(i, 4) < 0.62, tone: Math.floor(hash01(i, 5) * 3) });
+    }
+  }
+  return trees.sort((a, b) => a.y - b.y);
+})();
+
+/**
+ * Forest (lumber) tile: a dense mixed wood of shaded conifers and broadleaf trees round a sunlit
+ * logging clearing centred under the number disc, with stumps, a log pile, a trail and lumberjacks.
+ */
+function ForestArtworkSvg({ hexId }: { hexId: number }) {
+  const id = (name: string) => `forest-${name}-${hexId}`;
+  const c = FOREST_CLEARING;
+  const trail = `M ${FOREST_TRAIL[0]!.join(' ')} Q ${FOREST_TRAIL[1]!.join(' ')}, ${FOREST_TRAIL[2]!.join(' ')}`;
+  return (
+    <g>
+      <defs>
+        <radialGradient id={id('floor')} gradientUnits="userSpaceOnUse" cx={-14} cy={-16} r={90}>
+          <stop offset="0" stopColor="#3f8048" />
+          <stop offset="0.6" stopColor="#285f36" />
+          <stop offset="1" stopColor="#173f25" />
+        </radialGradient>
+        <radialGradient id={id('glade')} gradientUnits="userSpaceOnUse" cx={-6} cy={-6} r={34}>
+          <stop offset="0" stopColor="#c6d77a" />
+          <stop offset="0.7" stopColor="#9fbe5e" />
+          <stop offset="1" stopColor="#7fa24c" />
+        </radialGradient>
+      </defs>
+
+      {/* Deep forest floor */}
+      <rect x={-60} y={-60} width={120} height={120} fill={`url(#${id('floor')})`} />
+
+      {/* Sunlit clearing under the number disc, shaded on the upper-left by the trees */}
+      <ellipse cx={c.cx} cy={c.cy} rx={c.rx} ry={c.ry} fill={`url(#${id('glade')})`} />
+      <path d={`M ${ellipsePt(c.cx, c.cy + 1.4, c.rx - 1.4, c.ry - 1.4, 150)} A ${c.rx - 1.4} ${c.ry - 1.4} 0 0 1 ${ellipsePt(c.cx, c.cy + 1.4, c.rx - 1.4, c.ry - 1.4, 300)}`} fill="none" stroke="#3d6a2c" strokeOpacity={0.4} strokeWidth={3.2} strokeLinecap="round" />
+      {([[-14, -12], [12, 14], [-6, 15], [16, -8]] as [number, number][]).map(([px, py], i) => (
+        <ellipse key={`grass-${i}`} cx={px} cy={py} rx={5} ry={2.4} fill="#d8e48c" opacity={0.35} />
+      ))}
+
+      {/* Logging trail out of the clearing */}
+      <path d={trail} fill="none" stroke="#5a4128" strokeOpacity={0.5} strokeWidth={5} strokeLinecap="round" transform="translate(0.5, 0.8)" />
+      <path d={trail} fill="none" stroke="#9b7a50" strokeWidth={4} strokeLinecap="round" />
+      <path d={trail} fill="none" stroke="#c4a172" strokeWidth={1.4} strokeLinecap="round" opacity={0.7} />
+
+      {/* Stumps and a log pile in the clearing */}
+      <Stump x={-22} y={-7} />
+      <Stump x={21} y={10} />
+      <Stump x={8} y={-20} />
+      <Stump x={2} y={21.5} />
+      <LogPile x={-23} y={10} s={0.85} />
+
+      {/* The wood, back to front */}
+      {FOREST_STAND.map((t, i) =>
+        t.conifer ? <Conifer key={`tree-${i}`} x={t.x} y={t.y} s={t.s} tone={t.tone} /> : <Broadleaf key={`tree-${i}`} x={t.x} y={t.y} s={t.s} tone={t.tone} />,
+      )}
+
+      {/* Lumberjacks: felling at the clearing edge, carrying a log, wheeling logs out along the trail */}
+      <Worker x={20} y={-14} shirt="#b8332a" pose="axe" flip hat="cap" />
+      <Worker x={-10} y={21} shirt="#2f6ea8" pose="carry" hat="cap" load="#8a5a32" />
+      <Worker x={-25} y={25} shirt="#e2b04a" pose="barrow" flip hat="cap" load="#8a5a32" />
+    </g>
+  );
+}
+
+/** Field sectors round the harvested middle: [from deg, to deg, row angle, colours]. */
+const FIELD_SECTORS: { from: number; to: number; rows: number; base: [string, string]; lit: string; furrow: string }[] = [
+  { from: 200, to: 330, rows: 28, base: ['#f2c33c', '#d8961c'], lit: '#fbdc7a', furrow: '#a9760f' },
+  { from: 330, to: 460, rows: -38, base: ['#ecc76e', '#cf9f42'], lit: '#f6dc98', furrow: '#a87f2e' },
+  { from: 100, to: 200, rows: 72, base: ['#e9a72c', '#c47d14'], lit: '#f4c75c', furrow: '#9a650e' },
+];
+const FIELD_ROUND = 26;
+
+/**
+ * Fields (grain) tile: three wheat plots with their rows running different ways, divided by farm
+ * tracks that meet at a harvested round centred under the number disc; a combine cutting the ripe
+ * wheat, round bales on the stubble, poplars along a track and a farmer with a pitchfork.
+ */
+function FieldsArtworkSvg({ hexId }: { hexId: number }) {
+  const id = (name: string) => `fields-${name}-${hexId}`;
+  const ray = (deg: number, r: number): [number, number] => [r * Math.cos((deg * Math.PI) / 180), r * Math.sin((deg * Math.PI) / 180)];
+  return (
+    <g>
+      <defs>
+        {FIELD_SECTORS.map((f, i) => (
+          <g key={i}>
+            <linearGradient id={id(`base-${i}`)} x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor={f.base[0]} />
+              <stop offset="1" stopColor={f.base[1]} />
+            </linearGradient>
+            <pattern id={id(`rows-${i}`)} width={3.6} height={3.6} patternUnits="userSpaceOnUse" patternTransform={`rotate(${f.rows})`}>
+              <rect x={0} y={0} width={1.5} height={3.6} fill={f.lit} opacity={0.5} />
+              <rect x={2.5} y={0} width={0.6} height={3.6} fill={f.furrow} opacity={0.6} />
+            </pattern>
+          </g>
+        ))}
+        <radialGradient id={id('round')} gradientUnits="userSpaceOnUse" cx={-6} cy={-6} r={30}>
+          <stop offset="0" stopColor="#f3d27f" />
+          <stop offset="1" stopColor="#d6a650" />
+        </radialGradient>
+        <radialGradient id={id('light')} gradientUnits="userSpaceOnUse" cx={-22} cy={-26} r={90}>
+          <stop offset="0" stopColor="#fff6d8" stopOpacity={0.14} />
+          <stop offset="0.55" stopColor="#fff6d8" stopOpacity={0} />
+          <stop offset="1" stopColor="#6a3c00" stopOpacity={0.22} />
+        </radialGradient>
+      </defs>
+
+      {/* Three plots, each a wedge from the middle with its own crop and row direction */}
+      {FIELD_SECTORS.map((f, i) => {
+        const steps = 4;
+        const corners = Array.from({ length: steps + 1 }, (_, k) => ray(f.from + ((f.to - f.from) * k) / steps, 95).map((n) => n.toFixed(1)).join(','));
+        const points = `0,0 ${corners.join(' ')}`;
+        return (
+          <g key={`plot-${i}`}>
+            <polygon points={points} fill={`url(#${id(`base-${i}`)})`} />
+            <polygon points={points} fill={`url(#${id(`rows-${i}`)})`} />
+          </g>
+        );
+      })}
+
+      {/* Swath already cut behind the combine, in the top plot */}
+      <path d="M -60 -38 L -21 -30" stroke="#e8c574" strokeWidth={6.5} strokeLinecap="round" opacity={0.9} />
+
+      {/* Sun from the upper-left, darker toward the far edges */}
+      <rect x={-60} y={-60} width={120} height={120} fill={`url(#${id('light')})`} />
+
+      {/* Farm tracks along the plot edges, with grass verges */}
+      {FIELD_SECTORS.map((f, i) => {
+        const [x1, y1] = ray(f.from, FIELD_ROUND - 1);
+        const [x2, y2] = ray(f.from, 80);
+        const d = `M ${x1.toFixed(1)} ${y1.toFixed(1)} L ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+        return (
+          <g key={`track-${i}`} fill="none" strokeLinecap="round">
+            <path d={d} stroke="#7d9e44" strokeWidth={5.2} />
+            <path d={d} stroke="#c4995e" strokeWidth={3.2} />
+            <path d={d} stroke="#e0bd84" strokeWidth={1} opacity={0.8} />
+          </g>
+        );
+      })}
+
+      {/* Harvested round under the number disc, with the mower's circles; the standing wheat shades its upper-left edge */}
+      <circle cx={0} cy={0} r={FIELD_ROUND + 0.8} fill="#a8721a" opacity={0.45} />
+      <circle cx={0} cy={0} r={FIELD_ROUND} fill={`url(#${id('round')})`} />
+      {[18.6, 21.2, 23.8].map((r) => (
+        <circle key={`mow-${r}`} cx={0} cy={0} r={r} fill="none" stroke="#c9ab6a" strokeWidth={0.5} opacity={0.7} />
+      ))}
+      <path d={`M ${ellipsePt(0, 0.8, FIELD_ROUND - 1, FIELD_ROUND - 1, 150)} A ${FIELD_ROUND - 1} ${FIELD_ROUND - 1} 0 0 1 ${ellipsePt(0, 0.8, FIELD_ROUND - 1, FIELD_ROUND - 1, 300)}`} fill="none" stroke="#a8782a" strokeOpacity={0.35} strokeWidth={2.2} strokeLinecap="round" />
+
+      {/* Round bales on the stubble */}
+      <HayBale x={27} y={9} s={0.95} />
+      <HayBale x={33} y={19} s={0.85} />
+      <HayBale x={19} y={31} s={0.9} />
+
+      {/* Poplars along the lower track */}
+      <Poplar x={1.6} y={33} s={0.9} />
+      <Poplar x={0.2} y={43} s={0.85} />
+      <Poplar x={33} y={-12} s={0.85} />
+
+      {/* Combine harvester cutting the ripe wheat, with a trail of chaff */}
+      {([[-27, -32, 2.6], [-31, -33.5, 2], [-35, -34.5, 1.5]] as [number, number, number][]).map(([dx, dy, dr], i) => (
+        <ellipse key={`dust-${i}`} cx={dx} cy={dy} rx={dr * 1.4} ry={dr} fill="#fff3cc" opacity={0.45 - i * 0.1} />
+      ))}
+      <g transform="translate(-19, -29.5) rotate(11)">
+        <ellipse cx={1.6} cy={3.6} rx={8.6} ry={1.9} fill="rgba(90,55,0,0.4)" />
+        <rect x={-5.5} y={2.2} width={3.2} height={1.4} rx={0.4} fill="#2a2a2a" />
+        <rect x={1} y={2.2} width={2.6} height={1.3} rx={0.4} fill="#2a2a2a" />
+        <rect x={-6} y={-2.8} width={11.4} height={5.4} rx={1} fill="#c0392b" stroke="#5a1610" strokeWidth={0.35} />
+        <rect x={-4.8} y={-2.2} width={4.8} height={4} rx={0.6} fill="#a52f23" />
+        <path d="M -3.4 -2.8 L -1.4 -5.6" stroke="#8a8f96" strokeWidth={0.7} strokeLinecap="round" />
+        <rect x={1.4} y={-2.2} width={3} height={3.6} rx={0.5} fill="#f2f2ee" stroke="#5a1610" strokeWidth={0.3} />
+        <rect x={2} y={-1.6} width={1.8} height={1.6} rx={0.2} fill="#7fb6d6" />
+        <rect x={5.6} y={-4.2} width={2.2} height={8.6} rx={0.6} fill="#e9c046" stroke="#6b4e10" strokeWidth={0.35} />
+        <path d="M 6.7 -3.6 L 6.7 3.8" stroke="#b8901c" strokeWidth={0.4} strokeDasharray="0.6 0.6" />
+      </g>
+
+      {/* Farmer forking hay by the bales */}
+      <Worker x={25} y={25} shirt="#3f6fa8" pose="fork" hat="straw" />
+    </g>
+  );
+}
+
+/** Pasture: the round sheepfold under the number disc, and grass tufts kept off it. */
+const SHEEPFOLD = { cx: 0, cy: 1, r: 21.5 };
+const PASTURE_TUFTS: [number, number][] = Array.from({ length: 34 }, (_, i): [number, number] => [-42 + hash01(i, 11) * 84, -46 + hash01(i, 12) * 92]).filter(
+  ([x, y]) => Math.hypot(x - SHEEPFOLD.cx, y - SHEEPFOLD.cy) > SHEEPFOLD.r + 3,
+);
+const PASTURE_MOUNDS: [number, number, number, number][] = [
+  [-28, -12, 20, 12],
+  [30, -6, 18, 11],
+  [26, 32, 22, 12],
+  [-24, 36, 18, 10],
+];
+
+/**
+ * Pasture (wool) tile: rolling meadows divided by dry-stone walls, a round stone sheepfold centred
+ * under the number disc, a lane up to its gate, a pond, a farmhouse, flocks of sheep, and a
+ * shepherd with a crook and a sheepdog.
+ */
+function PastureArtworkSvg({ hexId }: { hexId: number }) {
+  const id = (name: string) => `pasture-${name}-${hexId}`;
+  const f = SHEEPFOLD;
+  // The fold wall runs all the way round except for a gate on the lower-right
+  const foldWall = `M ${ellipsePt(f.cx, f.cy, f.r, f.r, 62)} A ${f.r} ${f.r} 0 1 1 ${ellipsePt(f.cx, f.cy, f.r, f.r, 36)}`;
+  const lane = 'M -42 27 C -22 38, 4 33, 15.5 18.5';
+  return (
+    <g>
+      <defs>
+        <radialGradient id={id('meadow')} gradientUnits="userSpaceOnUse" cx={-14} cy={-16} r={90}>
+          <stop offset="0" stopColor="#a6d86c" />
+          <stop offset="0.55" stopColor="#78ba4c" />
+          <stop offset="1" stopColor="#4e8f37" />
+        </radialGradient>
+        <radialGradient id={id('pond')} gradientUnits="userSpaceOnUse" cx={-27} cy={-30} r={10}>
+          <stop offset="0" stopColor="#9fd6f2" />
+          <stop offset="1" stopColor="#3f8fc7" />
+        </radialGradient>
+      </defs>
+
+      {/* Meadow, sunnier toward the upper-left */}
+      <rect x={-60} y={-60} width={120} height={120} fill={`url(#${id('meadow')})`} />
+
+      {/* Rolling ground: shaded low-right, sunlit up-left */}
+      {PASTURE_MOUNDS.map(([mx, my, mrx, mry], i) => (
+        <g key={`mound-${i}`}>
+          <ellipse cx={mx + 1} cy={my + 1.4} rx={mrx} ry={mry} fill="#5a983c" opacity={0.7} />
+          <ellipse cx={mx - mrx * 0.08} cy={my - mry * 0.12} rx={mrx * 0.9} ry={mry * 0.8} fill="#8ccb5c" opacity={0.85} />
+          <ellipse cx={mx - mrx * 0.28} cy={my - mry * 0.4} rx={mrx * 0.5} ry={mry * 0.36} fill="#b8e27f" opacity={0.6} />
+        </g>
+      ))}
+
+      {/* Grass tufts */}
+      {PASTURE_TUFTS.map(([gx, gy], i) => (
+        <path key={`tuft-${i}`} d={`M ${(gx - 1.6).toFixed(1)} ${gy.toFixed(1)} L ${(gx - 0.6).toFixed(1)} ${(gy - 2.4).toFixed(1)} M ${gx.toFixed(1)} ${gy.toFixed(1)} L ${gx.toFixed(1)} ${(gy - 2.8).toFixed(1)} M ${(gx + 1.6).toFixed(1)} ${gy.toFixed(1)} L ${(gx + 0.6).toFixed(1)} ${(gy - 2.4).toFixed(1)}`} stroke="#4c8a2e" strokeWidth={0.6} strokeLinecap="round" opacity={0.6} />
+      ))}
+
+      {/* Pond with reeds */}
+      <ellipse cx={-25} cy={-28} rx={10.4} ry={6.8} fill="#4f8a36" />
+      <ellipse cx={-25} cy={-28} rx={9} ry={5.6} fill={`url(#${id('pond')})`} />
+      <path d="M -31 -30 Q -27 -32.4, -22 -31.4" fill="none" stroke="#e6f6ff" strokeWidth={0.8} strokeLinecap="round" opacity={0.85} />
+      <path d="M -33.5 -27 L -34.4 -30.4 M -32.6 -26.4 L -32.8 -30 M -17.2 -25.6 L -16.6 -29 M -16.2 -26.6 L -15 -29.4" stroke="#2f6a26" strokeWidth={0.55} strokeLinecap="round" />
+
+      {/* Walls dividing the paddocks */}
+      <StoneWall d={`M ${ellipsePt(f.cx, f.cy, f.r, f.r, 200)} Q -34 -8, -48 -15`} />
+      <StoneWall d={`M ${ellipsePt(f.cx, f.cy, f.r, f.r, 288)} Q 10 -32, 15 -50`} />
+
+      {/* Lane up to the fold gate */}
+      <path d={lane} fill="none" stroke="#5f9a3e" strokeWidth={5.2} strokeLinecap="round" />
+      <path d={lane} fill="none" stroke="#e2d2a2" strokeWidth={3.4} strokeLinecap="round" />
+      <path d={lane} fill="none" stroke="#f4e9c8" strokeWidth={1} strokeLinecap="round" opacity={0.8} />
+
+      {/* Sheepfold round the number disc: trampled grass inside a stone wall with a gate */}
+      <circle cx={f.cx} cy={f.cy} r={f.r} fill="#93cc63" />
+      <circle cx={f.cx - 1} cy={f.cy - 1} r={f.r - 3} fill="#a9d878" opacity={0.6} />
+      <StoneWall d={foldWall} />
+
+      {/* Farmhouse on the rise */}
+      <g transform="translate(24, -25)">
+        <ellipse cx={3} cy={1} rx={8.4} ry={2} fill="rgba(20,50,10,0.35)" />
+        <polygon points="2,0 6,-1.6 6,-6.1 2,-4.5" fill="#d6c7a6" stroke="#6b5a40" strokeWidth={0.3} />
+        <polygon points="-4,0 2,0 2,-4.5 -4,-4.5" fill="#f3ead8" stroke="#6b5a40" strokeWidth={0.3} />
+        <polygon points="-1,-8 2.4,-4.5 6.4,-6.1 3,-9.6" fill="#8f3322" stroke="#4a1a10" strokeWidth={0.3} />
+        <polygon points="-4.4,-4.5 2.4,-4.5 -1,-8" fill="#b8452e" stroke="#4a1a10" strokeWidth={0.3} />
+        <rect x={3.4} y={-10.6} width={1} height={2.2} fill="#7a2a1c" />
+        <rect x={-1.9} y={-2.6} width={1.6} height={2.6} fill="#6b4223" />
+        <rect x={0.4} y={-3.4} width={1.2} height={1.1} fill="#7fb6d6" stroke="#6b5a40" strokeWidth={0.2} />
+      </g>
+
+      {/* Trees */}
+      <Broadleaf x={38} y={22} s={0.9} tone={0} />
+      <Broadleaf x={-36} y={31} s={0.85} tone={2} />
+      <Broadleaf x={-40} y={-4} s={0.75} tone={1} />
+
+      {/* Flocks in the paddocks */}
+      {([
+        [-34, 8, 1],
+        [-29, 15, -1],
+        [-38, 18, 1],
+        [-8, -33, 1],
+        [0, -38, -1],
+        [-13, -41, 1],
+        [34, -5, -1],
+        [30, 3, 1],
+        [37, 7, -1],
+        [10, 40, 1],
+        [19, 36, -1],
+      ] as [number, number, number][]).map(([sx, sy, dir], i) => (
+        <Sheep key={`sheep-${i}`} x={sx} y={sy} dir={dir} />
+      ))}
+
+      {/* Shepherd and sheepdog at the gate */}
+      <g transform="translate(19, 23)">
+        <ellipse cx={0.5} cy={1.2} rx={2.6} ry={0.7} fill="rgba(20,50,10,0.35)" />
+        <ellipse cx={0} cy={0} rx={2.2} ry={1.1} fill="#1f1d1c" />
+        <ellipse cx={0.6} cy={0.3} rx={1} ry={0.6} fill="#f4f1e6" />
+        <circle cx={-2} cy={-0.8} r={0.9} fill="#1f1d1c" />
+        <path d="M -2.4 -1.6 L -2.1 -2.2 L -1.7 -1.6" fill="#1f1d1c" />
+        <path d="M 2 -0.4 Q 3.2 -1.4, 3.4 -2.2" fill="none" stroke="#1f1d1c" strokeWidth={0.5} strokeLinecap="round" />
+        <path d="M -1.4 0.8 L -1.5 1.6 M 1.3 0.8 L 1.4 1.6" stroke="#1f1d1c" strokeWidth={0.45} strokeLinecap="round" />
+      </g>
+      <Worker x={25} y={20} shirt="#6b4f8a" pose="crook" flip hat="straw" />
     </g>
   );
 }
@@ -565,167 +1072,13 @@ function TerrainArtworkSvg({ terrain, hexId }: { terrain: TerrainType; hexId: nu
 
       {/* Clipped Vector Terrain Illustration */}
       <g clipPath={`url(#${clipId})`}>
-        {terrain === 'forest' && (
-          <g>
-            {/* Mossy undergrowth and a logging trail */}
-            <circle cx={-20} cy={-16} r={26} fill={theme.secondaryFill} />
-            <circle cx={22} cy={14} r={28} fill={theme.accentFill} />
-            <path
-              d="M -40 30 Q -12 12, -2 -2 T 34 -34"
-              fill="none"
-              stroke="#8a7152"
-              strokeWidth={5.5}
-              strokeLinecap="round"
-              opacity={0.75}
-            />
-            {/* Dense layered conifers (kept clear of the number disc) */}
-            {FOREST_TREES.map(([tx, ty, sc], idx) => (
-              <g key={idx} transform={`translate(${tx}, ${ty}) scale(${sc})`}>
-                <ellipse cx={1.5} cy={5.5} rx={6.5} ry={2.6} fill="rgba(0,0,0,0.3)" />
-                <rect x={-0.9} y={2} width={1.8} height={4} fill="#5b3f26" />
-                <polygon points="0,-4 6.5,4 -6.5,4" fill="#2f5d3c" stroke="#16301f" strokeWidth={0.7} strokeLinejoin="round" />
-                <polygon points="0,-9 5.2,-1 -5.2,-1" fill="#3f7a50" stroke="#16301f" strokeWidth={0.7} strokeLinejoin="round" />
-                <polygon points="0,-13 3.8,-6 -3.8,-6" fill="#5a9a68" stroke="#16301f" strokeWidth={0.7} strokeLinejoin="round" />
-                <path d="M 0 -12.5 L -3 -6.5 M 0 -8.5 L -4.4 -1.4" stroke="#8cc79a" strokeWidth={0.8} strokeLinecap="round" opacity={0.7} />
-              </g>
-            ))}
-          </g>
-        )}
+        {terrain === 'forest' && <ForestArtworkSvg hexId={hexId} />}
 
         {terrain === 'hills' && <HillsArtworkSvg hexId={hexId} />}
 
-        {terrain === 'pasture' && (
-          <g>
-            {/* Patchwork meadow paddocks with fence lines */}
-            <polygon points="-55,-10 10,-55 55,5 -10,55" fill={theme.secondaryFill} opacity={0.65} />
-            <path
-              d="M -45 -18 L 45 18 M -18 45 L 18 -45"
-              stroke={theme.accentFill}
-              strokeWidth={2.2}
-              strokeDasharray="6 3"
-            />
-            {/* Grass tufts */}
-            {([
-              [-34, -2],
-              [-8, -36],
-              [30, -30],
-              [36, 4],
-              [-26, 30],
-              [10, 36],
-              [-40, 14],
-            ] as [number, number][]).map(([gx, gy], i) => (
-              <path
-                key={`tuft-${i}`}
-                d={`M ${gx - 3} ${gy} L ${gx - 1} ${gy - 4} M ${gx} ${gy} L ${gx} ${gy - 5} M ${gx + 3} ${gy} L ${gx + 1} ${gy - 4}`}
-                stroke={theme.accentFill}
-                strokeWidth={1.1}
-                strokeLinecap="round"
-              />
-            ))}
-            {/* Grazing sheep */}
-            {[
-              [-22, -16, 1],
-              [20, -18, -1],
-              [-20, 20, -1],
-              [22, 16, 1],
-              [-2, -30, 1],
-            ].map(([sx, sy, dir], i) => (
-              <g key={i} transform={`translate(${sx}, ${sy}) scale(${dir}, 1)`}>
-                <ellipse cx={0.6} cy={3.4} rx={5.4} ry={1.6} fill="rgba(0,0,0,0.22)" />
-                <path d="M -3 1.5 L -3 3.6 M -1 1.8 L -1 3.8 M 1.5 1.8 L 1.5 3.8 M 3 1.5 L 3 3.6" stroke="#2a2a2a" strokeWidth={0.9} strokeLinecap="round" />
-                <path
-                  d="M -4.6 1 C -6.2 0.6, -6 -2.4, -4.2 -2.6 C -3.8 -4.4, -1 -4.6, 0 -3.4 C 1.2 -4.8, 3.8 -4.2, 4 -2.4 C 5.6 -2, 5.4 1.2, 3.8 1.4 Z"
-                  fill="#fbfbf6"
-                  stroke="#4a6324"
-                  strokeWidth={0.8}
-                />
-                <ellipse cx={5.6} cy={-1.4} rx={1.9} ry={1.5} fill="#2d2a26" />
-              </g>
-            ))}
-          </g>
-        )}
+        {terrain === 'pasture' && <PastureArtworkSvg hexId={hexId} />}
 
-        {terrain === 'fields' && (
-          <g>
-            {/* Golden wheat field swaths matching Catan: New Energies board art */}
-            {[-44, -28, -12, 4, 20, 36].map((offset, idx) => (
-              <g key={idx} transform="rotate(28)">
-                <rect
-                  x={offset}
-                  y={-58}
-                  width={16}
-                  height={116}
-                  fill={idx % 2 === 0 ? '#eab839' : '#d69e26'}
-                />
-                {/* Fine wheat row texture lines */}
-                <line
-                  x1={offset + 4}
-                  y1={-58}
-                  x2={offset + 4}
-                  y2={58}
-                  stroke="#f6d567"
-                  strokeWidth={1}
-                  opacity={0.65}
-                />
-                <line
-                  x1={offset + 11}
-                  y1={-58}
-                  x2={offset + 11}
-                  y2={58}
-                  stroke="#b57d14"
-                  strokeWidth={0.9}
-                  opacity={0.55}
-                />
-              </g>
-            ))}
-
-            {/* Swaying Golden Wheat Sheaves / Stalks around the perimeter */}
-            {[
-              [-22, -16],
-              [21, -18],
-              [-20, 19],
-              [22, 16],
-            ].map(([wx, wy], wIdx) => (
-              <g key={wIdx} transform={`translate(${wx}, ${wy})`}>
-                <path
-                  d="M -3 6 L 2 -6 M 0 6 L 0 -7 M 3 6 L -2 -6"
-                  stroke="#8c580c"
-                  strokeWidth={1.2}
-                  strokeLinecap="round"
-                />
-                <ellipse
-                  cx={-2.5}
-                  cy={-4}
-                  rx={1.8}
-                  ry={3.2}
-                  transform="rotate(-18 -2.5 -4)"
-                  fill="#fef08a"
-                  stroke="#8c580c"
-                  strokeWidth={0.7}
-                />
-                <ellipse
-                  cx={0}
-                  cy={-5}
-                  rx={1.8}
-                  ry={3.4}
-                  fill="#fde047"
-                  stroke="#8c580c"
-                  strokeWidth={0.7}
-                />
-                <ellipse
-                  cx={2.5}
-                  cy={-4}
-                  rx={1.8}
-                  ry={3.2}
-                  transform="rotate(18 2.5 -4)"
-                  fill="#fef08a"
-                  stroke="#8c580c"
-                  strokeWidth={0.7}
-                />
-              </g>
-            ))}
-          </g>
-        )}
+        {terrain === 'fields' && <FieldsArtworkSvg hexId={hexId} />}
 
         {terrain === 'mountains' && <MountainsArtworkSvg hexId={hexId} />}
 
