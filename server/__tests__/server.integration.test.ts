@@ -46,7 +46,7 @@ class TestClient {
   }
 
   /** Resolves with the first message (already received or future) matching `pred`. */
-  waitFor<T extends ServerMessage>(pred: (m: ServerMessage) => m is T, timeoutMs = 5000): Promise<T>;
+  waitFor<T extends ServerMessage>(pred: (m: ServerMessage) => m is T, timeoutMs?: number): Promise<T>;
   waitFor(pred: (m: ServerMessage) => boolean, timeoutMs?: number): Promise<ServerMessage>;
   waitFor(pred: (m: ServerMessage) => boolean, timeoutMs = 5000): Promise<ServerMessage> {
     const found = this.messages.find(pred);
