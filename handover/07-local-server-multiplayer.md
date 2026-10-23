@@ -37,13 +37,65 @@ PeerJS cloud broker is not used for this mode).
   hotseat curtain, no local save. Otherwise (e.g. `npm run dev`) it behaves exactly as today.
   WebSocket URL is derived from `location` (`wss:` on https) so tunnels work.
 
-### Wire protocol (JSON over `/ws`) — Phase A owns the final version and documents it here
-Client → server: `hello {name, seatToken?, hostKey?}`, `claimSeat {playerId}`,
-`configure {config}` (host), `start` (host), `action {action, requestId}`, `newGame` (host).
-Server → client: `welcome {clientId, isHost, playerId?, seatToken?}`,
-`lobby {config, seats[{playerId, controller, name, claimed, connected}], started}`,
-`state {state: RedactedGameState, version, lastAction?, yourPlayerId}`,
-`rejected {requestId, message}`, `error {message}`.
+### Wire protocol (final, Phase A) — JSON text frames over `/ws`
+Types live in `src/network/server-protocol.ts` (browser-safe; import it from the UI).
+`SERVER_PROTOCOL_VERSION = 1`. Every frame is one JSON object with a `type`.
+
+**Online mode detection.** `fetch('/api/server-info', { cache: 'no-store' })`; online only if the
+response is ok, `content-type` is JSON and `body.app === SERVER_APP_ID` (`'catan-new-energies'`).
+The Vite dev server answers unknown paths with `index.html`, so JSON parsing fails there and the
+app stays offline. `ServerInfo = { app, protocolVersion, port, lanUrls: string[], started }`
+(`lanUrls` already excludes WSL/Hyper-V/VM adapters). WebSocket URL: `serverWebSocketUrl(location)`
+(`wss:` on https, same host, path `/ws`).
+
+**Client → server** (`ClientMessage`)
+| Message | Who | Effect |
+| :--- | :--- | :--- |
+| `hello {name, seatToken?, hostKey?}` | everyone, first | Must be the first message. A valid `hostKey` makes the socket host and binds it to `config.hostPlayerId`. A valid `seatToken` re-binds a friend seat (never the host seat). Empty `name` keeps the seat's stored name. |
+| `claimSeat {playerId, name?}` | friend/host | Friend: take an open human seat (not the host seat); in the lobby a friend may switch seats, mid-game only an unclaimed seat. Host: in the lobby moves the host seat to another open human seat. |
+| `leaveSeat` | friend | Frees the seat and its token. |
+| `configure {config: OnlineLobbyConfig}` | host, lobby only | Validated; seats that become bots / leave the game lose their players. |
+| `start` | host, lobby only | Creates the game like the UI's `createGameFromConfig`; claimed seats use the claimant's name. Unclaimed friend seats may be claimed later. |
+| `action {action: GameAction, requestId?}` | seated | Accepted only if `action.playerId` is the sender's seat and `applyAction` accepts it. |
+| `newGame` | host | Back to the lobby (game discarded, seats kept, new random seed). |
+
+**Server → client** (`ServerMessage`)
+- `welcome {protocolVersion, clientId, isHost, playerId: PlayerId|null, seatToken: string|null}`:
+  sent after `hello` and again whenever this socket's seat changes. Store `seatToken`; if it is
+  `null` while you hold one, the token is no longer valid: remove it.
+- `lobby {config: OnlineLobbyConfig, seats: SeatInfo[], started}` to everyone on any lobby,
+  seat or connection change. `SeatInfo = {playerId, role: 'host'|'friend'|'bot', name, claimed,
+  connected}` for the seats in the game, in turn order. `started: false` means show the lobby.
+- `state {state: RedactedGameState, version, lastAction: GameAction|null, drawnEventDisc:
+  EventDiscType|null, yourPlayerId}`: sent per socket with its own redaction (spectators get
+  `redactForSpectator`: no private hands at all). `version` +1 per applied action, 0 for a fresh
+  game. `lastAction: null` means a resync (connect, seat change, name change): replace the state,
+  no toasts or animations. `drawnEventDisc` is the disc `lastAction` took out of the bag.
+- `rejected {requestId: string|null, message}`: plain-language refusal (`requestId` echoes the
+  action's). `error {message}`: problems not tied to a request (bad host link, seat taken over).
+- A socket whose seat is opened elsewhere gets `error "This seat was opened in another window."`
+  and is closed with WebSocket close code **4000**. The client must NOT auto-reconnect after
+  code 4000 (two tabs would steal the seat from each other forever).
+
+**Lobby config** (`OnlineLobbyConfig`, plain JSON, a subset of the UI's `LobbyConfig`):
+```ts
+{ playerCount: 3 | 4; setupMode: 'first' | 'standard'; placement: 'fixed' | 'draft'; seed: number;
+  botSpeed: 'normal' | 'fast' | 'instant'; hostPlayerId: PlayerId;
+  seats: Record<PlayerId, { playerId; name; controller: 'human' | 'bot';
+    botStrategy: 'Balanced' | 'GreenInnovator' | 'IndustrialExpansionist';
+    botDifficulty: 'easy' | 'normal' | 'hard' }> }
+```
+All four seats are always present (as in the UI); with 3 players `blue` is ignored. The host seat
+must be `human`. `createDefaultOnlineLobbyConfig(seed)` gives host = orange + three bots, Standard
+board, draft. Placement is forced to `draft` on the Standard board. Bot delays follow `botSpeed`
+exactly like the in-browser bots (normal 950/600 ms, fast 420/150 ms, instant 10 ms).
+
+**Browser storage (suggested):** seat token in `localStorage['catan-ne-online-seat-token']`
+(`SEAT_TOKEN_STORAGE_KEY`). Host key: read `?host=` from the URL, send it in `hello`.
+
+**Saves:** `saves/current-game.json` (`SavedRoom`: config, started, game, version, lastAction,
+seat tokens and names) after every change; `saves/host-key.txt` holds the host key (stable across
+restarts, so the host link keeps working). Delete `saves/` to reset everything.
 
 ### Reaching the server
 - **Same Wi-Fi (primary):** friends open `http://<host LAN IP>:3210` (the server prints it).
@@ -56,7 +108,7 @@ Server → client: `welcome {clientId, isHost, playerId?, seatToken?}`,
 ## Phases
 | Phase | Owner | Scope | Status |
 | :--- | :--- | :--- | :---: |
-| A | subagent | Server, protocol, room logic, persistence, bots on the server, Windows scripts, server tests | todo |
+| A | subagent | Server, protocol, room logic, persistence, bots on the server, Windows scripts, server tests | done |
 | B | subagent | Online mode in the UI (lobby, join, seat, reconnect, status), two-browser Playwright test | todo |
 | C | lead | Host guide `docs/hosting-on-windows.md`, LAN check, full verification, progress log | todo |
 
@@ -88,3 +140,90 @@ Server → client: `welcome {clientId, isHost, playerId?, seatToken?}`,
   commands and results, known issues, next steps.
 
 ## Phase log
+
+### Phase A — game server (done)
+**What changed**
+- New `server/` (TypeScript, bundled by Vite SSR into `dist-server/main.js`):
+  - `server/room.ts`: `GameRoom`, transport-agnostic (clients are `{id, send, close?}`; timers,
+    token/seed randomness and persistence are injectable). Seats, host key, lobby config
+    validation, start/newGame, action validation via `applyAction`, per-socket redaction, bot
+    scheduling (one timer at most, re-checks the acting player when it fires, falls back to
+    `chooseRandomLegalAction`, stops on `shutdown()`), persistence after every change.
+  - `server/persistence.ts`: `createFileStore(savesDir)` (atomic-ish save of
+    `current-game.json`, unreadable saves are moved aside, host key file).
+  - `server/http-server.ts`: `startServer({port, host?, savesDir, distDir, openBrowser?,
+    botDelayMs?, log?})` → `{port, hostKey, hostUrl, addresses, room, close()}`. Static files from
+    `dist/` (MIME types, `/assets/*` cached immutable, SPA fallback to `index.html` for
+    extensionless paths, 404 for missing files, 400 for paths escaping `dist/`), `GET
+    /api/server-info`, WebSocket at `/ws` (1 MB max frame, 30 s ping/terminate heartbeat).
+  - `server/main.ts`: CLI. Env `PORT` (3210), `NO_OPEN=1` or `--no-open`, `SAVES_DIR`,
+    `BOT_DELAY_MS`. Prints host link, localhost and LAN URLs (virtual adapters labelled), opens the
+    host link in the default browser, Ctrl+C stops cleanly.
+- `src/network/server-protocol.ts`: the protocol above (types + tiny pure helpers).
+- `src/network/redact.ts`: **leak fixed**: `devCardsBoughtThisTurn` (top level and in
+  `turnStats`) carried the ids of cards bought this turn to every player; non-owners now see
+  `'hidden'`. `redactForPlayer` accepts `null`; new `redactForSpectator`.
+- `scripts/windows/host-game.cmd` (double-click: repo root, `npm install` on first run,
+  `npm run host`, pauses on error) and `scripts/windows/allow-firewall.ps1` (admin check with
+  rerun hint; creates/updates inbound TCP rule "Catan New Energies (port 3210)", Private only;
+  `-Port`, `-Remove`; warns about Public networks and node.exe block rules). Parse-checked only;
+  NOT run (needs elevation).
+- Build: `ws@8.18.3`, `@types/ws@8.18.1`; scripts `build:server`, `server`, `host`;
+  `vite.server.config.ts`; tsconfig/eslint/vitest cover `server/`; `.gitignore` adds `saves/`,
+  `dist-server/`.
+- Tests: `server/__tests__/room.test.ts` (15) and `server/__tests__/server.integration.test.ts`
+  (2: HTTP checks; real server with host + friend + 2 bots through the roll-off and all opening
+  placements, humans driven with `legalActions`, bots move by themselves).
+
+**How to run:** `npm run host` (build client + server, start) or `npm run server` (existing
+build). Double-click `scripts\windows\host-game.cmd` on the host PC.
+
+**Results**
+- `npm run typecheck`: OK. `npm run lint`: OK. `npm run build`: `✓ built in 599ms`.
+- `npm run build:server`: `dist-server/main.js 220.07 kB │ map: 451.15 kB`, `✓ built in 255ms`.
+- `npx vitest run`: `Test Files 19 passed (19)`, `Tests 207 passed (207)` (190 before + 17).
+- Playwright not run (no UI changes; `playwright.config.ts` untouched).
+- Smoke check (`NO_OPEN=1 node dist-server/main.js`, then stopped): banner listed
+  `http://192.168.1.105:3210 Ethernet` and `http://172.29.128.1:3210 vEthernet (WSL (Hyper-V
+  firewall)) - virtual adapter ... friends cannot use this`; `netstat` showed `0.0.0.0:3210
+  LISTENING`. `GET /` 200 text/html; `/api/server-info` 200
+  `{"app":"catan-new-energies","protocolVersion":1,"port":3210,"lanUrls":["http://192.168.1.105:3210"],"started":false}`;
+  the same two over `http://192.168.1.105:3210` 200; hashed JS asset 200 text/javascript;
+  `/lobby` 200 (SPA); `/..%5c..%5cpackage.json` 400; missing PNG 404; a `ws` hello over the LAN
+  IP got `welcome` + `lobby`. (The PC's own LAN IP works without the firewall rule; other
+  laptops still need `allow-firewall.ps1`, checked in Phase C.)
+
+**Known issues / decisions**
+- Opponent resource breakdowns stay visible (`hideOpponentResources` off), as in the hotseat UI.
+  Flip `redactOptions` in `startServer`/`GameRoom` if hidden hands are wanted
+  (`hiddenResourcesCount` keeps the total).
+- No Origin check on `/ws` (keeps tunnels simple). The host key and seat tokens are the only
+  secrets; anyone who can reach the port can watch or take an open friend seat.
+- A friend who leaves mid-game frees the seat; the game then waits for someone to claim it
+  (no "replace with bot" yet). Unclaimed friend seats at `start` behave the same.
+- The smoke check created `saves/host-key.txt` and a lobby-only `saves/current-game.json` in the
+  repo (gitignored).
+
+**Notes for Phase B**
+- Connect: detect online mode (above), open `serverWebSocketUrl(location)`, send `hello` with the
+  name, stored seat token and `?host=` key. Expect `welcome`, `lobby`, then `state` if started.
+  Reconnect with backoff on close (except code 4000) and resend `hello` with the token.
+- Host lobby: edit an `OnlineLobbyConfig` and send `configure` (send the whole config), then
+  `start`. Seat list from `lobby.seats`. Join link: `lanUrls` from server-info.
+- Actions: send `{type:'action', action, requestId}`; do not apply locally; wait for `state`.
+  Show `rejected.message` as a toast. Toasts/dice/event reveal: run the existing
+  `describeAction(lastAction, prevState, nextState)` path when `lastAction` is non-null; use
+  `drawnEventDisc` instead of diffing `eventBag`.
+- `RedactedGameState` vs `GameState` (`src/network/redact.ts`): `players[pid].devCards` is
+  `{unplayedCount, unplayed?, played}` (`unplayed` only for me); `hiddenGreenDiscs` only for me,
+  plus `hiddenGreenDiscsCount` and `hiddenResourcesCount` for everyone; `supply.devDeck` →
+  `supply.devDeckCount`; `eventBag` → `eventBagCount`; `prng` is undefined;
+  `devCardsBoughtThisTurn` / `turnStats.devCardsBoughtThisTurn` hold `'hidden'` for others' cards;
+  in 3-player games `players.blue` is absent. The UI reads `state.eventBag.length`
+  (TableRail, Modals), `state.supply.devDeck.length` (TableRail, gameView),
+  `p.devCards.unplayed` (PlayerMat, ActionDock) and calls `legalActions`. Simplest route: a
+  `hydrateRedactedState(r): GameState` adapter that fills `devDeck`/`eventBag`/opponent
+  `unplayed`/`hiddenGreenDiscs` with placeholder arrays of the right length and a dummy `prng`,
+  and render that; never send anything derived from placeholders to the server (the server
+  re-validates anyway). Use `legalActions` on it only for highlighting own options.
+- Online mode must not run browser bots, undo, local save or the hotseat curtain.
