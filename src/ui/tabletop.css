@@ -2309,11 +2309,14 @@ select.lb-input {
   position: fixed;
   inset: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
   padding: 16px;
   background: #181a1d;
   overflow-y: auto;
+}
+
+/* margin: auto centres the card but keeps its top reachable when it is taller than the window */
+.ol-page > * {
+  margin: auto;
 }
 
 .ol-overlay {
@@ -2329,8 +2332,33 @@ select.lb-input {
 }
 
 .ol-sheet {
-  max-height: calc(100vh - 32px);
+  max-height: none;
+  overflow: visible;
+  gap: 10px;
+  padding: 16px 22px 16px;
+}
+
+.ol-sheet .lb-head h2 {
+  font-size: 24px;
+}
+
+.ol-seats-head {
+  gap: 12px;
+}
+
+.ol-seats-head h3 {
+  margin-right: auto;
+}
+
+.ol-start-row {
+  display: flex;
+  align-items: flex-end;
   gap: 14px;
+}
+
+.ol-start-row .tt-cta {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .ol-small {
@@ -2407,6 +2435,15 @@ select.lb-input {
 
 .ol-name {
   max-width: 320px;
+}
+
+.ol-name.is-inline {
+  flex-direction: row;
+  align-items: center;
+}
+
+.ol-name.is-inline .lb-input {
+  width: 170px;
 }
 
 .ol-seat {

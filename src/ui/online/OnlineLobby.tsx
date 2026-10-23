@@ -146,9 +146,18 @@ function JoinLink({ lanUrls }: { lanUrls: string[] }) {
   );
 }
 
-function NameField({ session, onCommit }: { session: OnlineSession; onCommit?: (name: string) => void }) {
+function NameField({
+  session,
+  onCommit,
+  inline = false,
+}: {
+  session: OnlineSession;
+  onCommit?: (name: string) => void;
+  /** One line: label and field side by side (used to save height in the host lobby). */
+  inline?: boolean;
+}) {
   return (
-    <label className="lb-field ol-name">
+    <label className={`lb-field ol-name${inline ? ' is-inline' : ''}`}>
       <span>Your name</span>
       <input
         type="text"
@@ -300,14 +309,14 @@ function HostLobby({ session }: { session: OnlineSession }) {
 
       <JoinLink lanUrls={session.info.lanUrls} />
 
-      <NameField
-        session={session}
-        onCommit={(name) => session.playerId && name && session.send({ type: 'claimSeat', playerId: session.playerId, name })}
-      />
-
       <div className="lb-section">
-        <div className="lb-section-head">
+        <div className="lb-section-head ol-seats-head">
           <h3>Seats</h3>
+          <NameField
+            session={session}
+            inline
+            onCommit={(name) => session.playerId && name && session.send({ type: 'claimSeat', playerId: session.playerId, name })}
+          />
           <div className="lb-segment" role="group" aria-label="Number of players">
             {([3, 4] as const).map((cnt) => (
               <button
@@ -370,34 +379,35 @@ function HostLobby({ session }: { session: OnlineSession }) {
         </div>
       </div>
 
-      <div className="lb-field">
-        <span>Bot speed</span>
-        <div className="lb-segment" role="group" aria-label="Bot speed" style={{ alignSelf: 'flex-start' }}>
-          {(['normal', 'fast', 'instant'] as const).map((spd) => (
-            <button
-              key={spd}
-              type="button"
-              data-testid={`online-bot-speed-${spd}`}
-              data-selected={config.botSpeed === spd ? 'true' : 'false'}
-              onClick={() => configure({ ...config, botSpeed: spd })}
-            >
-              {spd === 'normal' ? 'Relaxed' : spd === 'fast' ? 'Fast' : 'Instant'}
-            </button>
-          ))}
+      <div className="ol-start-row">
+        <div className="lb-field">
+          <span>Bot speed</span>
+          <div className="lb-segment" role="group" aria-label="Bot speed">
+            {(['normal', 'fast', 'instant'] as const).map((spd) => (
+              <button
+                key={spd}
+                type="button"
+                data-testid={`online-bot-speed-${spd}`}
+                data-selected={config.botSpeed === spd ? 'true' : 'false'}
+                onClick={() => configure({ ...config, botSpeed: spd })}
+              >
+                {spd === 'normal' ? 'Relaxed' : spd === 'fast' ? 'Fast' : 'Instant'}
+              </button>
+            ))}
+          </div>
         </div>
+        <button
+          type="button"
+          className={`tt-cta${openFriendSeats === 0 ? ' is-ready' : ''}`}
+          data-testid="online-start-btn"
+          disabled={openFriendSeats > 0 || session.status !== 'connected'}
+          onClick={() => session.send({ type: 'start' })}
+        >
+          {openFriendSeats > 0
+            ? `Waiting for ${openFriendSeats} friend${openFriendSeats > 1 ? 's' : ''} to take a seat`
+            : 'Start game'}
+        </button>
       </div>
-
-      <button
-        type="button"
-        className={`tt-cta${openFriendSeats === 0 ? ' is-ready' : ''}`}
-        data-testid="online-start-btn"
-        disabled={openFriendSeats > 0 || session.status !== 'connected'}
-        onClick={() => session.send({ type: 'start' })}
-      >
-        {openFriendSeats > 0
-          ? `Waiting for ${openFriendSeats} friend${openFriendSeats > 1 ? 's' : ''} to take a seat`
-          : 'Start game'}
-      </button>
     </>
   );
 }
@@ -489,11 +499,6 @@ function FriendLobby({ session }: { session: OnlineSession }) {
       </div>
       {mySeat ? (
         <p className="ol-waiting" data-testid="online-waiting" role="status">
-          <span className="tt-thinking" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </span>
           <PlayerBadge playerId={mySeat.playerId} size={20} />
           You have a seat. Waiting for the host to start the game…
         </p>

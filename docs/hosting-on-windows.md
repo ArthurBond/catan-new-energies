@@ -25,13 +25,19 @@ The game only exists while your server is running, so nobody can play without yo
 1. Double-click `scripts\windows\host-game.cmd` (or run `npm run host`).
    The first start takes a few seconds because it builds the game.
 2. Your browser opens the host page (`http://localhost:3210/?host=...`). Keep that link to
-   yourself: it is what makes you the host.
+   yourself: it is what makes you the host. The page remembers you as the host and removes the
+   key from the address bar, so reloading or reopening `http://localhost:3210` on this PC still
+   gives you the host controls.
 3. The server window lists the addresses friends can use, for example
    `http://192.168.1.105:3210`. Ignore addresses marked as virtual (WSL, Hyper-V).
-4. In the lobby choose who sits where: you, a friend, or a bot for each seat. Send friends the
-   join link shown in the lobby.
-5. Friends open the link, type their name and pick a seat. Start the game when everyone is
-   seated.
+4. In the host lobby choose who sits where with the Host / Friend / Bot buttons on each seat
+   (you are the Host seat). Bots get a style and a level. Pick 3 or 4 players, the island and
+   how starting pieces are placed. Press **Copy link** in "Invite friends" and send that link
+   to your friends. It never contains your host key.
+5. Friends open the link, type their name and press **Take this seat** on an open seat. You
+   see each friend appear on their seat. **Start game** unlocks when every Friend seat is
+   taken. Each player only ever sees their own cards: the others show just a card count.
+   Someone who opens the link after the game started can take a free seat or just watch.
 6. To stop, close the server window (or press Ctrl+C). The game is saved after every move, so
    starting the server again carries on where you left off. If a friend's laptop drops off
    Wi-Fi or they reload the page, they go straight back to their seat.
@@ -60,5 +66,8 @@ Pick one of these. Your PC still runs the game, so it still only works while you
   and you are on the same network. Try opening the address yourself from your phone.
 - **Port already in use.** Start on another port: `set PORT=3300 && npm run host` in Command
   Prompt (and rerun the firewall script with `-Port 3300`).
-- **Start a fresh game.** Use New game in the host lobby. To wipe everything, stop the server
-  and delete the `saves` folder.
+- **"Open in another window".** A seat can only be played in one window. Press **Use this
+  window** on the screen that says so to take the seat back.
+- **Start a fresh game.** Press **New game** in the top bar during a game (only you have it;
+  it asks first and sends everyone back to the lobby with the seats kept). To wipe everything,
+  stop the server and delete the `saves` folder.
