@@ -110,7 +110,7 @@ restarts, so the host link keeps working). Delete `saves/` to reset everything.
 | :--- | :--- | :--- | :---: |
 | A | subagent | Server, protocol, room logic, persistence, bots on the server, Windows scripts, server tests | done |
 | B | subagent | Online mode in the UI (lobby, join, seat, reconnect, status), two-browser Playwright test | done |
-| C | lead | Host guide `docs/hosting-on-windows.md`, LAN check, full verification, progress log | todo |
+| C | lead | Host guide `docs/hosting-on-windows.md`, LAN check, full verification, progress log | partly done: whole-game soak, game-end reveal, online dialog tests, verification and log are done; the real second-laptop LAN test and the firewall rule are for the host |
 
 ### Phase A — acceptance
 - `npm run host` builds and serves the game; `npm run server` serves an existing build.
@@ -296,6 +296,7 @@ build). Double-click `scripts\windows\host-game.cmd` on the host PC.
 - Final standings in `VictoryModal` are computed on the client from the hydrated state, so other
   players' unrevealed VP cards count as 0 there (`state.winner` itself comes from the server and
   is right). A server fix would be to reveal every hand once `phase === 'GameEnd'`.
+  (Fixed in Phase C, see below.)
 - The browser test covers the opening (roll-off, towns, cities, roads). Discard on 7, stealing,
   domestic trades and dev cards were checked by reading the code (decision UIs only read the
   viewer's own hand and `hiddenResourcesCount`; the server validates) and by the hydrate tests
@@ -323,15 +324,87 @@ build). Double-click `scripts\windows\host-game.cmd` on the host PC.
 7. Host presses New game (confirm), seats are kept; stop the server with Ctrl+C, start it again
    and confirm the game resumes with the same seats.
 
-### Phase C — in progress (playability gaps for whole online games)
-Done so far
-- Task 1 (soak test) done: `server/__tests__/full-game.integration.test.ts` plays whole games through
-  the real server with host + friend as browser-like WebSocket clients (hydrate + `legalActions`)
-  and two server bots (4 seats seeds 1/2/3/11/12, 3 seats seed 7). Two real bugs found and fixed in
-  `ad3f071`: hidden hands made `legalActions` omit "Accept" on domestic trades and the victims of
-  Cleanup steals. Zero rejected moves; every state frame equals an independent replay.
-- Task 2 done (`bf8e89d`): `redactForPlayer` reveals every hand, dev card and green disc to every
-  socket once `phase === 'GameEnd'` or a winner exists; the VictoryModal standings from each
-  seat's hydrated view equal the true ones (unit test, soak test).
-Next
-- Task 3: browser check of the discard / steal / trade / dev card dialogs online.
+### Phase C — playability gaps closed (subagent part done; LAN test and firewall are for the host)
+**What was found and fixed** (all by playing whole games through the real server, see the tests below)
+1. `legalActions` on a browser's hydrated state could not offer **Accept** on a domestic trade
+   (it checked the offerer's cards, which are hidden) and never listed the **players to steal from**
+   with Clean Up (their hands looked empty). Fix (`ad3f071`): `PlayerState` gets two optional
+   fields only a hydrated view carries (`hiddenResourcesCount`, `handHidden`, `src/engine/types.ts`);
+   `getHandSizeForSeven` reads the known size (`src/engine/production.ts`), the Accept check skips
+   the offerer's holdings when they are hidden (`src/engine/actions.ts`; the server checked them
+   when it took the offer), `src/network/hydrate.ts` delegates `playerHandCount` / `isHandHidden` to
+   the engine helpers. Server states never carry the fields, so the server's rules are unchanged.
+2. **Final standings** (`bf8e89d`): once `phase === 'GameEnd'` or a winner exists, `redactForPlayer`
+   reveals every player's dev cards, face-down green discs, resource breakdown and the dev cards
+   bought this turn to every socket (seated or watching); dev deck, event bag and PRNG stay hidden
+   (`isGameOver` in `src/network/redact.ts`; hydrate marks no hand hidden then). The victory dialog
+   now shows the same, correct standings on every laptop (Phase B's known issue is gone). The
+   PeerJS transport test now expects the reveal at GameEnd.
+3. Nothing else was wrong: zero rejected moves across all soak games, and every state frame equalled
+   an independent replay.
+
+**Tests added**
+- `server/__tests__/full-game.integration.test.ts` (7): real server on an ephemeral port, host
+  (orange, Normal bot brain) + friend (purple, Easy) as WebSocket clients that only use `state`
+  frames, `hydrateRedactedState`, `legalActions` and `chooseBotAction` (random legal move as
+  fallback), plus two server bots (`botDelayMs: 0`). Steered moves: buy up to 2 dev cards, play up
+  to 2, offer up to 3 domestic trades (alternating to the friend alone / to the table; the harness
+  reads the friend's real hand from the server to ask for a card they hold, like a person who heard
+  it in chat; the offer is still checked by `canOfferTrade` on the browser's own view).
+  Checks per game: winner and nobody left waiting; no `rejected`; the hydrated `legalActions` list
+  equals the list from the true state at every human decision; every state frame of both clients
+  equals `redactForPlayer(replay of the broadcast actions)` (replay starts from the seed);
+  final board, scores and dev cards equal the server's. Games: 4 seats seeds 11, 12 and the pinned
+  1, 2, 3; 3 seats seed 7; First Game board (fixed placement) seed 21; the friend's socket dropped
+  at version 90 and resumed with its seat token, once off and once on their own move.
+  The pinned seeds 1+2+3 give each browser (summed over the three games) a discard on a 7, a steal
+  (inspector or Clean Up), a domestic trade offered and one accepted, a bank/harbor trade, a dev
+  card bought and one played. Games last 11-17 turns (empty event bag or 10 VP) and take ~1.5 s.
+  If the bot brain changes, a pinned seed may stop covering a flow: the test prints a per-game
+  tally line (discard, steal, stealByCleanup, tradeOffer/Accept/Decline, supply/harbor trade,
+  devBuy/devPlay, build, eventChoice) to re-pick seeds.
+- `src/network/__tests__/hydrate.test.ts` (+3): Accept offered with a hidden offerer and accepted by
+  the engine; Cleanup lists the victim by hidden hand size; finished game fully revealed.
+  `server/__tests__/room.test.ts` (+1): secrets stay hidden during play and every socket (host,
+  friend, watcher) sees everything after the closing draw. `src/ui/__tests__/victory-online.test.tsx`
+  (2): the VictoryModal rendered from each seat's (and a spectator's) hydrated view equals the true
+  standings for a 10 VP end and an empty-bag end.
+- `e2e-online/dialogs.spec.ts` (4 tests, real Chrome, two browser contexts, one server per
+  describe on a free port, resuming a prepared game written by `e2e-online/make-fixture.ts` through
+  `vite-node`; helpers in `fixture-server.ts`). Host link and a seat token in localStorage put each
+  context on its seat. (1) Roll of 7: host and friend each discard in their own dialog (the other
+  sees none), host moves the inspector and picks the victim in the steal dialog, then offers a
+  domestic trade that the friend accepts in the dialog, buys a dev card (the friend sees none of
+  its identity) and plays Road Construction by clicking two roads (both boards get them). (2)
+  Friend plays Clean Up: the victim chooser lists "5 cards" / "4 cards" from hidden counts and the
+  server accepts the choice. (3) Empty-bag draw ends a game: identical standings on both laptops
+  including Finn's two unseen VP cards (8 VP), wire frames show no other seat's card before the
+  end and the cards after it, only the host has New game and it returns both to the lobby with the
+  seats kept. (4) Bank trade, Research Grant, then Reveal VP cards wins on 10 points with equal
+  standings on both laptops.
+
+**Commands and results** (after the last code commit)
+- `npm run typecheck` OK; `npm run lint` OK; `npm run build`: `✓ built in 687ms`;
+  `npm run build:server`: `dist-server/main.js 220.60 kB`, `✓ built in 280ms`.
+- `npx vitest run`: `Test Files 22 passed (22)`, `Tests 224 passed (224)` (211 + 13).
+- `npm run test:e2e:online`: `5 passed (26.3s)` (4 dialogs + the opening).
+- `npx playwright test`: `36 passed (57.8s)` (it rewrites `docs/ui-after-*.png`; restored with
+  `git checkout -- docs/ui-after-*.png`).
+- Sanity: with the game-end reveal switched off the standings e2e and the room test fail.
+
+**Still untested / known issues**
+- Not run in a browser online: the High Yield dialog, the Clean Up "remove a hazard" option, energy
+  actions (clean hazard, demolish plant, buy card), harbor trades, the event prompts (hazard choice,
+  Climate Conference / Government Funding card choice, production increase), "Look at the board"
+  after a win, a spectator watching a running game's dialogs, a 3-seat game in the browser, and the
+  normal/fast bot pacing. The protocol side of the event prompts, harbor trades and 3 seats IS
+  covered by the soak (browsers answered 6-11 event prompts per game; `legalActions` lists equal).
+  Code review: no dialog reads another seat's cards (only names, counts and the offer in the
+  pending decision).
+- The soak test's trade offers use the friend's real hand (read from the server) to choose the card
+  asked for; a human would have to guess or ask.
+- Real second-laptop test on the same Wi-Fi and the Windows Firewall rule
+  (`scripts\windows\allow-firewall.ps1`, needs admin) are for the host: follow "Notes for Phase C"
+  above. Nothing was run against a LAN address in this phase.
+- Games here end quickly (11-17 turns: the event bag runs out or someone reaches 10 VP), so
+  long-game effects (pace, save size, many reconnects) are not exercised.
