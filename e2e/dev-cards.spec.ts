@@ -48,6 +48,20 @@ test.describe('CATAN: New Energies — development cards played on the board', (
     await expect(page.getByTestId('live-action-banner')).toContainText('played Clean Up');
   });
 
+  test('discarding on a 7 closes the dialog and moves on to the inspector', async ({ page }) => {
+    await page.goto('/?scenario=discard&bots=0');
+    await expect(page.getByTestId('pending-decision-modal')).toBeVisible();
+    // 12 cards in hand: discard 6, picked in a scrambled order
+    for (const card of ['steel', 'science', 'steel', 'lumber', 'science', 'food']) {
+      await page.getByTestId(`discard-card-${card}`).click();
+    }
+    await page.getByTestId('confirm-discard-btn').click();
+    await expect(page.getByTestId('pending-decision-modal')).toHaveCount(0);
+    await expect(page.getByTestId('action-error-toast')).toHaveCount(0);
+    await expect(page.getByTestId('pending-decision-banner')).toContainText('move the inspector');
+    await expect(page.getByTestId('organiser-count-steel')).toHaveText('1');
+  });
+
   test('Escape cancels a card being played on the board', async ({ page }) => {
     await page.goto(SHOWCASE);
     await page.getByTestId('dev-card-dev_roadConstruction_01').click();

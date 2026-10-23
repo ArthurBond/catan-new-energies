@@ -1328,11 +1328,15 @@ export function PendingDecisionBanner({
             data-testid="confirm-discard-btn"
             disabled={totalSelected !== needed}
             onClick={() => {
+              // Send only the cards actually chosen (no zero entries)
+              const cards = Object.fromEntries(
+                Object.entries(discardCounts).filter(([, n]) => (n ?? 0) > 0)
+              );
               onDispatch({
                 type: 'RESOLVE_PENDING_DECISION',
                 playerId: decision.playerId,
                 decisionId: decision.id,
-                response: { cards: discardCounts },
+                response: { cards },
               });
               setDiscardCounts({});
             }}

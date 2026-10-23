@@ -430,6 +430,18 @@ export function applyTradeHarbor(
 
 export type TradeItems = Partial<Record<ResourceType | 'science' | 'energy', number>>;
 
+const TRADEABLE_ITEMS = ['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science', 'energy'];
+
+/** Every entry names a real card (or energy) and is a whole, non-negative number. */
+export function isWellFormedTradeItems(items: unknown): items is TradeItems {
+  if (!items || typeof items !== 'object' || Array.isArray(items)) return false;
+  return Object.entries(items as Record<string, unknown>).every(
+    ([key, value]) =>
+      TRADEABLE_ITEMS.includes(key) &&
+      (value === undefined || (typeof value === 'number' && Number.isInteger(value) && value >= 0))
+  );
+}
+
 export function countTradeItems(items: TradeItems): number {
   let total = 0;
   for (const count of Object.values(items)) {
@@ -453,6 +465,10 @@ export function canOfferTrade(
   }
   if (state.pendingDecisions.length > 0) {
     return { canOffer: false, reason: 'Unresolved pending decisions exist' };
+  }
+
+  if (!isWellFormedTradeItems(give) || !isWellFormedTradeItems(want)) {
+    return { canOffer: false, reason: 'Trades use whole numbers of real cards' };
   }
 
   const giveCount = countTradeItems(give);

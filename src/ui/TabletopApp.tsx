@@ -238,6 +238,8 @@ interface Toast {
   playerId: PlayerId;
   title: string;
   detail: string;
+  /** A move the rules refused: shown in red so it is never silent */
+  isError?: boolean;
 }
 
 const PLANT_WORD = { BUILD_FOSSIL_PLANT: 'a fossil fuel plant', BUILD_RENEWABLE_PLANT: 'a renewable plant' };
@@ -537,6 +539,13 @@ export function TabletopApp() {
       }
     } catch (err) {
       console.warn('Action rejected:', err);
+      setToast({
+        id: Date.now(),
+        playerId: action.playerId,
+        title: 'That move is not allowed',
+        detail: err instanceof Error ? err.message : String(err),
+        isError: true,
+      });
     }
   };
 
@@ -1131,7 +1140,12 @@ export function TabletopApp() {
               style={{ maxWidth: '100%', pointerEvents: 'none' }}
             >
               {toast && toastTheme && (
-                <div className="tt-toast" key={toast.id}>
+                <div
+                  className={`tt-toast${toast.isError ? ' is-error' : ''}`}
+                  key={toast.id}
+                  role={toast.isError ? 'alert' : undefined}
+                  data-testid={toast.isError ? 'action-error-toast' : undefined}
+                >
                   <PlayerBadge playerId={toast.playerId} size={24} />
                   <strong>{toast.title}</strong>
                   {toast.detail && toast.detail !== toast.title && <span>{toast.detail}</span>}

@@ -5,7 +5,7 @@
  * Zero side effects, deterministic PRNG tracking, immutable state transitions.
  */
 
-import { isActionEqual, legalActions } from './actions';
+import { canResolveDiscard, isActionEqual, legalActions } from './actions';
 import {
   applyBuildCity,
   applyBuildPowerPlant,
@@ -71,6 +71,15 @@ export function applyAction(state: GameState, action: GameAction): GameState {
   }
   if (!isLegal && action.type === 'REVEAL_VP_CARDS') {
     isLegal = canRevealVpCards(state, action.playerId, action.cardIds).canReveal;
+  }
+  // Discards are validated against the rules directly; legalActions only lists a sample of them
+  if (!isLegal && action.type === 'RESOLVE_PENDING_DECISION') {
+    const discard = canResolveDiscard(state, action.playerId, action.decisionId, action.response);
+    if (discard.ok) {
+      isLegal = true;
+    } else if (state.pendingDecisions[0]?.type === 'DISCARD_ON_SEVEN') {
+      throw new IllegalActionError(discard.reason ?? 'Illegal discard');
+    }
   }
 
   if (!isLegal) {

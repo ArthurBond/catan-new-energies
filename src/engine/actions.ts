@@ -74,6 +74,54 @@ function generateDiscardChoices(
   return results;
 }
 
+const DISCARDABLE_CARDS = ['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science'] as const;
+
+/**
+ * Validates a discard-on-7 answer directly against the rules (PRD-03) instead of against an
+ * enumerated list: exactly `cardsToDiscard` resource/science cards, whole non-negative numbers,
+ * never more of a kind than the player holds. Zero entries and key order are irrelevant.
+ */
+export function canResolveDiscard(
+  state: GameState,
+  playerId: PlayerId,
+  decisionId: string,
+  response: unknown
+): { ok: boolean; reason?: string } {
+  const head = state.pendingDecisions[0];
+  if (!head || head.type !== 'DISCARD_ON_SEVEN' || head.id !== decisionId || head.playerId !== playerId) {
+    return { ok: false, reason: 'No discard is waiting for this player' };
+  }
+  const cards = (response as { cards?: unknown } | null)?.cards;
+  if (!cards || typeof cards !== 'object') return { ok: false, reason: 'Missing cards to discard' };
+
+  const player = state.players[playerId]!;
+  let total = 0;
+  for (const [key, value] of Object.entries(cards as Record<string, unknown>)) {
+    if (!(DISCARDABLE_CARDS as readonly string[]).includes(key)) {
+      return { ok: false, reason: `${key} cannot be discarded` };
+    }
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+      return { ok: false, reason: `Invalid number of ${key}` };
+    }
+    const held = key === 'science' ? player.science : player.resources[key as ResourceType];
+    if (value > held) return { ok: false, reason: `Not enough ${key} in hand` };
+    total += value;
+  }
+  if (total !== head.cardsToDiscard) {
+    return { ok: false, reason: `Must discard exactly ${head.cardsToDiscard} cards` };
+  }
+  return { ok: true };
+}
+
+/** JSON with object keys sorted, so `{a, b}` and `{b, a}` compare equal. */
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v as Record<string, unknown>).sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0)))
+      : v
+  );
+}
+
 export function isActionEqual(a: GameAction, b: GameAction): boolean {
   if (a.type !== b.type || a.playerId !== b.playerId) return false;
 
@@ -102,24 +150,24 @@ export function isActionEqual(a: GameAction, b: GameAction): boolean {
     case 'BUY_DEV_CARD':
       return b.type === a.type;
     case 'PLAY_DEV_CARD':
-      return b.type === a.type && b.cardId === a.cardId && JSON.stringify(a.params) === JSON.stringify(b.params);
+      return b.type === a.type && b.cardId === a.cardId && canonicalJson(a.params) === canonicalJson(b.params);
     case 'SPEND_ENERGY':
-      return b.type === a.type && b.usage === a.usage && JSON.stringify(a.params) === JSON.stringify(b.params);
+      return b.type === a.type && b.usage === a.usage && canonicalJson(a.params) === canonicalJson(b.params);
     case 'TRADE_SUPPLY':
-      return b.type === a.type && b.receive === a.receive && JSON.stringify(a.give) === JSON.stringify(b.give);
+      return b.type === a.type && b.receive === a.receive && canonicalJson(a.give) === canonicalJson(b.give);
     case 'TRADE_HARBOR':
       return (
         b.type === a.type &&
         b.harborId === a.harborId &&
         b.receive === a.receive &&
-        JSON.stringify(a.give) === JSON.stringify(b.give)
+        canonicalJson(a.give) === canonicalJson(b.give)
       );
     case 'OFFER_TRADE':
       return (
         b.type === a.type &&
         b.targetPlayerId === a.targetPlayerId &&
-        JSON.stringify(a.give) === JSON.stringify(b.give) &&
-        JSON.stringify(a.want) === JSON.stringify(b.want)
+        canonicalJson(a.give) === canonicalJson(b.give) &&
+        canonicalJson(a.want) === canonicalJson(b.want)
       );
     case 'REVEAL_VP_CARDS':
       return b.type === a.type && a.cardIds.length === b.cardIds.length && a.cardIds.every((id, idx) => id === b.cardIds[idx]);
@@ -127,7 +175,7 @@ export function isActionEqual(a: GameAction, b: GameAction): boolean {
       return (
         b.type === a.type &&
         b.decisionId === a.decisionId &&
-        JSON.stringify(a.response) === JSON.stringify(b.response)
+        canonicalJson(a.response) === canonicalJson(b.response)
       );
     default:
       return false;

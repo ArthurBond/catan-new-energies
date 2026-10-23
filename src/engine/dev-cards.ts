@@ -448,6 +448,10 @@ export function canPlayDevCard(
 
     const c1 = cards[0];
     const c2 = cards[1];
+    const grantable = ['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science'];
+    if (!grantable.includes(c1) || !grantable.includes(c2)) {
+      return { canPlay: false, reason: 'Research Grant takes resource or science cards only' };
+    }
 
     if (c1 === c2) {
       if (c1 === 'science') {

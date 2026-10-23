@@ -317,6 +317,50 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
     }
   });
 
+  it('discarding half the hand on a 7 works from the dialog, in any order', () => {
+    // Showcase hand: 2 lumber, 1 brick, 1 fiber, 2 food, 3 steel, 3 science = 12 cards -> discard 6
+    window.history.pushState({}, '', '/?scenario=discard&bots=0');
+    act(() => {
+      render(<TabletopApp />, container);
+    });
+    window.history.pushState({}, '', '/');
+
+    const click = (testId: string) =>
+      act(() => {
+        (container.querySelector(`[data-testid="${testId}"]`) as HTMLButtonElement).click();
+      });
+    const confirm = () => container.querySelector('[data-testid="confirm-discard-btn"]') as HTMLButtonElement;
+
+    expect(container.querySelector('[data-testid="pending-decision-modal"]')).not.toBeNull();
+    // Pick in a scrambled order, change our mind once (leaves a zero entry behind)
+    click('discard-card-steel');
+    click('discard-card-lumber');
+    click('discard-card-science');
+    click('discard-card-steel');
+    click('discard-card-science');
+    expect(confirm().disabled).toBe(true);
+    // undo the lumber, then finish with food
+    act(() => {
+      const minus = container.querySelectorAll('.md-stepper button')[0] as HTMLButtonElement;
+      minus.click();
+    });
+    click('discard-card-food');
+    click('discard-card-food');
+    expect(confirm().disabled).toBe(false);
+    click('confirm-discard-btn');
+
+    // Dialog closes, cards left the hand, and the inspector must be moved next
+    expect(container.querySelector('[data-testid="pending-decision-modal"]')).toBeNull();
+    expect(container.querySelector('[data-testid="action-error-toast"]')).toBeNull();
+    expect(container.querySelector('[data-testid="organiser-count-steel"]')?.textContent).toBe('1');
+    expect(container.querySelector('[data-testid="organiser-count-science"]')?.textContent).toBe('1');
+    expect(container.querySelector('[data-testid="organiser-count-food"]')?.textContent).toBe('0');
+    expect(container.querySelector('[data-testid="organiser-count-lumber"]')?.textContent).toBe('2');
+    expect(container.querySelector('[data-testid="pending-decision-banner"]')?.textContent).toContain(
+      'move the inspector'
+    );
+  });
+
   it('restores an unfinished game after a page reload', () => {
     // Node's own (flag-gated) localStorage global shadows happy-dom's, so provide one
     const store = new Map<string, string>();
