@@ -15,7 +15,7 @@ npm run typecheck   -> exit 0
 npm run lint        -> exit 0
 npm run build       -> dist/assets/index-*.js 304 kB (88 kB gzip), css 31 kB, dist/cursors/*.png
 npx vitest run      -> 16 files, 190 tests passed
-npx playwright test -> 24 passed (tabletop x2, setup-flow x2, dev-cards x4, gf-widget x6, vp-track x2, cursors x2, build-tiles x4, visual verification x2)
+npx playwright test -> 26 passed (tabletop x2, setup-flow x2, dev-cards x4, gf-widget x6, vp-track x2, cursors x2, build-tiles x4, event-tracks x2, visual verification x2)
 ```
 Also checked by hand in a browser: a full all-bot game to the end (0 console errors), keyboard-only setup
 (Tab to the roll button, focus a glowing corner, Enter to place), reduced-motion mode, and layouts at
@@ -88,6 +88,8 @@ Dev-only visual scenarios: `?scenario=showcase` (mid-game with plants, hazards, 
 - **Hidden information must never reach the log.** The green event discs under renewable plants are dealt face down; the log used to name the disc added to the bag. Anything in `state.log` is shown to everyone and sent over the network, so only write what the whole table could see.
 
 - **Build tile count badge:** the "pieces left" number is pinned by its right edge to the end of the icon column (`--build-pad` / `--build-icon`), so two digits grow over the piece icon, never into the costs; `e2e/build-tiles.spec.ts` checks it at four widths.
+
+- **Event tracks are curved** (`EVENT_TRACK` in `SeaFrameSvg.tsx`): each island is a band concentric with the rim (same `vpBandPath` as the victory point track), slots are placed by `eventSlotAngle`, icons stay upright, and the name label is a pill that follows the rim on the inside with `labelGap` of open sea between it and the track's reef. The label path runs the other way round on the lower half of the board so the text is never upside down. `eventLabelArcLength` estimates the pill length from the text; `e2e/event-tracks.spec.ts` checks that the slots sit on one circle, the gap, that the text fits, and that no islands collide.
 
 ## New / changed files
 | File | Role |

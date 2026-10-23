@@ -57,3 +57,4 @@
   - Crisp 1x-4x hand cursors replace the browser's pixelated grab bitmap on 4K screens.
   - The log no longer reveals which green event disc a renewable plant adds to the bag.
   - **Verification**: `npm run typecheck` (exit 0), `npm run lint` (exit 0), `npm run build` (exit 0), `npx vitest run` (16 files, 190 tests passed), `npx playwright test` (24 passed, incl. the build-tile badge check).
+- **Curved event trackers**: the seven event islands are now arcs following the rim, with curved name labels set apart from the track; geometry-tested (`e2e/event-tracks.spec.ts`). Verification: typecheck, lint, build clean; 190 unit tests, 26 browser tests passing.
