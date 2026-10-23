@@ -271,6 +271,17 @@ test.describe('the end of a game', () => {
     await expect(A.getByTestId('victory-new-game-btn')).toBeVisible();
     await expect(B.getByTestId('victory-new-game-btn')).toHaveCount(0);
 
+    // ...and it takes everyone back to the lobby with the seats kept
+    A.once('dialog', (dialog) => void dialog.accept());
+    await A.getByTestId('victory-new-game-btn').click();
+    await expect(A.getByTestId('online-page')).toBeVisible();
+    await expect(B.getByTestId('online-page')).toBeVisible();
+    await expect(A.getByTestId('victory-modal')).toHaveCount(0);
+    await expect(B.getByTestId('victory-modal')).toHaveCount(0);
+    await expect(B.getByTestId('online-waiting')).toBeVisible();
+    await expect(A.getByTestId('online-seat-purple')).toContainText('Finn');
+    await expect(A.getByTestId('online-seat-purple-status')).toHaveText('Connected');
+
     await host.context.close();
     await friend.context.close();
   });
