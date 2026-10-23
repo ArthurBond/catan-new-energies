@@ -375,12 +375,14 @@ export function applyBuildPowerPlant(
     player.renewablePlantsInReserve -= 1;
     node.powerPlants.push({ playerId, type: 'renewable', hexId });
 
-    // Green event disc uncovered from player board into event bag (R L730-735)
-    let discAdded: string | null = null;
+    // Green event disc taken from under the plant on the player board into the event bag (R p.15).
+    // The disc is dealt face down and goes into the bag unseen, so which event it is must never
+    // appear in the log (or anywhere else other players can read).
+    let discAdded = false;
     if (player.hiddenGreenDiscs.length > 0) {
       const disc = player.hiddenGreenDiscs.shift()!;
       state.eventBag.push(disc as EventDiscType);
-      discAdded = disc;
+      discAdded = true;
     }
 
     player.localFootprint = computePlayerLF(player);
@@ -392,7 +394,7 @@ export function applyBuildPowerPlant(
     state.log.push({
       timestamp: state.log.length,
       message: `${player.name} built a Renewable Power Plant on hex ${hexId} (-1 LF${
-        discAdded ? `, added green ${discAdded} disc to event bag` : ''
+        discAdded ? ', added a green event disc to the bag' : ''
       }).`,
     });
   }

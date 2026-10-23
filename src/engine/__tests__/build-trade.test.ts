@@ -233,6 +233,26 @@ describe('Building, Trading & Longest Road Engine — ACT-01..ACT-06', () => {
       expect(state.eventBag[state.eventBag.length - 1]).toBe('climateConference');
     });
 
+    it('does not reveal which green event disc went into the bag (it is dealt face down)', () => {
+      state.players[activePid]!.science = 3;
+      state.players[activePid]!.hiddenGreenDiscs = ['governmentFunding'];
+
+      state = applyAction(state, {
+        type: 'BUILD_RENEWABLE_PLANT',
+        playerId: activePid,
+        nodeId: 10,
+        hexId: state.board.intersections[10]!.adjacentHexIds[0]!,
+      });
+
+      const message = state.log[state.log.length - 1]!.message;
+      expect(message).toContain('added a green event disc to the bag');
+      // No event name, in any spelling, in the whole log
+      const everything = JSON.stringify(state.log).toLowerCase().replace(/[\s_&-]/g, '');
+      for (const name of ['governmentfunding', 'climateconference', 'sustainableproduction']) {
+        expect(everything).not.toContain(name);
+      }
+    });
+
     it('enforces Town 1-cutout vs City 3-cutout limits', () => {
       state.players[activePid]!.science = 5;
 
