@@ -4,6 +4,7 @@
  */
 
 import 'preact/compat';
+import type { ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { GameState } from '../engine/types';
 import { BrandMark, Icon } from './Icons';
@@ -64,6 +65,11 @@ export interface TopBarProps {
   tableclothColor: string;
   onTableclothColorChange: (color: string) => void;
   onOpenLobby: () => void;
+  /**
+   * Online play: no undo, a connection badge, and "New game" only for the host (it asks first
+   * and sends everyone back to the lobby). Leave undefined for offline play.
+   */
+  online?: { badge: ComponentChildren; onNewGame: (() => void) | null };
 }
 
 export function TopBar({
@@ -83,6 +89,7 @@ export function TopBar({
   tableclothColor,
   onTableclothColorChange,
   onOpenLobby,
+  online,
 }: TopBarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -184,17 +191,21 @@ export function TopBar({
           </div>
         </div>
 
-        <button
-          type="button"
-          className="tt-icon-btn"
-          data-testid="undo-btn"
-          disabled={!canUndo}
-          onClick={onUndo}
-          title="Undo last action"
-          aria-label="Undo last action"
-        >
-          <Icon name="undo" />
-        </button>
+        {online ? (
+          online.badge
+        ) : (
+          <button
+            type="button"
+            className="tt-icon-btn"
+            data-testid="undo-btn"
+            disabled={!canUndo}
+            onClick={onUndo}
+            title="Undo last action"
+            aria-label="Undo last action"
+          >
+            <Icon name="undo" />
+          </button>
+        )}
 
         {hasBots && (
           <button
@@ -296,15 +307,17 @@ export function TopBar({
           )}
         </div>
 
-        <button
-          type="button"
-          className="tt-icon-btn is-primary"
-          data-testid="open-lobby-btn"
-          onClick={onOpenLobby}
-        >
-          <Icon name="newGame" />
-          <span className="tt-btn-label">New game</span>
-        </button>
+        {(!online || online.onNewGame) && (
+          <button
+            type="button"
+            className="tt-icon-btn is-primary"
+            data-testid={online ? 'online-new-game-btn' : 'open-lobby-btn'}
+            onClick={online?.onNewGame ?? onOpenLobby}
+          >
+            <Icon name="newGame" />
+            <span className="tt-btn-label">New game</span>
+          </button>
+        )}
       </div>
     </header>
   );

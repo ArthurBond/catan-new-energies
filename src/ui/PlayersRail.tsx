@@ -39,9 +39,11 @@ export interface PlayersRailProps {
   seats: Record<PlayerId, SeatConfig>;
   inspectedPlayerId: PlayerId;
   onInspect: (pid: PlayerId) => void;
+  /** Online: ready-made caption per seat ("You", "Friend · offline"), replacing the offline wording. */
+  roleLabels?: Partial<Record<PlayerId, string>>;
 }
 
-export function PlayersRail({ state, seats, inspectedPlayerId, onInspect }: PlayersRailProps) {
+export function PlayersRail({ state, seats, inspectedPlayerId, onInspect, roleLabels }: PlayersRailProps) {
   const humanCount = state.playerOrder.filter((pid) => seats[pid]?.controller === 'human').length;
   const recent = state.log.slice(-40).reverse();
   const names = state.playerOrder.map((pid) => ({ pid, name: state.players[pid]!.name }));
@@ -72,7 +74,7 @@ export function PlayersRail({ state, seats, inspectedPlayerId, onInspect }: Play
                 <span>{p.name}</span>
               </span>
               <span className="tt-player-role">
-                {seatRole(seats[pid], humanCount)}
+                {roleLabels?.[pid] ?? seatRole(seats[pid], humanCount)}
                 {(holdsRoad || holdsClean) && (
                   <>
                     {' · '}
@@ -89,7 +91,7 @@ export function PlayersRail({ state, seats, inspectedPlayerId, onInspect }: Play
               <span className="tt-player-stats">
                 <span className="tt-stat" title="Cards in hand">
                   <Icon name="cards" size={14} />
-                  <strong>{handCount(state, pid)}</strong>
+                  <strong data-testid={`corner-cards-${pid}`}>{handCount(state, pid)}</strong>
                 </span>
                 <span className="tt-stat" title="Stored energy (max 5)">
                   <svg width="10" height="14" viewBox="-8 -15 16 30" aria-hidden="true">

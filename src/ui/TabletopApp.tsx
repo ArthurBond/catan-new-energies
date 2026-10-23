@@ -55,6 +55,7 @@ import { PlayerBadge, PlayersRail } from './PlayersRail';
 import { SetupCoach, SetupRollOff } from './SetupCoach';
 import { TableRail } from './TableRail';
 import { DEV_CARD_METADATA, EVENT_TRACK_METADATA, PLAYER_THEMES } from './theme';
+import type { OnlineTable } from './online/onlineTypes';
 import { TopBar } from './TopBar';
 import { EventDiscSvg, EventIconSvg } from './WoodenPiecesSvg';
 
@@ -253,7 +254,13 @@ function drawnDisc(prev: GameState, next: GameState): EventDiscType | null {
 }
 
 /** Plain-language headline for what just happened at the table. */
-function describeAction(action: GameAction, prev: GameState, next: GameState): Toast {
+function describeAction(
+  action: GameAction,
+  prev: GameState,
+  next: GameState,
+  /** Online: the disc the server says was drawn (the redacted state has no bag to diff). */
+  drawn?: EventDiscType | null
+): Toast {
   const name = next.players[action.playerId]?.name ?? action.playerId;
   const detail = humanizeLog(next.log[next.log.length - 1]?.message ?? '');
   const base = { id: Date.now() + Math.random(), playerId: action.playerId, detail };
@@ -285,7 +292,7 @@ function describeAction(action: GameAction, prev: GameState, next: GameState): T
       return { ...base, title: d ? `${name} rolled ${d[0] + d[1]}` : `${name} rolled` };
     }
     case 'DRAW_EVENT_DISC': {
-      const disc = drawnDisc(prev, next);
+      const disc = drawn !== undefined ? drawn : drawnDisc(prev, next);
       if (!disc) return { ...base, title: `${name} drew an event disc` };
       const meta = EVENT_TRACK_METADATA[disc];
       const onTrack = next.eventTracks[disc] ?? 0;
@@ -338,17 +345,27 @@ function describeAction(action: GameAction, prev: GameState, next: GameState): T
   }
 }
 
-export function TabletopApp() {
+/**
+ * The table. Offline (default) it owns the game: bots, hotseat, undo, local save. With `online`
+ * it only renders the host server's state for one fixed seat and sends moves to the server.
+ */
+export function TabletopApp({ online }: { online?: OnlineTable }) {
   const initialUrl = useMemo(() => parseUrlParams(), []);
   // A refresh picks the unfinished game back up unless the URL asks for a specific new one
-  const resumed = useMemo(() => (initialUrl.hasGameParams ? null : loadSavedGame()), [initialUrl]);
-  const [lobbyConfig, setLobbyConfig] = useState<LobbyConfig>(
-    () => resumed?.config ?? createDefaultLobbyConfig(initialUrl)
+  const resumed = useMemo(
+    () => (online || initialUrl.hasGameParams ? null : loadSavedGame()),
+    [initialUrl, online]
   );
-  const [showLobby, setShowLobby] = useState<boolean>(!initialUrl.autostart);
-  const [gameState, setGameState] = useState<GameState>(
-    () => resumed?.state ?? createGameFromConfig(lobbyConfig, initialUrl.scenario)
+  const [offlineLobbyConfig, setLobbyConfig] = useState<LobbyConfig>(
+    () => resumed?.config ?? online?.config ?? createDefaultLobbyConfig(initialUrl)
   );
+  const lobbyConfig = online ? online.config : offlineLobbyConfig;
+  const [showLobby, setShowLobby] = useState<boolean>(!initialUrl.autostart && !online);
+  const [offlineGameState, setGameState] = useState<GameState>(
+    () => resumed?.state ?? online?.update.state ?? createGameFromConfig(lobbyConfig, initialUrl.scenario)
+  );
+  const gameState = online ? online.update.state : offlineGameState;
+  const myPlayerId = online?.myPlayerId ?? null;
 
   const [history, setHistory] = useState<GameState[]>([]);
   const [activeBuildMode, setActiveBuildMode] = useState<ActiveBuildMode>(null);
@@ -453,6 +470,43 @@ export function TabletopApp() {
     return () => clearTimeout(timer);
   }, [toast]);
 
+  // Online: the server decides; show what just happened (toast, dice, event disc) from lastAction
+  const onlineUpdate = online?.update;
+  useEffect(() => {
+    if (!onlineUpdate?.lastAction || !onlineUpdate.prev) return;
+    const { lastAction, prev, state: next, drawnEventDisc } = onlineUpdate;
+    setActiveBuildMode(null);
+    setDevTargeting(null);
+    setStealPrompt(null);
+    setHoveredNodeId(null);
+    setHoveredEdgeId(null);
+    setToast(describeAction(lastAction, prev, next, drawnEventDisc));
+    if ((lastAction.type === 'ROLL_DICE' || lastAction.type === 'SETUP_ROLL_DICE') && next.lastDiceRoll) {
+      setRollAnimKey(Date.now());
+    }
+    if (lastAction.type === 'DRAW_EVENT_DISC' && drawnEventDisc && lobbyConfig.botSpeed !== 'instant') {
+      setEventReveal({
+        id: Date.now(),
+        disc: drawnEventDisc,
+        onTrack: next.eventTracks[drawnEventDisc] ?? 0,
+        capacity: EVENT_TRACK_METADATA[drawnEventDisc].capacity,
+      });
+    }
+  }, [onlineUpdate]);
+
+  // Online: a refusal from the server is shown like a refused local move
+  const onlineNotice = online?.notice;
+  useEffect(() => {
+    if (!onlineNotice) return;
+    setToast({
+      id: Date.now(),
+      playerId: myPlayerId ?? gameState.activePlayerId,
+      title: onlineNotice.kind === 'rejected' ? 'That move is not allowed' : 'Heads up',
+      detail: onlineNotice.message,
+      isError: true,
+    });
+  }, [onlineNotice?.id]);
+
   // Escape leaves a placement mode (or a card being played on the board) without doing anything
   useEffect(() => {
     if (!activeBuildMode && !devTargeting) return;
@@ -466,16 +520,23 @@ export function TabletopApp() {
   }, [activeBuildMode, devTargeting]);
 
   const actingPlayerId = getActingPlayerId(gameState) ?? gameState.activePlayerId;
-  const isActingPlayerBot = lobbyConfig.seats[actingPlayerId]?.controller === 'bot';
-  const hasBots = gameState.playerOrder.some((pid) => lobbyConfig.seats[pid]?.controller === 'bot');
+  const actingSeatIsBot = lobbyConfig.seats[actingPlayerId]?.controller === 'bot';
+  // Offline: a bot is moving. Online: it is anyone's move but mine, so nothing here can be clicked.
+  const waitingOnOthers = online ? actingPlayerId !== myPlayerId : actingSeatIsBot;
+  const hasBots = !online && gameState.playerOrder.some((pid) => lobbyConfig.seats[pid]?.controller === 'bot');
 
   // In hotseat play the dock follows whichever human is acting next
   useEffect(() => {
+    if (online) return;
     if (lobbyConfig.seats[actingPlayerId]?.controller === 'human') setInspectedPlayerId(null);
-  }, [actingPlayerId, lobbyConfig.seats]);
+  }, [actingPlayerId, lobbyConfig.seats, online]);
 
-  const displayedMatPlayerId: PlayerId =
-    inspectedPlayerId && gameState.players[inspectedPlayerId]
+  // Online the dock and player board always show my own seat (or the active player, when watching)
+  const displayedMatPlayerId: PlayerId = online
+    ? myPlayerId && gameState.players[myPlayerId]
+      ? myPlayerId
+      : gameState.activePlayerId
+    : inspectedPlayerId && gameState.players[inspectedPlayerId]
       ? inspectedPlayerId
       : gameState.players[actingPlayerId] && lobbyConfig.seats[actingPlayerId]?.controller === 'human'
         ? actingPlayerId
@@ -486,6 +547,16 @@ export function TabletopApp() {
 
   // Dispatch game action with history, persistence, multi-tab broadcast and table feedback
   const dispatchAction = (action: GameAction) => {
+    if (online) {
+      // Never applied locally: the server validates it and answers with the new state
+      online.sendAction(action);
+      setActiveBuildMode(null);
+      setDevTargeting(null);
+      setStealPrompt(null);
+      setHoveredNodeId(null);
+      setHoveredEdgeId(null);
+      return;
+    }
     try {
       const prevActing = getActingPlayerId(gameState);
       const next = applyAction(gameState, action);
@@ -574,7 +645,7 @@ export function TabletopApp() {
 
   // Automated bot turn scheduler (setup placements are paced so humans can follow them)
   useEffect(() => {
-    if (showLobby || botPaused || privacyCurtainForPlayer !== null) return;
+    if (online || showLobby || botPaused || privacyCurtainForPlayer !== null) return;
     if (gameState.phase === 'GameEnd' || gameState.winner !== null) return;
 
     const currentActor = getActingPlayerId(gameState);
@@ -604,9 +675,16 @@ export function TabletopApp() {
 
   // Legal actions for the acting human drive board highlights and the build palette
   const currentLegalActions = useMemo(() => {
-    if (isActingPlayerBot) return [];
-    return legalActions(gameState, actingPlayerId);
-  }, [gameState, actingPlayerId, isActingPlayerBot]);
+    if (waitingOnOthers) return [];
+    try {
+      return legalActions(gameState, actingPlayerId);
+    } catch (err) {
+      // Online the opponents' hidden cards are placeholders: highlight nothing rather than crash
+      if (!online) throw err;
+      console.warn('Could not work out legal moves from the server view:', err);
+      return [];
+    }
+  }, [gameState, actingPlayerId, waitingOnOthers]);
 
   const headDecision = gameState.pendingDecisions[0] ?? null;
 
@@ -623,7 +701,7 @@ export function TabletopApp() {
         highlightedCutoutSlots: cutouts,
       };
 
-      if (isActingPlayerBot) return result;
+      if (waitingOnOthers) return result;
 
       // 0. A development card being finished on the board
       if (devTargeting) {
@@ -700,7 +778,7 @@ export function TabletopApp() {
 
       return result;
     }, [
-      isActingPlayerBot,
+      waitingOnOthers,
       devTargeting,
       headDecision,
       actingPlayerId,
@@ -775,7 +853,7 @@ export function TabletopApp() {
 
   // Board click handlers
   const handleHexClick = (hexId: HexId) => {
-    if (isActingPlayerBot || dragRef.current?.moved) return;
+    if (waitingOnOthers || dragRef.current?.moved) return;
     if (devTargeting && highlightedHexIds.has(hexId)) {
       if (devTargeting.kind === 'inspector') {
         finishCleanup(
@@ -812,7 +890,7 @@ export function TabletopApp() {
   };
 
   const handleNodeClick = (nodeId: NodeId) => {
-    if (isActingPlayerBot || dragRef.current?.moved) return;
+    if (waitingOnOthers || dragRef.current?.moved) return;
     if (!highlightedNodeIds.has(nodeId)) return;
     if (devTargeting?.kind === 'hazard') {
       finishCleanup(
@@ -854,7 +932,7 @@ export function TabletopApp() {
   };
 
   const handleEdgeClick = (edgeId: EdgeId) => {
-    if (isActingPlayerBot || dragRef.current?.moved) return;
+    if (waitingOnOthers || dragRef.current?.moved) return;
     if (!highlightedEdgeIds.has(edgeId)) return;
     if (devTargeting?.kind === 'road') {
       const roadsLeft = gameState.players[actingPlayerId]!.roadsInReserve;
@@ -879,7 +957,7 @@ export function TabletopApp() {
   };
 
   const handleCutoutClick = (nodeId: NodeId, hexId: HexId) => {
-    if (isActingPlayerBot || dragRef.current?.moved) return;
+    if (waitingOnOthers || dragRef.current?.moved) return;
     if (!highlightedCutoutSlots.has(`${nodeId}-${hexId}`)) return;
 
     if (headDecision?.type === 'EVENT_PRODUCTION_INCREASE') {
@@ -906,10 +984,10 @@ export function TabletopApp() {
   const drawCountThisTurn =
     gameState.lockedDrawCount ?? getEventDiscDrawCount(gameState.clampedGF, gameState.playerCount);
   const noPending = gameState.pendingDecisions.length === 0;
-  const canDrawEventDisc = !isActingPlayerBot && gameState.phase === 'EventPhase' && noPending;
-  const canRollDice = !isActingPlayerBot && gameState.phase === 'ProductionPhase' && noPending;
-  const canEndTurn = !isActingPlayerBot && gameState.phase === 'ActionPhase' && noPending;
-  const canRollSetupDice = !isActingPlayerBot && gameState.phase === 'SetupRoll';
+  const canDrawEventDisc = !waitingOnOthers && gameState.phase === 'EventPhase' && noPending;
+  const canRollDice = !waitingOnOthers && gameState.phase === 'ProductionPhase' && noPending;
+  const canEndTurn = !waitingOnOthers && gameState.phase === 'ActionPhase' && noPending;
+  const canRollSetupDice = !waitingOnOthers && gameState.phase === 'SetupRoll';
   const isGameOver = gameState.phase === 'GameEnd' || gameState.winner !== null;
 
   // Hexes that produced on this turn's roll
@@ -924,8 +1002,9 @@ export function TabletopApp() {
     return prod;
   }, [gameState.lastDiceRoll, gameState.phase, gameState.board.hexes]);
 
-  const shouldRedactDisplayedMat =
-    privacyCurtainForPlayer !== null || lobbyConfig.seats[displayedMatPlayerId]?.controller === 'bot';
+  const shouldRedactDisplayedMat = online
+    ? displayedMatPlayerId !== myPlayerId
+    : privacyCurtainForPlayer !== null || lobbyConfig.seats[displayedMatPlayerId]?.controller === 'bot';
 
   const actingName = gameState.players[actingPlayerId]?.name ?? actingPlayerId;
 
@@ -933,7 +1012,16 @@ export function TabletopApp() {
     if (isGameOver) {
       return { label: 'Game over', disabled: true, sub: 'Start a new game from the top bar' };
     }
-    if (isActingPlayerBot) {
+    if (waitingOnOthers) {
+      if (online) {
+        return actingSeatIsBot
+          ? { label: `${actingName} is playing`, disabled: true, sub: 'Bots move on their own' }
+          : {
+              label: `Waiting for ${actingName}`,
+              disabled: true,
+              sub: myPlayerId ? 'It is their move' : 'You are watching this game',
+            };
+      }
       return {
         label: `${actingName} is playing`,
         disabled: true,
@@ -999,8 +1087,13 @@ export function TabletopApp() {
 
   const activeSeat = lobbyConfig.seats[gameState.activePlayerId];
   const humanSeats = gameState.playerOrder.filter((pid) => lobbyConfig.seats[pid]?.controller === 'human').length;
-  const activeLabel =
-    activeSeat?.controller === 'bot'
+  const activeLabel = online
+    ? gameState.activePlayerId === myPlayerId
+      ? 'your turn'
+      : activeSeat?.controller === 'bot'
+        ? 'bot'
+        : 'player'
+    : activeSeat?.controller === 'bot'
       ? 'bot'
       : humanSeats > 1
         ? 'your turn'
@@ -1019,6 +1112,9 @@ export function TabletopApp() {
     <div
       className="tt-app"
       data-testid="tabletop-app"
+      data-phase={gameState.phase}
+      data-acting-player={actingPlayerId}
+      data-my-seat={online ? (myPlayerId ?? 'none') : undefined}
       data-tablecloth-color={tableclothColor}
       style={{
         // Buffalo-plaid gingham tablecloth (default black, changeable to any colour)
@@ -1033,7 +1129,7 @@ export function TabletopApp() {
       <TopBar
         state={gameState}
         drawCount={drawCountThisTurn}
-        activeIsBot={activeSeat?.controller === 'bot' && !isGameOver}
+        activeIsBot={!online && activeSeat?.controller === 'bot' && !isGameOver}
         activeLabel={activeLabel}
         canUndo={history.length > 0}
         onUndo={handleUndo}
@@ -1047,6 +1143,7 @@ export function TabletopApp() {
         tableclothColor={tableclothColor}
         onTableclothColorChange={handleTableclothColorChange}
         onOpenLobby={() => setShowLobby(true)}
+        online={online ? { badge: online.badge, onNewGame: online.isHost ? online.onNewGame : null } : undefined}
       />
 
       <div className="tt-table">
@@ -1054,7 +1151,9 @@ export function TabletopApp() {
           state={gameState}
           seats={lobbyConfig.seats}
           inspectedPlayerId={displayedMatPlayerId}
-          onInspect={(pid) => setInspectedPlayerId(pid)}
+          // Online the board on show is always mine
+          onInspect={(pid) => !online && setInspectedPlayerId(pid)}
+          roleLabels={online?.roleLabels}
         />
 
         <main
@@ -1289,6 +1388,7 @@ export function TabletopApp() {
 
       <ActionDock
         state={gameState}
+        fixedViewer={!!online}
         viewedPlayerId={displayedMatPlayerId}
         actingPlayerId={actingPlayerId}
         canAct={canEndTurn && displayedMatPlayerId === actingPlayerId}
@@ -1301,7 +1401,7 @@ export function TabletopApp() {
         onOpenEnergyBuyCardModal={() => setShowEnergyCardModal(true)}
         onPlayDevCardPrompt={startDevCard}
         onRevealVpCards={(cardIds) => dispatchAction({ type: 'REVEAL_VP_CARDS', playerId: actingPlayerId, cardIds })}
-        onInspect={(pid) => setInspectedPlayerId(pid)}
+        onInspect={(pid) => !online && setInspectedPlayerId(pid)}
         primary={primary}
         canTrade={canEndTurn}
         onOpenTrade={() => setShowTradeModal(true)}
@@ -1328,7 +1428,7 @@ export function TabletopApp() {
               </div>
               <PlayerMat
                 player={displayedPlayer}
-                isActiveTurn={!isActingPlayerBot && displayedMatPlayerId === actingPlayerId && noPending}
+                isActiveTurn={!waitingOnOthers && displayedMatPlayerId === actingPlayerId && noPending}
                 isActionPhase={gameState.phase === 'ActionPhase'}
                 isPreEventWindow={gameState.phase === 'EventPhase' && gameState.eventDiscsDrawnThisTurn === 0}
                 turnStats={gameState.turnStats}
@@ -1351,7 +1451,7 @@ export function TabletopApp() {
         }
       />
 
-      {headDecision && !isActingPlayerBot && (
+      {headDecision && !waitingOnOthers && (
         <PendingDecisionBanner state={gameState} decision={headDecision} onDispatch={dispatchAction} />
       )}
 
@@ -1395,7 +1495,7 @@ export function TabletopApp() {
         />
       )}
 
-      {privacyCurtainForPlayer && (
+      {!online && privacyCurtainForPlayer && (
         <PrivacyCurtainModal
           nextPlayerId={privacyCurtainForPlayer}
           nextPlayerName={gameState.players[privacyCurtainForPlayer]?.name ?? privacyCurtainForPlayer}
@@ -1407,14 +1507,20 @@ export function TabletopApp() {
         <VictoryModal
           state={gameState}
           onInspectBoard={() => setDismissedVictoryModal(true)}
-          onOpenLobby={() => {
-            setDismissedVictoryModal(false);
-            setShowLobby(true);
-          }}
+          onOpenLobby={
+            online
+              ? online.isHost
+                ? online.onNewGame
+                : undefined
+              : () => {
+                  setDismissedVictoryModal(false);
+                  setShowLobby(true);
+                }
+          }
         />
       )}
 
-      {showLobby && (
+      {showLobby && !online && (
         <LobbyModal
           config={lobbyConfig}
           onChangeConfig={setLobbyConfig}

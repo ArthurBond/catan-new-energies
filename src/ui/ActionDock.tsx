@@ -247,6 +247,8 @@ function useBumpKeys(playerId: PlayerId, counts: Record<string, number>): Record
 
 export interface ActionDockProps {
   state: GameState;
+  /** Online: the dock is fixed to my own seat, so the other players' colour switches are hidden. */
+  fixedViewer?: boolean;
   viewedPlayerId: PlayerId;
   actingPlayerId: PlayerId;
   /** Viewed player is the acting human and nothing is blocking: building is possible */
@@ -293,6 +295,7 @@ export function ActionDock({
   onToggleMat,
   drawer,
   setupPanel,
+  fixedViewer = false,
 }: ActionDockProps) {
   const p = state.players[viewedPlayerId]!;
   const t = PLAYER_THEMES[viewedPlayerId];
@@ -358,7 +361,7 @@ export function ActionDock({
               {hand} / {handLimit}
             </span>
           </span>
-          <span className="tt-viewing" role="group" aria-label="Show a player's hand and board">
+          <span className="tt-viewing" role="group" aria-label="Show a player's hand and board" hidden={fixedViewer}>
             {state.playerOrder.map((pid) => (
               <button
                 key={pid}
