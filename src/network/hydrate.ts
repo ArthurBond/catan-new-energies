@@ -8,6 +8,7 @@
  * every action anyway), and only use `legalActions` on the result for the viewer's own options.
  */
 
+import { getHandSizeForSeven, isHandBreakdownHidden } from '../engine/production';
 import type { EventDiscType, GameState, PlayerId, PlayerState } from '../engine/types';
 import { HIDDEN_DEV_CARD_ID, type RedactedGameState } from './redact';
 
@@ -16,16 +17,6 @@ export const PLACEHOLDER_CARD_ID = HIDDEN_DEV_CARD_ID;
 
 /** Stands in for the discs still in the bag (only the count is known). */
 export const PLACEHOLDER_EVENT_DISC: EventDiscType = 'climateConference';
-
-/** Extra fields a hydrated player carries; plain `GameState` players never have them. */
-export interface HydratedPlayerExtras {
-  /** Resource + science cards in hand, as everyone at the table can see. */
-  hiddenResourcesCount?: number;
-  /** True when `resources` / `science` are blanked out because the hand belongs to someone else. */
-  handHidden?: boolean;
-}
-
-export type HydratedPlayerState = PlayerState & HydratedPlayerExtras;
 
 function placeholders(count: number): string[] {
   return Array.from({ length: Math.max(0, count) }, () => PLACEHOLDER_CARD_ID);
@@ -41,7 +32,7 @@ export function hydrateRedactedState(r: RedactedGameState, viewerId: PlayerId | 
     const p = r.players[pid];
     if (!p) continue;
     const { devCards, hiddenGreenDiscs, hiddenGreenDiscsCount, hiddenResourcesCount, ...rest } = p;
-    const hydrated: HydratedPlayerState = {
+    const hydrated: PlayerState = {
       ...rest,
       resources: { ...rest.resources },
       devCards: {
@@ -75,21 +66,15 @@ export function hydrateRedactedState(r: RedactedGameState, viewerId: PlayerId | 
   };
 }
 
-/** Cards in a player's hand (resources + science), also when the breakdown is hidden. */
+/**
+ * Cards in a player's hand (resources + science), also when the breakdown is hidden. The engine's
+ * rules (`legalActions`, steal targets, the discard limit) read the size the same way.
+ */
 export function playerHandCount(p: PlayerState): number {
-  const known = (p as HydratedPlayerState).hiddenResourcesCount;
-  if (typeof known === 'number') return known;
-  return (
-    p.resources.lumber +
-    p.resources.brick +
-    p.resources.natural_fiber +
-    p.resources.food +
-    p.resources.steel +
-    p.science
-  );
+  return getHandSizeForSeven(p);
 }
 
 /** True when this player's resource and science breakdown is not known to the viewer. */
 export function isHandHidden(p: PlayerState): boolean {
-  return (p as HydratedPlayerState).handHidden === true;
+  return isHandBreakdownHidden(p);
 }

@@ -18,7 +18,7 @@ import {
   getDevCardType,
   isEdgeConnectedToPlayerNetwork,
 } from './dev-cards';
-import { getEligibleStealVictims, getHandSizeForSeven } from './production';
+import { getEligibleStealVictims, getHandSizeForSeven, isHandBreakdownHidden } from './production';
 import {
   EdgeId,
   GameAction,
@@ -629,8 +629,9 @@ export function legalActions(state: GameState, playerId: PlayerId): GameAction[]
           if (respResponder.resources[key as ResourceType] < count) canAccept = false;
         }
       }
+      // A browser cannot see the offerer's cards; the server checked them when it took the offer.
       for (const [key, count] of Object.entries(head.give)) {
-        if (!count || count <= 0) continue;
+        if (!count || count <= 0 || isHandBreakdownHidden(respOfferer)) continue;
         if (key === 'energy') {
           if (respOfferer.energy < count) canAccept = false;
         } else if (key === 'science') {

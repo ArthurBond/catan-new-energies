@@ -136,6 +136,15 @@ export interface PlayerState {
   roadsInReserve: number;
   fossilPlantsInReserve: number;
   renewablePlantsInReserve: number;
+  /**
+   * Only on a browser's view of the game (`hydrateRedactedState`): the number of resource and
+   * science cards in hand. The server's state never has it; the engine reads it through
+   * `getHandSizeForSeven` so rules that ask "does this player hold any cards?" still work when
+   * another seat's card breakdown is hidden.
+   */
+  hiddenResourcesCount?: number;
+  /** Only on a browser's view: `resources` and `science` are blanked out (another seat's hand). */
+  handHidden?: boolean;
 }
 
 export type GamePhase =

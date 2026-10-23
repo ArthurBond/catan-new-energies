@@ -3,7 +3,7 @@ import { getActingPlayerId } from '../../ai/bot';
 import { legalActions } from '../../engine/actions';
 import { applyAction } from '../../engine/reducer';
 import { createInitialGameState } from '../../engine/setup';
-import type { GameState } from '../../engine/types';
+import type { GameAction, GameState, PlayerId } from '../../engine/types';
 import { handCount } from '../../ui/gameView';
 import {
   hydrateRedactedState,
@@ -86,5 +86,65 @@ describe('hydrateRedactedState', () => {
     for (const pid of truth.playerOrder) truth.players[pid].devCards.unplayed = ['dev_cleanup_07'];
     const view = hydrateRedactedState(wire(redactForPlayer(truth, actor, { hideOpponentResources: true })), actor);
     expect(() => legalActions(view, actor)).not.toThrow();
+  });
+
+  describe('move lists with hidden hands', () => {
+    /** Every move in the list, as comparable text (the order does not matter). */
+    const moves = (list: GameAction[]) => list.map((a) => JSON.stringify(a)).sort();
+    const viewOf = (truth: GameState, pid: PlayerId) =>
+      hydrateRedactedState(wire(redactForPlayer(truth, pid, { hideOpponentResources: true })), pid);
+
+    it('offers Accept on a trade although the cards of the offerer are hidden', () => {
+      const truth = createInitialGameState({ setupMode: 'first', playerCount: 4, seed: 5 });
+      truth.phase = 'ActionPhase';
+      truth.activePlayerId = 'orange';
+      truth.players.orange.resources = { lumber: 2, brick: 0, natural_fiber: 0, food: 0, steel: 0 };
+      truth.players.purple.resources = { lumber: 0, brick: 1, natural_fiber: 0, food: 0, steel: 0 };
+      const offered = applyAction(truth, {
+        type: 'OFFER_TRADE',
+        playerId: 'orange',
+        targetPlayerId: 'purple',
+        give: { lumber: 1 },
+        want: { brick: 1 },
+      });
+
+      const view = viewOf(offered, 'purple');
+      expect(isHandHidden(view.players.orange)).toBe(true);
+      const mine = legalActions(view, 'purple');
+      expect(mine).toContainEqual(expect.objectContaining({ response: { accept: true } }));
+      expect(moves(mine)).toEqual(moves(legalActions(offered, 'purple')));
+
+      // Accepting from the browser's view is what the server takes.
+      const accept = mine.find((a) => a.type === 'RESOLVE_PENDING_DECISION' && (a.response as { accept?: boolean }).accept)!;
+      const done = applyAction(offered, accept);
+      expect(done.players.orange.resources.brick).toBe(1);
+      expect(done.players.purple.resources.lumber).toBe(1);
+    });
+
+    it('lists the players to steal from with Cleanup, by their hidden hand size', () => {
+      const truth = createInitialGameState({ setupMode: 'first', playerCount: 4, seed: 5 });
+      truth.phase = 'ActionPhase';
+      truth.activePlayerId = 'orange';
+      truth.players.orange.devCards.unplayed = ['dev_cleanup_01'];
+      const hex = truth.board.hexes.find((h) => !h.hasHazard && !h.hasInspector)!;
+      const [nodeA, nodeB] = truth.board.intersections.filter((n) => n.adjacentHexIds.includes(hex.id));
+      nodeA!.building = { playerId: 'purple', type: 'town' };
+      nodeB!.building = { playerId: 'pink', type: 'town' };
+      truth.players.purple.resources = { lumber: 0, brick: 2, natural_fiber: 0, food: 0, steel: 0 };
+      truth.players.pink.resources = { lumber: 0, brick: 0, natural_fiber: 0, food: 0, steel: 0 };
+      truth.players.pink.science = 0;
+
+      const view = viewOf(truth, 'orange');
+      const mine = legalActions(view, 'orange');
+      const victims = (list: GameAction[]) =>
+        list.flatMap((a) => {
+          const option = (a as { params?: { option?: { type: string; newHexId?: number; targetPlayerId?: string } } }).params?.option;
+          return a.type === 'PLAY_DEV_CARD' && option?.type === 'INSPECTOR_MOVE_STEAL' && option.newHexId === hex.id
+            ? [option.targetPlayerId ?? 'nobody']
+            : [];
+        });
+      expect(victims(mine)).toEqual(['purple']); // pink has no cards, so only purple can be robbed
+      expect(moves(mine)).toEqual(moves(legalActions(truth, 'orange')));
+    });
   });
 });

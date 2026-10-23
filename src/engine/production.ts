@@ -247,6 +247,8 @@ export function autoClearHazards(
  * Development cards and Energy tokens do NOT count.
  */
 export function getHandSizeForSeven(player: PlayerState): number {
+  // A browser's view of another seat knows the hand size but not its breakdown (see types.ts).
+  if (typeof player.hiddenResourcesCount === 'number') return player.hiddenResourcesCount;
   return (
     player.resources.lumber +
     player.resources.brick +
@@ -255,6 +257,11 @@ export function getHandSizeForSeven(player: PlayerState): number {
     player.resources.steel +
     player.science
   );
+}
+
+/** True when this copy of the state does not know the player's resource and science cards. */
+export function isHandBreakdownHidden(player: PlayerState): boolean {
+  return player.handHidden === true;
 }
 
 /**
