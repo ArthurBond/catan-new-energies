@@ -498,7 +498,7 @@ export function SeaFrameSvg({
                   fontWeight="900"
                   fill="#12304d"
                 >
-                  2:<tspan fontSize="8.6">1</tspan>
+                  2:<tspan fontSize="8.8">1</tspan>
                 </text>
               </>
             ) : (
@@ -511,7 +511,7 @@ export function SeaFrameSvg({
                   fontWeight="900"
                   fill="#12304d"
                 >
-                  3:<tspan fontSize="10.1">1</tspan>
+                  3:<tspan fontSize="10.3">1</tspan>
                 </text>
                 <text
                   x={harborX}

@@ -1,9 +1,15 @@
 import { expect, test } from '@playwright/test';
 
 /** Ink height of each glyph in a harbor ratio label, measured from a real screenshot of it. */
-for (const scale of [4, 8]) {
-  test(`the 1 in 3:1 and 2:1 is the same height as the other digit (pixel ratio ${scale})`, async ({ browser }) => {
-    const context = await browser.newContext({ deviceScaleFactor: scale, viewport: { width: 1366, height: 768 } });
+const SCREENS = [
+  { scale: 1, width: 3840, height: 2160 }, // a 4K screen at 100%
+  { scale: 1, width: 2560, height: 1440 },
+  { scale: 2, width: 1920, height: 1080 },
+  { scale: 4, width: 1366, height: 768 },
+];
+for (const { scale, width, height } of SCREENS) {
+  test(`the 1 in 3:1 and 2:1 is the same height as the other digit (${width}x${height} at pixel ratio ${scale})`, async ({ browser }) => {
+    const context = await browser.newContext({ deviceScaleFactor: scale, viewport: { width, height } });
     const page = await context.newPage();
     await page.goto('/?scenario=showcase&bots=0');
     await page.evaluate(() => document.fonts.ready);
@@ -38,13 +44,13 @@ for (const scale of [4, 8]) {
           let top = height;
           let bottom = 0;
           for (let y = 0; y < height; y++) for (let x = a; x <= z; x++) if (dark(x, y)) { top = Math.min(top, y); bottom = Math.max(bottom, y); }
-          return (bottom - top + 1) / (window.devicePixelRatio || 1);
+          return bottom - top + 1;
         });
       }, shot.toString('base64'));
       expect(heights).toHaveLength(3); // digit, colon, 1
       const [digit, , one] = heights as [number, number, number];
-      // within a quarter of a CSS pixel or 6%, whichever is larger
-      expect(Math.abs(one - digit), `${label}: digit ${digit}, one ${one}`).toBeLessThanOrEqual(Math.max(0.25, digit * 0.06));
+      // glyph heights snap to whole device pixels, so equal means within one of them
+      expect(Math.abs(one - digit), `${label}: digit ${digit}px, one ${one}px`).toBeLessThanOrEqual(1);
     }
     await context.close();
   });
