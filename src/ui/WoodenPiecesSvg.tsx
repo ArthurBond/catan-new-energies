@@ -105,10 +105,23 @@ export const PLANT_SOCKET_DIST = 15.5;
 export const PLANT_RADIUS = 7;
 
 const TOWN_RADIUS = 11.5;
-const CITY_APOTHEM = 11.5;
+const CITY_APOTHEM = 11;
 /** Thickness of the wooden pieces, in board units (drawn downward as the side wall). */
-export const TOWN_DEPTH = 3.5;
-export const CITY_DEPTH = 4;
+export const TOWN_DEPTH = 4;
+/** The city is the tallest piece, clearly taller than a power plant, so a plant sits down in its notch. */
+export const CITY_DEPTH = 5;
+/** A power plant disc is this fraction of its radius thick. */
+export const PLANT_DEPTH_RATIO = 0.3;
+
+/**
+ * Vertical offset (board units) from an intersection to the centre of the top face of a power plant
+ * resting in that building's notch. Pieces are drawn with their top raised by half their own wall
+ * thickness, so a plant standing on the same board as the building has its base at the building's
+ * base: offset = building thickness / 2 - plant thickness.
+ */
+export function plantRestOffset(building: 'town' | 'city'): number {
+  return (building === 'city' ? CITY_DEPTH : TOWN_DEPTH) / 2 - PLANT_RADIUS * PLANT_DEPTH_RATIO;
+}
 
 /**
  * How far a Town / City reaches from its intersection toward a road, in board units. The piece is
@@ -362,7 +375,7 @@ export function PowerPlantCylinderSvg({
   hasGreenDiscUnderneath?: boolean;
 }) {
   const style = type === 'fossil' ? TABLETOP_THEME.plants.fossil : TABLETOP_THEME.plants.renewable;
-  const depth = r * 0.34;
+  const depth = r * PLANT_DEPTH_RATIO;
   const bolt = `${-r * 0.12},${-r * 0.62} ${r * 0.38},${-r * 0.62} ${r * 0.06},${-r * 0.1} ${r * 0.42},${-r * 0.1} ${-r * 0.3},${r * 0.62} ${-r * 0.04},${r * 0.04} ${-r * 0.4},${r * 0.04}`;
 
   return (
@@ -904,11 +917,11 @@ export function ResourceIconSvg({
     case 'brick':
       return (
         <g transform={`translate(${cx}, ${cy}) scale(${scale})`}>
-          {/* Three clay bricks with round cores, stacked like the rulebook card */}
-          <g transform="scale(0.82) translate(-0.5, 5.07)">
-            <BrickPiece t={add(BRICK_B, [0, 0])} />
+          {/* Three clay bricks: two side by side, the third laid across the middle on top (centred on the seam) */}
+          <g transform="scale(0.9) translate(-0.5, 4.88)">
+            <BrickPiece t={BRICK_B} />
             <BrickPiece t={[0, 0]} />
-            <BrickPiece t={[1.2, -6.2]} />
+            <BrickPiece t={[BRICK_B[0] / 2, BRICK_B[1] / 2 - BRICK_H]} />
           </g>
         </g>
       );

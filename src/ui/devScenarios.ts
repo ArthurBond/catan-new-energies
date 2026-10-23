@@ -8,7 +8,8 @@
  * Variants: `showcase` (action phase), `discard` (roll of 7 discard prompt),
  * `cardchoice` (Climate Conference reward prompt), `victory` (game over summary),
  * `draws2` / `draws3` (global footprint low / high, so the HUD shows 2 / 3 draws per turn),
- * `cityfit` (roads on every side of every building, to check how pieces meet roads).
+ * `cityfit` (roads on every side of every building, to check how pieces meet roads),
+ * `plantfit` (a power plant in every notch of every building, to check plant layering).
  */
 
 import { computePlayerLF, computeTrueTotalLF, clampGF } from '../engine/footprint';
@@ -85,10 +86,10 @@ export function applyShowcaseScenario(input: GameState): GameState {
   return state;
 }
 
-export type DevScenario = 'showcase' | 'discard' | 'cardchoice' | 'victory' | 'draws2' | 'draws3' | 'cityfit';
+export type DevScenario = 'showcase' | 'discard' | 'cardchoice' | 'victory' | 'draws2' | 'draws3' | 'cityfit' | 'plantfit';
 
 export function applyDevScenario(input: GameState, scenario: string): GameState {
-  if (!['showcase', 'discard', 'cardchoice', 'victory', 'draws2', 'draws3', 'cityfit'].includes(scenario)) return input;
+  if (!['showcase', 'discard', 'cardchoice', 'victory', 'draws2', 'draws3', 'cityfit', 'plantfit'].includes(scenario)) return input;
   const state = applyShowcaseScenario(input);
   if (scenario === 'discard') {
     state.phase = 'ProductionPhase';
@@ -108,6 +109,20 @@ export function applyDevScenario(input: GameState, scenario: string): GameState 
         isOptional: false,
       },
     ];
+  } else if (scenario === 'plantfit') {
+    // A plant in every notch of every building (and a second city in each of the other direction types)
+    // so all six notch directions can be checked at once
+    let flip = 0;
+    for (const node of state.board.intersections) {
+      if (!node.building) continue;
+      const room = node.building.type === 'city' ? 3 : 1;
+      for (const hexId of node.adjacentHexIds) {
+        if (node.powerPlants.length >= room) break;
+        const hex = state.board.hexes[hexId]!;
+        if (hex.numberDisc === null || node.powerPlants.some((p) => p.hexId === hexId)) continue;
+        node.powerPlants.push({ playerId: node.building.playerId, type: flip++ % 2 === 0 ? 'fossil' : 'renewable', hexId });
+      }
+    }
   } else if (scenario === 'cityfit') {
     // Roads on every side of every town and city, to check how pieces meet roads in all directions
     for (const node of state.board.intersections) {

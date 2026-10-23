@@ -18,6 +18,7 @@ import {
   EventDiscType,
   GameState,
   HexId,
+  Intersection,
   NodeId,
   PlayerId,
   TerrainType,
@@ -40,10 +41,9 @@ import {
   HazardTokenSvg,
   InspectorPawnSvg,
   PieceDefs,
-  CITY_DEPTH,
   PLANT_RADIUS,
   PLANT_SOCKET_DIST,
-  TOWN_DEPTH,
+  plantRestOffset,
   PowerPlantCylinderSvg,
   TownPieceSvg,
 } from './WoodenPiecesSvg';
@@ -419,6 +419,27 @@ function usePlacementTimes(board: GameState['board']): (key: string) => boolean 
   };
 }
 
+/**
+ * Where the power plant disc for (node, hex) rests, and whether it is on the far side of the
+ * building (up the screen), in which case the building is drawn over it.
+ */
+function plantSlot(
+  board: GameState['board'],
+  node: Intersection,
+  hexId: HexId
+): { x: number; y: number; behind: boolean } {
+  const np = latticeToSvg(node.u, node.v);
+  const hp = hexCoordToSvg(board.hexes[hexId]!.coord);
+  const dx = hp.x - np.x;
+  const dy = hp.y - np.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  return {
+    x: np.x + (dx / dist) * PLANT_SOCKET_DIST,
+    y: np.y + (dy / dist) * PLANT_SOCKET_DIST + plantRestOffset(node.building?.type ?? 'town'),
+    behind: dy < -1,
+  };
+}
+
 function angleToHexDeg(
   board: GameState['board'],
   np: { x: number; y: number },
@@ -746,7 +767,9 @@ export function IslandBoardSvg({
         })}
       </g>
 
-      {/* 5. 54 Intersections (Towns & Cities oriented to their plants, hazards & placement targets) */}
+      {/* 5. 54 Intersections. Each stack draws, in this order: plants on the far side of the building
+          (the building's raised top then overlaps them, so they sit down in their notch), the building,
+          plants on the near side (the building's wall shows above them), then any hazard token. */}
       <g className="intersections-layer">
         {board.intersections.map((node) => {
           const np = latticeToSvg(node.u, node.v);
@@ -770,99 +793,113 @@ export function IslandBoardSvg({
           const shownType = preview ? preview.type : node.building?.type;
           const shownPlayer = preview ? preview.playerId : node.building?.playerId;
 
+          const plantsOn = (behind: boolean) =>
+            node.powerPlants
+              .filter((plant) => plantSlot(board, node, plant.hexId).behind === behind)
+              .map((plant) => {
+                const slot = plantSlot(board, node, plant.hexId);
+                const slotKey = `${node.id}-${plant.hexId}`;
+                return (
+                  <g
+                    key={slotKey}
+                    data-plant={slotKey}
+                    role="img"
+                    aria-label={`${plant.type} power plant owned by ${plant.playerId} at intersection ${node.id}`}
+                    pointerEvents="none"
+                    className={isFresh(`p${slotKey}`) ? 'piece-drop' : undefined}
+                  >
+                    <PowerPlantCylinderSvg type={plant.type} cx={slot.x} cy={slot.y} r={PLANT_RADIUS} />
+                  </g>
+                );
+              });
+
           return (
-            <g
-              key={node.id}
-              data-node={node.id}
-              transform={`translate(${np.x.toFixed(2)}, ${np.y.toFixed(2)})`}
-              onClick={() => onNodeClick?.(node.id)}
-              onMouseEnter={isHighlighted ? () => onNodeHover?.(node.id) : undefined}
-              onMouseLeave={isHighlighted ? () => onNodeHover?.(null) : undefined}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onNodeClick?.(node.id);
-                }
-              }}
-              onFocus={isHighlighted ? () => onNodeHover?.(node.id) : undefined}
-              onBlur={isHighlighted ? () => onNodeHover?.(null) : undefined}
-              role="button"
-              tabIndex={isHighlighted ? 0 : -1}
-              aria-label={`Intersection ${node.id}${node.building ? `: ${node.building.type} owned by ${node.building.playerId}` : ''}${node.hasHazard ? ', blocked by Hazard' : ''}`}
-              style={{ cursor: isHighlighted ? 'pointer' : 'inherit' }}
-            >
-              {/* Invisible hit circle */}
-              <circle cx={0} cy={0} r={isHighlighted ? 19 : 13} fill="transparent" />
+            <g key={node.id} className="node-stack">
+              {plantsOn(true)}
 
-              {shownType && shownPlayer && (
-                <g
-                  opacity={preview ? 0.62 : 1}
-                  data-testid={preview ? `node-preview-${node.id}` : undefined}
-                  className={!preview && isFresh(`n${node.id}`) ? 'piece-drop' : undefined}
-                >
-                  {shownType === 'town' ? (
-                    <TownPieceSvg
-                      playerId={shownPlayer}
-                      cx={0}
-                      cy={0}
-                      cutoutAngleDeg={townCutoutAngleDeg}
-                    />
-                  ) : (
-                    <CityPieceSvg
-                      playerId={shownPlayer}
-                      cx={0}
-                      cy={0}
-                      cutoutAngleDeg={firstHexAngleDeg}
-                    />
-                  )}
-                </g>
-              )}
+              <g
+                data-node={node.id}
+                transform={`translate(${np.x.toFixed(2)}, ${np.y.toFixed(2)})`}
+                onClick={() => onNodeClick?.(node.id)}
+                onMouseEnter={isHighlighted ? () => onNodeHover?.(node.id) : undefined}
+                onMouseLeave={isHighlighted ? () => onNodeHover?.(null) : undefined}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onNodeClick?.(node.id);
+                  }
+                }}
+                onFocus={isHighlighted ? () => onNodeHover?.(node.id) : undefined}
+                onBlur={isHighlighted ? () => onNodeHover?.(null) : undefined}
+                role="button"
+                tabIndex={isHighlighted ? 0 : -1}
+                aria-label={`Intersection ${node.id}${node.building ? `: ${node.building.type} owned by ${node.building.playerId}` : ''}${node.hasHazard ? ', blocked by Hazard' : ''}`}
+                style={{ cursor: isHighlighted ? 'pointer' : 'inherit' }}
+              >
+                {/* Invisible hit circle */}
+                <circle cx={0} cy={0} r={isHighlighted ? 19 : 13} fill="transparent" />
 
-              {/* Hazard token resting on the building (its hole shows the piece beneath) */}
+                {shownType && shownPlayer && (
+                  <g
+                    opacity={preview ? 0.62 : 1}
+                    data-testid={preview ? `node-preview-${node.id}` : undefined}
+                    className={!preview && isFresh(`n${node.id}`) ? 'piece-drop' : undefined}
+                  >
+                    {shownType === 'town' ? (
+                      <TownPieceSvg
+                        playerId={shownPlayer}
+                        cx={0}
+                        cy={0}
+                        cutoutAngleDeg={townCutoutAngleDeg}
+                      />
+                    ) : (
+                      <CityPieceSvg
+                        playerId={shownPlayer}
+                        cx={0}
+                        cy={0}
+                        cutoutAngleDeg={firstHexAngleDeg}
+                      />
+                    )}
+                  </g>
+                )}
+
+                {/* Placement target */}
+                {isHighlighted && !preview && (
+                  <g data-testid={`node-target-${node.id}`}>
+                    <g className="target-pulse">
+                      <circle cx={0} cy={0} r={11} fill="rgba(255, 200, 58, 0.28)" stroke="#ffc83a" strokeWidth={1.5} />
+                    </g>
+                    <circle cx={0} cy={0} r={6.5} fill="#ffc83a" stroke="#ffffff" strokeWidth={2.2} />
+                  </g>
+                )}
+              </g>
+
+              {plantsOn(false)}
+
+              {/* Hazard token resting on the building (its hole shows the piece beneath); clicks pass through */}
               {node.hasHazard && (
                 <g
                   data-testid={`node-hazard-${node.id}`}
+                  transform={`translate(${np.x.toFixed(2)}, ${np.y.toFixed(2)})`}
+                  pointerEvents="none"
                   className={isFresh(`hzn${node.id}`) ? 'piece-drop' : undefined}
                 >
                   <HazardTokenSvg cx={0} cy={-2} r={node.building?.type === 'city' ? 17 : 15} holeRatio={0.46} />
-                </g>
-              )}
-
-              {/* Placement target */}
-              {isHighlighted && !preview && (
-                <g data-testid={`node-target-${node.id}`}>
-                  <g className="target-pulse">
-                    <circle cx={0} cy={0} r={11} fill="rgba(255, 200, 58, 0.28)" stroke="#ffc83a" strokeWidth={1.5} />
-                  </g>
-                  <circle cx={0} cy={0} r={6.5} fill="#ffc83a" stroke="#ffffff" strokeWidth={2.2} />
                 </g>
               )}
             </g>
           );
         })}
       </g>
-      {/* 6. Power plant discs, nested in the Town/City notches */}
-      <g className="power-plants-cutout-layer">
-        {board.intersections.map((node) => {
-          const np = latticeToSvg(node.u, node.v);
 
-          return node.adjacentHexIds.map((hexId) => {
-            const hex = board.hexes[hexId]!;
-            const hp = hexCoordToSvg(hex.coord);
-            const dx = hp.x - np.x;
-            const dy = hp.y - np.y;
-            const dist = Math.hypot(dx, dy) || 1;
-            // The town/city top face is raised by half its thickness; keep the plant nested in its notch
-            const lift = (node.building?.type === 'city' ? CITY_DEPTH : TOWN_DEPTH) / 2;
-            const slotX = np.x + (dx / dist) * PLANT_SOCKET_DIST;
-            const slotY = np.y + (dy / dist) * PLANT_SOCKET_DIST - lift;
-
+      {/* 6. Power plant placement targets, on top of everything so they are never hidden */}
+      <g className="plant-targets-layer">
+        {board.intersections.map((node) =>
+          node.adjacentHexIds.map((hexId) => {
             const slotKey = `${node.id}-${hexId}`;
+            if (!(highlightedCutoutSlots?.has(slotKey) ?? false)) return null;
+            const slot = plantSlot(board, node, hexId);
             const plant = node.powerPlants.find((p) => p.hexId === hexId) ?? null;
-            const isHighlighted = highlightedCutoutSlots?.has(slotKey) ?? false;
-
-            if (!plant && !isHighlighted) return null;
-
             return (
               <g
                 key={slotKey}
@@ -879,32 +916,21 @@ export function IslandBoardSvg({
                   }
                 }}
                 role="button"
-                tabIndex={isHighlighted ? 0 : -1}
+                tabIndex={0}
                 aria-label={`Power plant cutout at intersection ${node.id} on hex ${hexId}${plant ? `: ${plant.type} plant owned by ${plant.playerId}` : ' (available)'}`}
-                style={{ cursor: isHighlighted ? 'pointer' : 'inherit' }}
+                style={{ cursor: 'pointer' }}
               >
-                {plant && (
-                  <g className={isFresh(`p${slotKey}`) ? 'piece-drop' : undefined}>
-                    <PowerPlantCylinderSvg type={plant.type} cx={slotX} cy={slotY} r={PLANT_RADIUS} />
+                <g data-testid={`plant-target-${slotKey}`} transform={`translate(${slot.x}, ${slot.y})`}>
+                  <circle r={13} fill="transparent" />
+                  <g className="target-pulse">
+                    <circle r={8.5} fill="rgba(47, 154, 83, 0.85)" stroke="#ffffff" strokeWidth={2} />
+                    <polygon points="-1,-4.5 2.8,-4.5 0,0 3.2,0 -2.2,5 -0.5,0.5 -3.2,0.5" fill="#ffc83a" />
                   </g>
-                )}
-
-                {isHighlighted && (
-                  <g data-testid={`plant-target-${slotKey}`} transform={`translate(${slotX}, ${slotY})`}>
-                    <circle r={13} fill="transparent" />
-                    <g className="target-pulse">
-                      <circle r={8.5} fill="rgba(47, 154, 83, 0.85)" stroke="#ffffff" strokeWidth={2} />
-                      <polygon
-                        points="-1,-4.5 2.8,-4.5 0,0 3.2,0 -2.2,5 -0.5,0.5 -3.2,0.5"
-                        fill="#ffc83a"
-                      />
-                    </g>
-                  </g>
-                )}
+                </g>
               </g>
             );
-          });
-        })}
+          })
+        )}
       </g>
 
       </g>
