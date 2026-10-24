@@ -360,11 +360,18 @@ const EVENT_NAMES: Record<string, string> = {
   governmentFunding: 'Government Funding',
 };
 
+export interface HumanizeLogOptions {
+  privacyCurtain?: boolean;
+  viewerName?: string | null;
+}
+
 /**
  * Rewrites engine log lines for people: event ids become names, board ids (intersection 12,
  * path 26, hex 3) are dropped, and bookkeeping lines are phrased plainly.
+ * When privacyCurtain is active, resource gains from supply, steals, and trades are redacted
+ * for any viewer other than the actor who took them.
  */
-export function humanizeLog(message: string): string {
+export function humanizeLog(message: string, options?: HumanizeLogOptions): string {
   let m = message;
   for (const [id, name] of Object.entries(EVENT_NAMES)) {
     m = m.split(id).join(name);
@@ -376,6 +383,7 @@ export function humanizeLog(message: string): string {
       num === 'null' ? `the ${terrain}` : `the ${terrain} ${num}`
     )
     .replace(/ (on|at) (intersection|node|path) \d+( facing hex \d+)?/g, '')
+    .replace(/\bat harbor \d+\b/g, 'at harbor')
     .replace(/ on hex \d+/g, '')
     .replace(/ on (node|hex) \d+\./g, '.')
     .replace(/^Triggering event resolver for: .+$/, '')
@@ -387,6 +395,75 @@ export function humanizeLog(message: string): string {
     .replace(/ track reached capacity/, ' track')
     .replace(/ \(\d+\/\d+\)\.$/, '.')
     .replace(/ \(\+1 net VP, \+1 net LF\)| \(\+1 VP, \+1 LF\)/g, '');
+
+  if (options?.privacyCurtain) {
+    const viewer = options.viewerName?.trim();
+
+    // 1. Steal: `${thief} stole 1 ${cardLabel} card from ${victim}.`
+    m = m.replace(
+      /^(.+?) stole 1 (?:lumber|brick|natural_fiber|fiber|food|steel|science) card from (.+?)\.$/,
+      (match, thief, victim) => {
+        if (viewer && thief.trim() === viewer) return match;
+        return `${thief} stole 1 card from ${victim}.`;
+      }
+    );
+
+    // 2. Events taking from supply: `... (Name) took 1 <cardType> card from the supply.`
+    m = m.replace(
+      /(.*?\(([^)]+)\)|^(.+?))\s+took 1 (?:lumber|brick|natural_fiber|fiber|food|steel|science) card from the supply\./g,
+      (match, prefix, parenActor, startActor) => {
+        const actor = (parenActor ?? startActor).trim();
+        if (viewer && actor === viewer) return match;
+        return `${prefix} took 1 card from the supply.`;
+      }
+    );
+
+    // 3. Production Increase: `... (Name) built a free fossil fuel plant ... and took 1 <res>.`
+    m = m.replace(
+      /(Production Increase: Highest local footprint \(([^)]+)\) built a free fossil fuel plant.*?\s+and took 1 )(?:lumber|brick|natural_fiber|fiber|food|steel|science)(\.)/,
+      (match, prefix, actor, suffix) => {
+        if (viewer && actor.trim() === viewer) return match;
+        return `${prefix.replace(/and took 1 $/, 'and took 1 card')}${suffix}`;
+      }
+    );
+
+    // 4. Supply trade: `${player} traded with supply to receive 1 <res>.`
+    m = m.replace(
+      /^(.+?) traded with supply to receive 1 (?:lumber|brick|natural_fiber|fiber|food|steel|science)\.$/,
+      (match, actor) => {
+        if (viewer && actor.trim() === viewer) return match;
+        return `${actor} traded with supply to receive 1 card.`;
+      }
+    );
+
+    // 5. Harbor trade: `${player} traded at harbor ... to receive 1 <res>.`
+    m = m.replace(
+      /^(.+?) traded at harbor(?: \S+)? to receive 1 (?:lumber|brick|natural_fiber|fiber|food|steel|science)\.$/,
+      (match, actor) => {
+        if (viewer && actor.trim() === viewer) return match;
+        return `${actor} traded at harbor to receive 1 card.`;
+      }
+    );
+
+    // 6. Energy buy card: `${player} spent 2 energy to take 1 <res> from supply.`
+    m = m.replace(
+      /^(.+?) spent 2 energy to take 1 (?:lumber|brick|natural_fiber|fiber|food|steel|science) from supply\.$/,
+      (match, actor) => {
+        if (viewer && actor.trim() === viewer) return match;
+        return `${actor} spent 2 energy to take 1 card from supply.`;
+      }
+    );
+
+    // 7. Research Grant: `${player} played Research Grant: took 2 cards (<cards>) from supply.`
+    m = m.replace(
+      /^(.+?) played Research Grant: took 2 cards \([^)]+\) from supply\.$/,
+      (match, actor) => {
+        if (viewer && actor.trim() === viewer) return match;
+        return `${actor} played Research Grant: took 2 cards from supply.`;
+      }
+    );
+  }
+
   return m;
 }
 

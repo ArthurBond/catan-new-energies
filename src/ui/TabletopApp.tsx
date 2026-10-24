@@ -288,10 +288,16 @@ function describeAction(
   prev: GameState,
   next: GameState,
   /** Online: the disc the server says was drawn (the redacted state has no bag to diff). */
-  drawn?: EventDiscType | null
+  drawn?: EventDiscType | null,
+  viewerPlayerId?: PlayerId | null,
+  privacyCurtain?: boolean
 ): Toast {
   const name = next.players[action.playerId]?.name ?? action.playerId;
-  const detail = humanizeLog(next.log[next.log.length - 1]?.message ?? '');
+  const viewerName = viewerPlayerId ? next.players[viewerPlayerId]?.name : null;
+  const detail = humanizeLog(next.log[next.log.length - 1]?.message ?? '', {
+    privacyCurtain,
+    viewerName,
+  });
   const base = { id: Date.now() + Math.random(), playerId: action.playerId, detail };
   switch (action.type) {
     case 'SETUP_ROLL_DICE': {
@@ -523,7 +529,7 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
     setStealPrompt(null);
     setHoveredNodeId(null);
     setHoveredEdgeId(null);
-    setToast(describeAction(lastAction, prev, next, drawnEventDisc));
+    setToast(describeAction(lastAction, prev, next, drawnEventDisc, myPlayerId, true));
     if ((lastAction.type === 'ROLL_DICE' || lastAction.type === 'SETUP_ROLL_DICE') && next.lastDiceRoll) {
       setRollAnimKey(Date.now());
     }
@@ -601,7 +607,8 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
       setStealPrompt(null);
       setHoveredNodeId(null);
       setHoveredEdgeId(null);
-      setToast(describeAction(action, gameState, next));
+      const isCurtain = Boolean(lobbyConfig.privacyCurtain || online);
+      setToast(describeAction(action, gameState, next, undefined, displayedMatPlayerId, isCurtain));
       if ((action.type === 'ROLL_DICE' || action.type === 'SETUP_ROLL_DICE') && next.lastDiceRoll) {
         setRollAnimKey(Date.now());
       }
@@ -638,6 +645,7 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
         lobbyConfig.seats[prevActing ?? 'orange']?.controller === 'human'
       ) {
         setPrivacyCurtainForPlayer(nextActing);
+        setToast(null);
       }
     } catch (err) {
       console.warn('Action rejected:', err);
@@ -1264,6 +1272,8 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
           state={gameState}
           seats={lobbyConfig.seats}
           inspectedPlayerId={displayedMatPlayerId}
+          viewerPlayerId={displayedMatPlayerId}
+          privacyCurtain={lobbyConfig.privacyCurtain || Boolean(online)}
           // Online the board on show is always mine
           onInspect={(pid) => !online && setInspectedPlayerId(pid)}
           roleLabels={online?.roleLabels}

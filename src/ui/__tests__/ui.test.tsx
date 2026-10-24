@@ -3,10 +3,11 @@ import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInitialGameState } from '../../engine/setup';
-import { BUILD_DESCRIPTIONS } from '../gameView';
+import { BUILD_DESCRIPTIONS, humanizeLog } from '../gameView';
 import { IslandBoardSvg } from '../IslandBoardSvg';
 import { PendingDecisionBanner } from '../Modals';
 import { PlayerMat } from '../PlayerMat';
+import { PlayersRail } from '../PlayersRail';
 import { TabletopApp } from '../TabletopApp';
 
 describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
@@ -666,6 +667,161 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
     // Modal is restored
     expect(container.querySelector('[data-testid="pending-decision-modal"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="peeking-card-choice-banner"]')).toBeNull();
+  });
+
+  describe('Pass-the-device curtain "Hide hands" activity log & message redaction', () => {
+    it('redacts steals, event takes, fossil plant bonuses, trades, and energy purchases for other players when privacyCurtain is active', () => {
+      // 1. Steals
+      const stealLog = 'Orange stole 1 lumber card from Blue.';
+      // Open table (privacyCurtain: false)
+      expect(humanizeLog(stealLog, { privacyCurtain: false, viewerName: 'Blue' })).toBe(
+        'Orange stole 1 lumber card from Blue.'
+      );
+      // Hide hands: thief sees what they stole
+      expect(humanizeLog(stealLog, { privacyCurtain: true, viewerName: 'Orange' })).toBe(
+        'Orange stole 1 lumber card from Blue.'
+      );
+      // Hide hands: victim / other players do not see what was stolen
+      expect(humanizeLog(stealLog, { privacyCurtain: true, viewerName: 'Blue' })).toBe(
+        'Orange stole 1 card from Blue.'
+      );
+      expect(humanizeLog(stealLog, { privacyCurtain: true, viewerName: 'Purple' })).toBe(
+        'Orange stole 1 card from Blue.'
+      );
+
+      // 2. Events: Climate Conference & Sustainable Production
+      const ccLog = 'Climate Conference: Lowest local footprint (Orange) took 1 steel card from the supply.';
+      expect(humanizeLog(ccLog, { privacyCurtain: false, viewerName: 'Blue' })).toBe(
+        'Climate Conference: Lowest local footprint (Orange) took 1 steel card from the supply.'
+      );
+      expect(humanizeLog(ccLog, { privacyCurtain: true, viewerName: 'Orange' })).toBe(
+        'Climate Conference: Lowest local footprint (Orange) took 1 steel card from the supply.'
+      );
+      expect(humanizeLog(ccLog, { privacyCurtain: true, viewerName: 'Blue' })).toBe(
+        'Climate Conference: Lowest local footprint (Orange) took 1 card from the supply.'
+      );
+
+      const spLog = 'Sustainable Production: Most renewable plants (Purple) took 1 science card from the supply.';
+      expect(humanizeLog(spLog, { privacyCurtain: true, viewerName: 'Purple' })).toBe(
+        'Sustainable Production: Most renewable plants (Purple) took 1 science card from the supply.'
+      );
+      expect(humanizeLog(spLog, { privacyCurtain: true, viewerName: 'Orange' })).toBe(
+        'Sustainable Production: Most renewable plants (Purple) took 1 card from the supply.'
+      );
+
+      // 3. Event: Production Increase fossil plant resource bonus
+      const piLog =
+        'Production Increase: Highest local footprint (Orange) built a free fossil fuel plant at node 12 facing hex 4 and took 1 lumber.';
+      expect(humanizeLog(piLog, { privacyCurtain: true, viewerName: 'Orange' })).toBe(
+        'Production Increase: Highest local footprint (Orange) built a free fossil fuel plant and took 1 lumber.'
+      );
+      expect(humanizeLog(piLog, { privacyCurtain: true, viewerName: 'Blue' })).toBe(
+        'Production Increase: Highest local footprint (Orange) built a free fossil fuel plant and took 1 card.'
+      );
+
+      // 4. Supply trade
+      const supplyTradeLog = 'Orange traded with supply to receive 1 brick.';
+      expect(humanizeLog(supplyTradeLog, { privacyCurtain: true, viewerName: 'Orange' })).toBe(
+        'Orange traded with supply to receive 1 brick.'
+      );
+      expect(humanizeLog(supplyTradeLog, { privacyCurtain: true, viewerName: 'Blue' })).toBe(
+        'Orange traded with supply to receive 1 card.'
+      );
+
+      // 5. Harbor trade
+      const harborTradeLog = 'Orange traded at harbor 0 to receive 1 natural_fiber.';
+      expect(humanizeLog(harborTradeLog, { privacyCurtain: true, viewerName: 'Orange' })).toBe(
+        'Orange traded at harbor to receive 1 fiber.'
+      );
+      expect(humanizeLog(harborTradeLog, { privacyCurtain: true, viewerName: 'Blue' })).toBe(
+        'Orange traded at harbor to receive 1 card.'
+      );
+
+      // 6. Energy buy card
+      const energyBuyLog = 'Orange spent 2 energy to take 1 science from supply.';
+      expect(humanizeLog(energyBuyLog, { privacyCurtain: true, viewerName: 'Orange' })).toBe(
+        'Orange spent 2 energy to take 1 science from supply.'
+      );
+      expect(humanizeLog(energyBuyLog, { privacyCurtain: true, viewerName: 'Blue' })).toBe(
+        'Orange spent 2 energy to take 1 card from supply.'
+      );
+
+      // 7. Research Grant dev card
+      const rgLog = 'Orange played Research Grant: took 2 cards (lumber, brick) from supply.';
+      expect(humanizeLog(rgLog, { privacyCurtain: true, viewerName: 'Orange' })).toBe(
+        'Orange played Research Grant: took 2 cards (lumber, brick) from supply.'
+      );
+      expect(humanizeLog(rgLog, { privacyCurtain: true, viewerName: 'Blue' })).toBe(
+        'Orange played Research Grant: took 2 cards from supply.'
+      );
+
+      // 8. Discards remain visible ("obviously discards are different because everyone can see that")
+      const penaltyLog = 'Climate Conference: Highest local footprint (Blue) discarded 1 lumber card.';
+      expect(humanizeLog(penaltyLog, { privacyCurtain: true, viewerName: 'Orange' })).toBe(
+        'Climate Conference: Highest local footprint (Blue) discarded 1 lumber card.'
+      );
+      const roll7Log = 'Blue discarded 4 cards on roll of 7.';
+      expect(humanizeLog(roll7Log, { privacyCurtain: true, viewerName: 'Orange' })).toBe(
+        'Blue discarded 4 cards on roll of 7.'
+      );
+    });
+
+    it('renders redacted activity log in PlayersRail when privacyCurtain is active', () => {
+      const state = createInitialGameState({ setupMode: 'first', playerCount: 4, seed: 42 });
+      state.log.push({
+        timestamp: 1,
+        message: 'Purple stole 1 lumber card from Orange.',
+      });
+      state.log.push({
+        timestamp: 2,
+        message: 'Climate Conference: Lowest local footprint (Purple) took 1 steel card from the supply.',
+      });
+      state.log.push({
+        timestamp: 3,
+        message: 'Orange traded with supply to receive 1 brick.',
+      });
+      state.log.push({
+        timestamp: 4,
+        message: 'Climate Conference: Highest local footprint (Purple) discarded 1 food card.',
+      });
+
+      const defaultSeats = {
+        orange: { playerId: 'orange' as const, name: 'Orange', controller: 'human' as const, botStrategy: 'Balanced' as const, botDifficulty: 'normal' as const },
+        purple: { playerId: 'purple' as const, name: 'Purple', controller: 'human' as const, botStrategy: 'Balanced' as const, botDifficulty: 'normal' as const },
+        pink: { playerId: 'pink' as const, name: 'Pink', controller: 'bot' as const, botStrategy: 'Balanced' as const, botDifficulty: 'normal' as const },
+        blue: { playerId: 'blue' as const, name: 'Blue', controller: 'bot' as const, botStrategy: 'Balanced' as const, botDifficulty: 'normal' as const },
+      };
+
+      // Render with privacyCurtain: true, viewer: Orange
+      act(() => {
+        render(
+          <PlayersRail
+            state={state}
+            seats={defaultSeats}
+            inspectedPlayerId="orange"
+            viewerPlayerId="orange"
+            privacyCurtain={true}
+            onInspect={() => {}}
+          />,
+          container
+        );
+      });
+
+      const feedText = container.querySelector('[data-testid="game-log"]')?.textContent ?? '';
+      // Purple's steal is masked to Orange
+      expect(feedText).toContain('Purple stole 1 card from Orange.');
+      expect(feedText).not.toContain('Purple stole 1 lumber card from Orange.');
+
+      // Purple's event card pick is masked to Orange
+      expect(feedText).toContain('took 1 card from the supply.');
+      expect(feedText).not.toContain('took 1 steel card from the supply.');
+
+      // Orange's own supply trade is visible to Orange
+      expect(feedText).toContain('Orange traded with supply to receive 1 brick.');
+
+      // Discards are completely visible
+      expect(feedText).toContain('discarded 1 food card.');
+    });
   });
 });
 
