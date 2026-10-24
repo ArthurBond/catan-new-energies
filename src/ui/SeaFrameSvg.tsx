@@ -1,0 +1,1010 @@
+/**
+ * CATAN: New Energies — Sea Frame SVG Component
+ *
+ * Renders:
+ * 1. Seamless azure ocean frame with shallow turquoise reefs, wave crests & swimming Whales.
+ * 2. 9 coastal Harbors (`[data-testid="harbor-0"]`..`harbor-8`) with pier lines, 3:1 / 2:1 labels & resource icons.
+ * 3. 12 o'clock Green Island Victory Point Track (`1..10`) with 3D player cylinder markers.
+ * 4. 1–2 o'clock Diagonal Global Footprint Track (`0..28` in 4P / `0..21` in 3P) with 3P/4P Whale pod, draw bands & the black footprint marker (with the footprint cloud).
+ * 5. 7 Coastal Event Disc Islands (`[data-testid="event-track-<type>"]`) with empty/filled disc slots.
+ */
+
+import 'preact/compat';
+import { GF_CONFIG_3P, GF_CONFIG_4P, getEventDiscDrawCount } from '../engine/config';
+import {
+  Board,
+  EventDiscType,
+  PlayerId,
+  PlayerState,
+} from '../engine/types';
+import {
+  BOARD_CENTER_X,
+  BOARD_CENTER_Y,
+  ISLAND_TRANSFORM,
+  EVENT_TRACK_METADATA,
+  latticeToSvg,
+  PLAYER_THEMES,
+} from './theme';
+import { FOOTPRINT_CLOUD_CENTRE, FOOTPRINT_CLOUD_PATH_D } from './footprintCloud';
+import { HarborPier, harborPierLayout } from './harborPier';
+import { EventIconSvg, PlayerEmblemSvg, ResourceIconSvg } from './WoodenPiecesSvg';
+
+export interface SeaFrameSvgProps {
+  board: Board;
+  playerCount: 3 | 4;
+  playerOrder: PlayerId[];
+  players: Record<PlayerId, PlayerState>;
+  clampedGF: number;
+  trueTotalLF: number;
+  eventTracks: Record<string, number>;
+  onSelectEventTrackInfo?: (track: EventDiscType) => void;
+}
+
+/**
+ * Illustrated Ocean Whale swimming in the azure sea with water spout & foam ripples
+ */
+function OceanWhaleSvg({
+  cx,
+  cy,
+  scale = 1,
+  rotate = 0,
+  flipX = false,
+  showSpout = true,
+}: {
+  cx: number;
+  cy: number;
+  scale?: number;
+  rotate?: number;
+  flipX?: boolean;
+  showSpout?: boolean;
+}) {
+  const sx = flipX ? -scale : scale;
+  return (
+    <g
+      transform={`translate(${cx.toFixed(1)}, ${cy.toFixed(1)}) rotate(${rotate}) scale(${sx}, ${scale})`}
+      pointerEvents="none"
+    >
+      <g className="ocean-whale-animated">
+        {/* White water wake / surface ripple */}
+        <ellipse
+          cx={-2}
+          cy={4.5}
+          rx={19}
+          ry={5.2}
+          fill="rgba(186, 234, 255, 0.25)"
+          stroke="rgba(224, 246, 255, 0.65)"
+          strokeWidth={1}
+          strokeDasharray="6 3"
+        />
+
+        {/* Water spout mist above blowhole */}
+        {showSpout && (
+          <g stroke="rgba(235, 250, 255, 0.85)" strokeWidth={1.3} fill="none" strokeLinecap="round">
+            <path d="M 6 -5 Q 7 -13, 2 -16" />
+            <path d="M 7.5 -5 Q 10 -12, 14 -14" />
+            <circle cx={1.5} cy={-17.5} r={1} fill="#ffffff" stroke="none" />
+            <circle cx={14.5} cy={-15.5} r={0.9} fill="#ffffff" stroke="none" />
+          </g>
+        )}
+
+        {/* Whale drop shadow in water */}
+        <path
+          d="M -16 2 C -12 -6, 2 -8, 12 -3 C 16 -1, 17 3, 13 4.5 C 5 6, -8 5.5, -16 2 Z"
+          transform="translate(1, 2.2)"
+          fill="rgba(7, 34, 62, 0.45)"
+        />
+
+        {/* Tail Flukes */}
+        <path
+          d="M -14 1.5 L -22 -4.5 Q -20 0, -23 4.5 Z"
+          fill="#164b7a"
+          stroke="#0d3152"
+          strokeWidth={0.9}
+          strokeLinejoin="round"
+        />
+
+        {/* Main Whale Dorsal Body */}
+        <path
+          d="M -15 1.5 C -11 -6.5, 3 -8.5, 13 -2.5 C 16.5 -0.5, 16.5 3.2, 12.5 4.2 C 4 5.5, -7 5, -15 1.5 Z"
+          fill="#1f629c"
+          stroke="#0d3152"
+          strokeWidth={1.1}
+        />
+
+        {/* Light Ventral Belly Grooves */}
+        <path
+          d="M 1 3.8 C 6 4.5, 11 4, 13.5 2.2 C 11 0.8, 5 1.5, 1 3.8 Z"
+          fill="#bfe6fa"
+        />
+
+        {/* Dorsal Fin */}
+        <path
+          d="M -5 -4.2 Q -7 -8.5, -10 -7.5 Q -8 -4.5, -8 -3.5 Z"
+          fill="#164b7a"
+          stroke="#0d3152"
+          strokeWidth={0.8}
+        />
+
+        {/* Pectoral Fin */}
+        <path
+          d="M 3 2.5 Q 1 7.5, -3 6.5 Q -1 3.5, 1 2 Z"
+          fill="#2975b5"
+          stroke="#0d3152"
+          strokeWidth={0.8}
+        />
+
+        {/* Whale Eye & Brow Highlight */}
+        <circle cx={9.5} cy={-0.5} r={1.1} fill="#ffffff" />
+        <circle cx={9.8} cy={-0.5} r={0.55} fill="#0a2239" />
+        <path
+          d="M -7 -3.2 Q 2 -5.8, 10 -2.2"
+          fill="none"
+          stroke="rgba(190, 232, 255, 0.65)"
+          strokeWidth={1}
+          strokeLinecap="round"
+        />
+      </g>
+    </g>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Victory point track geometry (board units, centre 500,500)
+// ---------------------------------------------------------------------------
+
+/** Track runs from 3 (everyone's starting score) to 10 (the winning score). */
+export const VP_FIRST = 3;
+export const VP_LAST = 10;
+export const VP_COUNTER_R = 12;
+/** The green band follows the rim: slots sit on its centre line (angles in degrees, y down). */
+export const VP_ARC = { startDeg: -113, endDeg: -81, rMid: 439, halfW: 25 };
+const VP_REEF_EXTRA = 6.5;
+/** Reef is shifted inward so its outer edge stays inside the rim: outer = rMid + halfW + extra */
+const VP_REEF_MID = 466 - (VP_ARC.halfW + VP_REEF_EXTRA);
+/** Label pill: arc on the sea below the reef, thick enough for the text, centred under the band. */
+export const VP_TITLE = { rMid: 388, spanDeg: 8.8, thickness: 16 };
+
+function polarPt(radius: number, deg: number): [number, number] {
+  const rad = (deg * Math.PI) / 180;
+  return [BOARD_CENTER_X + Math.cos(rad) * radius, BOARD_CENTER_Y + Math.sin(rad) * radius];
+}
+
+const pt = ([x, y]: [number, number]) => `${x.toFixed(2)} ${y.toFixed(2)}`;
+
+/** A band of constant width along the rim, from angle a0 to a1, with semicircular ends. */
+function vpBandPath(a0: number, a1: number, rMid: number, halfW: number): string {
+  const rO = rMid + halfW;
+  const rI = rMid - halfW;
+  return (
+    `M ${pt(polarPt(rO, a0))} A ${rO} ${rO} 0 0 1 ${pt(polarPt(rO, a1))} ` +
+    `A ${halfW} ${halfW} 0 0 1 ${pt(polarPt(rI, a1))} ` +
+    `A ${rI} ${rI} 0 0 0 ${pt(polarPt(rI, a0))} ` +
+    `A ${halfW} ${halfW} 0 0 1 ${pt(polarPt(rO, a0))} Z`
+  );
+}
+
+/** Centre line of the label pill (an arc concentric with the rim). */
+function vpTitleArcPath(): string {
+  const mid = (VP_ARC.startDeg + VP_ARC.endDeg) / 2;
+  const r = VP_TITLE.rMid;
+  return `M ${pt(polarPt(r, mid - VP_TITLE.spanDeg))} A ${r} ${r} 0 0 1 ${pt(polarPt(r, mid + VP_TITLE.spanDeg))}`;
+}
+
+// ---------------------------------------------------------------------------
+// Global footprint track cells and marker (cell units, y down)
+// ---------------------------------------------------------------------------
+
+/** Half the side of an ordinary cell (13.6 wide) and of the current one, which is a little larger. */
+const GF_CELL_HALF = 6.8;
+const GF_CELL_CURRENT_HALF = 9.2;
+
+/**
+ * The black wooden footprint marker: a rounded block lit from the top left, with the footprint cloud on its
+ * top face. It stays upright on screen whatever the angle of its cell, so the cloud always reads the right way
+ * up and the light never changes direction; it is centred on the cell and sized to clear the ring at any tilt.
+ */
+function GfMarker({ counterRotateDeg }: { counterRotateDeg: number }) {
+  const cloudScale = 0.45;
+  return (
+    <g data-testid="gf-marker" transform={`rotate(${counterRotateDeg.toFixed(1)})`}>
+      {/* Soft contact shadow, away from the light */}
+      <rect x={-5.4} y={-4.7} width={11.6} height={11.2} rx={2.7} fill="rgba(0, 0, 0, 0.4)" />
+      {/* The near side of the block, darker than the top */}
+      <rect x={-5.8} y={-5.3} width={11.6} height={11.2} rx={2.7} fill="#0b0d10" />
+      {/* Top face with a faint rim light along its lit edges */}
+      <rect x={-5.8} y={-6.2} width={11.6} height={10.7} rx={2.7} fill="url(#gfMarkerTopGrad)" />
+      <rect
+        x={-5.4}
+        y={-5.8}
+        width={10.8}
+        height={9.9}
+        rx={2.3}
+        fill="none"
+        stroke="url(#gfMarkerRimGrad)"
+        strokeWidth={0.6}
+      />
+      {/* The same cloud as the footprint widget, centred on the top face */}
+      <path
+        data-testid="gf-marker-cloud"
+        d={FOOTPRINT_CLOUD_PATH_D}
+        transform={`translate(${(-FOOTPRINT_CLOUD_CENTRE.x * cloudScale).toFixed(2)}, ${(-0.85 - FOOTPRINT_CLOUD_CENTRE.y * cloudScale).toFixed(2)}) scale(${cloudScale})`}
+        fill="#f5f9fc"
+      />
+    </g>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Event disc islands: curved bands concentric with the rim
+// ---------------------------------------------------------------------------
+
+export const EVENT_TRACK = {
+  /** Centre line radius of every island */
+  rMid: 434,
+  /** Distance between neighbouring slot centres, along the arc */
+  slotStep: 23,
+  halfW: 15.5,
+  sandHalfW: 18.5,
+  reefHalfW: 22,
+  /** The name label sits on the inside: clear of the reef by labelGap */
+  labelThickness: 13,
+  labelGap: 5,
+  labelR: 434 - 22 - 5 - 13 / 2,
+};
+
+/** Angle (degrees) of slot i of an island whose middle sits at centerDeg. */
+export function eventSlotAngle(centerDeg: number, capacity: number, i: number): number {
+  const stepDeg = (EVENT_TRACK.slotStep / EVENT_TRACK.rMid) * (180 / Math.PI);
+  return centerDeg + (i - (capacity - 1) / 2) * stepDeg;
+}
+
+/** Length of the label pill's centre line (the round ends add half a thickness each side). */
+export function eventLabelArcLength(text: string): number {
+  return text.length * 3.9 + 4;
+}
+
+/**
+ * The "2:1" / "3:1" on a harbor, drawn from the outlines of the real typeface rather than as text.
+ * The glyph shapes are the digits 1, 2, 3 and the colon of Atkinson Hyperlegible Bold (Braille
+ * Institute, SIL Open Font License 1.1), extracted with opentype.js. Each digit is scaled so its ink
+ * runs from exactly y=0 to y=10 (the font's own digits differ by up to 3.5%, and the round ones
+ * overshoot), so the 1 can never be taller or shorter than the other digit, whatever the screen
+ * resolution or font loading. Every glyph's left ink edge is at x=0; the gaps are the font's own
+ * side bearings.
+ */
+const RATIO_GLYPHS = {
+  1: { width: 4.46, d: 'M4.46 10L2.24 10L2.24 3.29L0 3.29L0 1.45Q0.78 1.45 1.29 1.37Q1.81 1.29 2.15 0.98Q2.5 0.67 2.76 0L2.76 0L4.46 0L4.46 10' },
+  2: { width: 7.54, d: 'M7.54 10L0 10L0 8.16Q1.94 6.79 3.09 5.85Q4.24 4.9 4.74 4.18Q5.25 3.46 5.25 2.82L5.25 2.82Q5.25 2.25 4.85 1.96Q4.44 1.66 3.9 1.66L3.9 1.66Q3.44 1.66 3 1.92Q2.56 2.18 2.4 2.87L2.4 2.87L0.37 2.13Q0.76 1.1 1.74 0.55Q2.71 0 4 0L4 0Q5 0 5.79 0.33Q6.59 0.66 7.04 1.3Q7.5 1.94 7.5 2.87L7.5 2.87Q7.5 4.35 6.26 5.63Q5.01 6.9 2.85 8.16L2.85 8.16L7.54 8.16L7.54 10' },
+  3: { width: 7.66, d: 'M3.79 10L3.79 10Q2.97 10 2.21 9.77Q1.46 9.54 0.88 9.05Q0.31 8.57 0 7.8L0 7.8L2.03 7.08Q2.22 7.79 2.74 8.08Q3.25 8.37 3.85 8.37L3.85 8.37Q4.54 8.37 4.96 8.03Q5.37 7.7 5.37 7.11L5.37 7.11Q5.37 6.52 4.99 6.19Q4.6 5.87 3.98 5.74Q3.35 5.62 2.62 5.62L2.62 5.62L2.62 4.09Q3.88 4.09 4.57 3.74Q5.25 3.4 5.25 2.76L5.25 2.76Q5.25 2.2 4.79 1.91Q4.32 1.63 3.72 1.63L3.72 1.63Q3.18 1.63 2.72 1.89Q2.26 2.15 2.12 2.82L2.12 2.82L0.1 2.1Q0.4 1.36 0.97 0.9Q1.54 0.43 2.29 0.22Q3.04 0 3.85 0L3.85 0Q4.53 0 5.18 0.14Q5.82 0.29 6.35 0.6Q6.87 0.91 7.18 1.38Q7.5 1.85 7.5 2.5L7.5 2.5Q7.5 3.28 7.07 3.87Q6.65 4.45 6.13 4.74L6.13 4.74Q6.62 4.91 6.96 5.29Q7.31 5.66 7.49 6.11Q7.66 6.56 7.66 7.01L7.66 7.01Q7.66 8.02 7.12 8.68Q6.57 9.34 5.69 9.67Q4.81 10 3.79 10' },
+  colon: { width: 2.87, d: 'M1.44 5.35L1.44 5.35Q0.85 5.35 0.43 4.94Q0 4.53 0 3.94L0 3.94Q0 3.34 0.43 2.92Q0.85 2.5 1.44 2.5L1.44 2.5Q2.03 2.5 2.45 2.92Q2.87 3.34 2.87 3.94L2.87 3.94Q2.87 4.53 2.45 4.94Q2.03 5.35 1.44 5.35M1.44 10.18L1.44 10.18Q0.85 10.18 0.43 9.75Q0 9.32 0 8.74L0 8.74Q0 8.13 0.43 7.72Q0.85 7.31 1.44 7.31L1.44 7.31Q2.03 7.31 2.45 7.72Q2.87 8.13 2.87 8.74L2.87 8.74Q2.87 9.32 2.45 9.75Q2.03 10.18 1.44 10.18' },
+} as const;
+const RATIO_GAP = { digitColon: { 2: 0.93, 3: 1.1 }, colonOne: 1.04 } as const;
+
+function HarborRatio({ ratio, x, baseline, height }: { ratio: 2 | 3; x: number; baseline: number; height: number }) {
+  const scale = height / 10;
+  const colonX = RATIO_GLYPHS[ratio].width + RATIO_GAP.digitColon[ratio];
+  const oneX = colonX + RATIO_GLYPHS.colon.width + RATIO_GAP.colonOne;
+  const width = oneX + RATIO_GLYPHS[1].width;
+  return (
+    <g
+      data-ratio-label={`${ratio}:1`}
+      role="img"
+      aria-label={`${ratio}:1`}
+      transform={`translate(${x - (width / 2) * scale} ${baseline - height}) scale(${scale})`}
+      fill="#12304d"
+    >
+      <path data-ratio-glyph="digit" d={RATIO_GLYPHS[ratio].d} />
+      <path data-ratio-glyph="colon" d={RATIO_GLYPHS.colon.d} transform={`translate(${colonX} 0)`} />
+      <path data-ratio-glyph="one" d={RATIO_GLYPHS[1].d} transform={`translate(${oneX} 0)`} />
+    </g>
+  );
+}
+
+export function SeaFrameSvg({
+  board,
+  playerCount,
+  playerOrder,
+  players,
+  clampedGF,
+  trueTotalLF,
+  eventTracks,
+  onSelectEventTrackInfo,
+}: SeaFrameSvgProps) {
+  const gfConfig = playerCount === 4 ? GF_CONFIG_4P : GF_CONFIG_3P;
+  const currentDrawCount = getEventDiscDrawCount(clampedGF, playerCount);
+
+  // Group players by VP for the 12 o'clock track, which runs 3..10: everyone starts with a town (1)
+  // and a city (2), so nobody can be lower than 3 (before setup is finished they wait on 3)
+  const vpSlotPlayers = new Map<number, PlayerId[]>();
+  for (let v = VP_FIRST; v <= VP_LAST; v++) vpSlotPlayers.set(v, []);
+  for (const pid of playerOrder) {
+    const p = players[pid];
+    if (!p) continue;
+    const clampedVp = Math.max(VP_FIRST, Math.min(VP_LAST, p.victoryPoints || VP_FIRST));
+    vpSlotPlayers.get(clampedVp)!.push(pid);
+  }
+
+  return (
+    <g className="sea-frame-layer" data-testid="sea-frame">
+      <defs>
+        {/* Vibrant Coastal-to-Deep-Ocean Blue Radial Gradient */}
+        <radialGradient id="oceanRadialGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#7be0ff" style={{ stopColor: '#7be0ff' }} />
+          <stop offset="50%" stopColor="#56c4f2" style={{ stopColor: '#56c4f2' }} />
+          <stop offset="66%" stopColor="#2e96d6" style={{ stopColor: '#2e96d6' }} />
+          <stop offset="82%" stopColor="#1c74b8" style={{ stopColor: '#1c74b8' }} />
+          <stop offset="95%" stopColor="#135694" style={{ stopColor: '#135694' }} />
+          <stop offset="100%" stopColor="#0c3c6e" style={{ stopColor: '#0c3c6e' }} />
+        </radialGradient>
+
+        {/* Lush Green Coastal Island Gradient */}
+        <linearGradient id="greenIslandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#82b54c" style={{ stopColor: '#82b54c' }} />
+          <stop offset="60%" stopColor="#5d8f34" style={{ stopColor: '#5d8f34' }} />
+          <stop offset="100%" stopColor="#3f6920" style={{ stopColor: '#3f6920' }} />
+        </linearGradient>
+
+        {/* Rocky Brown Coastal Island Gradient */}
+        <linearGradient id="brownIslandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#ad9b7e" style={{ stopColor: '#ad9b7e' }} />
+          <stop offset="60%" stopColor="#85745b" style={{ stopColor: '#85745b' }} />
+          <stop offset="100%" stopColor="#5e503d" style={{ stopColor: '#5e503d' }} />
+        </linearGradient>
+
+        {/* Black wooden footprint marker: lit from the top left (top face, then a faint rim light) */}
+        <linearGradient id="gfMarkerTopGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#3b424b" style={{ stopColor: '#3b424b' }} />
+          <stop offset="100%" stopColor="#14171b" style={{ stopColor: '#14171b' }} />
+        </linearGradient>
+        <linearGradient id="gfMarkerRimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#ffffff" style={{ stopColor: '#ffffff', stopOpacity: 0.55 }} />
+          <stop offset="55%" stopColor="#ffffff" style={{ stopColor: '#ffffff', stopOpacity: 0.06 }} />
+          <stop offset="100%" stopColor="#ffffff" style={{ stopColor: '#ffffff', stopOpacity: 0 }} />
+        </linearGradient>
+      </defs>
+
+      {/* Outer Cardboard Table Drop Shadow */}
+      <circle cx={BOARD_CENTER_X + 6} cy={BOARD_CENTER_Y + 9} r={474} fill="rgba(0,0,0,0.46)" />
+
+      {/* Main Circular Sea Frame Base (with solid #1c74b8 fallback + rich ocean radial gradient + vibrant green outer rim matching BGG board) */}
+      <circle
+        cx={BOARD_CENTER_X}
+        cy={BOARD_CENTER_Y}
+        r={470}
+        fill="#1c74b8"
+      />
+      <circle
+        cx={BOARD_CENTER_X}
+        cy={BOARD_CENTER_Y}
+        r={470}
+        fill="url(#oceanRadialGrad)"
+        stroke="#38a832"
+        strokeWidth={7}
+      />
+
+      {/* Inner Rim Trim Ring */}
+      <circle
+        cx={BOARD_CENTER_X}
+        cy={BOARD_CENTER_Y}
+        r={465}
+        fill="none"
+        stroke="#1e6b1a"
+        strokeWidth={1.8}
+      />
+
+      {/* Wide Sandy Coastal Shelf around the Central 19-Hex Island (matching BGG board) */}
+      <circle
+        transform={ISLAND_TRANSFORM}
+        cx={BOARD_CENTER_X}
+        cy={BOARD_CENTER_Y}
+        r={286}
+        fill="rgba(122, 228, 255, 0.28)"
+        stroke="rgba(236, 226, 198, 0.55)"
+        strokeWidth={12}
+      />
+
+      {/* Subtle Wave Contour Ripples & Whitecaps */}
+      {[372, 400, 428, 452].map((r, idx) => (
+        <circle
+          key={r}
+          cx={BOARD_CENTER_X}
+          cy={BOARD_CENTER_Y}
+          r={r}
+          fill="none"
+          stroke="rgba(196, 238, 255, 0.28)"
+          strokeWidth={idx % 2 === 0 ? 1.4 : 1}
+          strokeDasharray={idx % 2 === 0 ? '20 12 6 12' : '32 16'}
+        />
+      ))}
+
+      {/* Hand-drawn Wave Whitecap Accents in the Ocean */}
+      {[
+        { x: 265, y: 170, rot: -32 },
+        { x: 755, y: 315, rot: 58 },
+        { x: 745, y: 695, rot: 125 },
+        { x: 510, y: 838, rot: 178 },
+        { x: 245, y: 715, rot: -135 },
+        { x: 162, y: 465, rot: -82 },
+      ].map((w, i) => (
+        <path
+          key={i}
+          d="M -12 0 Q -6 -4.5, 0 0 Q 6 -4.5, 12 0 M -7 5 Q 0 1.5, 7 5"
+          transform={`translate(${w.x}, ${w.y}) rotate(${w.rot})`}
+          fill="none"
+          stroke="rgba(220, 246, 255, 0.55)"
+          strokeWidth={1.4}
+          strokeLinecap="round"
+        />
+      ))}
+
+      {/* =================================================================== */}
+      {/* 0. WHALES IN THE OCEAN (3P / 4P Indicator Pod + Scenic Ocean Whales)*/}
+      {/* =================================================================== */}
+      <g data-testid="ocean-whales" aria-label={`Ocean whales (${playerCount}-player game indicator pod)`}>
+        {/* Official Rulebook Global Footprint Whale Pod (3 whales in 3P, 4 whales in 4P) */}
+        <g data-testid="gf-whale-pod">
+          <OceanWhaleSvg cx={586} cy={128} scale={0.8} rotate={22} showSpout={true} />
+          <OceanWhaleSvg cx={636} cy={146} scale={0.72} rotate={30} showSpout={false} />
+          <OceanWhaleSvg cx={846} cy={396} scale={0.76} rotate={78} showSpout={true} />
+          {playerCount === 4 && (
+            <OceanWhaleSvg cx={872} cy={478} scale={0.66} rotate={88} showSpout={false} />
+          )}
+        </g>
+
+        {/* Scenic Whales Swimming in the Outer Blue Sea Channels */}
+        <OceanWhaleSvg cx={330} cy={156} scale={0.9} rotate={-28} showSpout={true} />
+        <OceanWhaleSvg cx={124} cy={392} scale={0.8} rotate={-75} flipX={true} showSpout={true} />
+        <OceanWhaleSvg cx={270} cy={836} scale={0.88} rotate={22} showSpout={true} />
+        <OceanWhaleSvg cx={692} cy={838} scale={0.84} rotate={-24} flipX={true} showSpout={true} />
+      </g>
+
+      {/* =================================================================== */}
+      {/* 1. 9 COASTAL HARBORS                                                */}
+      {/* =================================================================== */}
+      <g transform={ISLAND_TRANSFORM}>
+      {board.harbors.map((harbor) => {
+        const n1 = board.intersections[harbor.nodeIds[0]]!;
+        const n2 = board.intersections[harbor.nodeIds[1]]!;
+        const p1 = latticeToSvg(n1.u, n1.v);
+        const p2 = latticeToSvg(n2.u, n2.v);
+
+        const { badge, piers } = harborPierLayout(p1, p2, { x: BOARD_CENTER_X, y: BOARD_CENTER_Y });
+        const harborX = badge.x;
+        const harborY = badge.y;
+
+        return (
+          <g
+            key={harbor.id}
+            data-testid={`harbor-${harbor.id}`}
+            aria-label={`Harbor ${harbor.id}: ${harbor.ratio}:1 ${harbor.resource ?? 'generic'}`}
+          >
+            {/* Two wooden jetties, one from each coastal intersection to the badge rim */}
+            {piers.map((pier, i) => (
+              <HarborPier key={i} harborId={harbor.id} index={i} pier={pier} />
+            ))}
+
+            {/* Harbor Water Ripple Halo */}
+            <circle
+              cx={harborX}
+              cy={harborY}
+              r={22.5}
+              fill="rgba(186, 236, 255, 0.28)"
+            />
+
+            {/* Harbor Water Badge */}
+            <circle
+              cx={harborX}
+              cy={harborY}
+              r={20}
+              fill="#f7f6f0"
+              stroke="#1b4f82"
+              strokeWidth={2}
+            />
+
+            {harbor.resource ? (
+              <>
+                <ResourceIconSvg type={harbor.resource} cx={harborX} cy={harborY - 5} scale={0.85} />
+                <HarborRatio ratio={2} x={harborX} baseline={harborY + 12.5} height={6.3} />
+              </>
+            ) : (
+              <>
+                <HarborRatio ratio={3} x={harborX} baseline={harborY - 1} height={7.4} />
+                <text
+                  x={harborX}
+                  y={harborY + 9.5}
+                  textAnchor="middle"
+                  fontSize="6.8"
+                  fontWeight="800"
+                  letterSpacing="0.5"
+                  fill="#2c5882"
+                >
+                  ANY
+                </text>
+              </>
+            )}
+          </g>
+        );
+      })}
+
+      </g>
+
+      {/* =================================================================== */}
+      {/* 2. TOP 12 O'CLOCK GREEN COASTAL PENINSULA — VICTORY POINTS (3..10; everyone starts on 3)         */}
+      {/* =================================================================== */}
+      <g data-testid="vp-track">
+        {/* Shallow turquoise reef & foam around the peninsula (drawn first so it frames the green) */}
+        <path
+          data-testid="vp-reef"
+          d={vpBandPath(VP_ARC.startDeg, VP_ARC.endDeg, VP_REEF_MID, VP_ARC.halfW + VP_REEF_EXTRA)}
+          fill="rgba(138, 232, 255, 0.36)"
+          stroke="rgba(220, 248, 255, 0.7)"
+          strokeWidth={4}
+          strokeLinejoin="round"
+        />
+
+        {/* Green coastal peninsula: a band concentric with the rim, wide enough to hold every counter */}
+        <path
+          data-testid="vp-peninsula"
+          d={vpBandPath(VP_ARC.startDeg, VP_ARC.endDeg, VP_ARC.rMid, VP_ARC.halfW)}
+          fill="url(#greenIslandGrad)"
+          stroke="#ece2c6"
+          strokeWidth={3.5}
+          strokeLinejoin="round"
+        />
+
+        {/* Label on the open sea below the shore: a pill that follows the arc, clear of the sand */}
+        <g data-testid="vp-title">
+          <path
+            id="vp-title-arc"
+            data-testid="vp-title-arc"
+            d={vpTitleArcPath()}
+            fill="none"
+            stroke="rgba(190, 232, 255, 0.5)"
+            strokeWidth={VP_TITLE.thickness + 1.8}
+            strokeLinecap="round"
+          />
+          <path
+            d={vpTitleArcPath()}
+            fill="none"
+            stroke="rgba(14, 42, 68, 0.9)"
+            strokeWidth={VP_TITLE.thickness}
+            strokeLinecap="round"
+          />
+          <text fontSize="7.6" fontWeight="800" fill="#f0f8ff" textAnchor="middle" dy="2.6">
+            <textPath href="#vp-title-arc" startOffset="50%">
+              Victory points · 10 to win
+            </textPath>
+          </text>
+        </g>
+
+        {/* Stone counters 3..10 along the band's centre line */}
+        {Array.from({ length: VP_LAST - VP_FIRST + 1 }, (_, idx) => {
+          const vp = VP_FIRST + idx;
+          const deg =
+            VP_ARC.startDeg + (idx / (VP_LAST - VP_FIRST)) * (VP_ARC.endDeg - VP_ARC.startDeg);
+          const rad = (deg * Math.PI) / 180;
+          const cx = BOARD_CENTER_X + Math.cos(rad) * VP_ARC.rMid;
+          const cy = BOARD_CENTER_Y + Math.sin(rad) * VP_ARC.rMid;
+          const occupants = vpSlotPlayers.get(vp) ?? [];
+
+          return (
+            <g key={vp} data-testid={`vp-slot-${vp}`}>
+              {/* Outer stone ring */}
+              <circle
+                cx={cx}
+                cy={cy}
+                r={VP_COUNTER_R}
+                fill={vp === 10 ? '#f7e594' : '#cbd5c0'}
+                stroke={vp === 10 ? '#9c7816' : '#4a5d3f'}
+                strokeWidth={1.8}
+              />
+              <circle
+                cx={cx}
+                cy={cy}
+                r={VP_COUNTER_R - 2.6}
+                fill={vp === 10 ? '#fff3b8' : '#e6ebe0'}
+                stroke="rgba(74, 93, 63, 0.45)"
+                strokeWidth={0.9}
+              />
+              <text
+                x={cx}
+                y={cy + 3.8}
+                textAnchor="middle"
+                fontSize="10.4"
+                fontWeight="900"
+                fill="#1e2b18"
+              >
+                {vp}
+              </text>
+
+              {/* Render 3D Wooden Player Cylinder Discs occupying this VP slot */}
+              {occupants.map((pid, pIdx) => {
+                const pTheme = PLAYER_THEMES[pid];
+                const stackOffset = pIdx * -3.2;
+                const mx = cx + (occupants.length > 1 ? (pIdx - (occupants.length - 1) / 2) * 4.5 : 0);
+                const my = cy + stackOffset;
+
+                return (
+                  <g
+                    key={pid}
+                    data-testid={`vp-marker-${pid}`}
+                    transform={`translate(${mx.toFixed(1)}, ${my.toFixed(1)})`}
+                  >
+                    <ellipse cx={1.4} cy={3.2} rx={8.2} ry={6.8} fill="rgba(0,0,0,0.42)" />
+                    <ellipse
+                      cx={0}
+                      cy={2.2}
+                      rx={8}
+                      ry={6.5}
+                      fill={pTheme.sideFill}
+                      stroke={pTheme.outerHalo}
+                      strokeWidth={1.4}
+                    />
+                    <ellipse
+                      cx={0}
+                      cy={-0.8}
+                      rx={8}
+                      ry={6.5}
+                      fill={pTheme.fill}
+                      stroke={pTheme.stroke}
+                      strokeWidth={1.2}
+                    />
+                    <PlayerEmblemSvg playerId={pid} cx={0} cy={-0.8} r={3.6} />
+                  </g>
+                );
+              })}
+            </g>
+          );
+        })}
+      </g>
+
+      {/* =================================================================== */}
+      {/* 3. 1–2 O'CLOCK CURVED GLOBAL FOOTPRINT TRACK & BGG-STYLE HUD WIDGET */}
+      {/* =================================================================== */}
+      <g
+        data-testid="gf-track"
+        aria-label={`Global Footprint Track: ${clampedGF} of ${gfConfig.max} (True Total LF: ${trueTotalLF}), drawing ${currentDrawCount} event discs per turn`}
+      >
+        {/* Shallow Turquoise Reef & Foam Shoreline under the Curved GF Peninsula */}
+        <path
+          d="M 640 52 A 468 468 0 0 1 962 422 Q 930 446, 886 436 A 392 392 0 0 0 616 128 Q 620 70, 640 52 Z"
+          fill="rgba(138, 232, 255, 0.36)"
+          stroke="rgba(220, 248, 255, 0.7)"
+          strokeWidth={4.5}
+          strokeLinejoin="round"
+        />
+
+        {/* Curved Green Coastal Peninsula Hugging the Outer 1-2 o'clock Rim (matching VP track curve) */}
+        <path
+          d="M 644 58 A 465 465 0 0 1 958 419 Q 928 440, 890 431 A 396 396 0 0 0 622 123 Q 625 75, 644 58 Z"
+          fill="url(#greenIslandGrad)"
+          stroke="#ece2c6"
+          strokeWidth={3.5}
+          strokeLinejoin="round"
+        />
+
+        {/* BGG-Style Horizontal Global Footprint Callout Box ([- cloud] [12] [+ cloud] & Bag Draw Icon) */}
+        <g
+          data-testid="gf-hud-widget"
+          transform="translate(770, 262) scale(0.9)"
+        >
+          {/* Drop shadow */}
+          <rect x={-48} y={-24} width={96} height={50} rx={7} fill="rgba(0,0,0,0.38)" />
+          {/* Sky-blue framed widget matching media_1792637289394_167577ac.png */}
+          <rect
+            x={-50}
+            y={-26}
+            width={96}
+            height={50}
+            rx={7}
+            fill="#2b8ad4"
+            stroke="#16202a"
+            strokeWidth={1.8}
+          />
+          {/* Left Green Minus Cloud (-1 LF) */}
+          <g transform="translate(-31, -11)">
+            <path
+              d={FOOTPRINT_CLOUD_PATH_D}
+              fill="#4ea83b"
+              stroke="#e6f7de"
+              strokeWidth={1.1}
+            />
+            <line x1={-3.5} y1={-0.5} x2={2.5} y2={-0.5} stroke="#ffffff" strokeWidth={2} strokeLinecap="round" />
+          </g>
+
+          {/* Center Parchment Square with Current Clamped GF Numeral */}
+          <rect
+            x={-13}
+            y={-21}
+            width={24}
+            height={20}
+            rx={3}
+            fill="#f5f0dc"
+            stroke="#2d3748"
+            strokeWidth={1.4}
+          />
+          <text
+            x={-1}
+            y={-7}
+            textAnchor="middle"
+            fontSize="12"
+            fontWeight="900"
+            fill="#1a202c"
+          >
+            {clampedGF}
+          </text>
+
+          {/* Right Grey Plus Cloud (+1 LF) */}
+          <g transform="translate(28, -11)">
+            <path
+              d={FOOTPRINT_CLOUD_PATH_D}
+              fill="#636b75"
+              stroke="#e2e8f0"
+              strokeWidth={1.1}
+            />
+            <line x1={-3} y1={-0.5} x2={3} y2={-0.5} stroke="#ffffff" strokeWidth={1.8} strokeLinecap="round" />
+            <line x1={0} y1={-3.5} x2={0} y2={2.5} stroke="#ffffff" strokeWidth={1.8} strokeLinecap="round" />
+          </g>
+
+          {/* Bottom row: event bag icon, then "DRAW n/TURN" in a fixed-width run so it can never touch the icon */}
+          <g transform="translate(0, 11)">
+            <rect
+              data-testid="gf-draw-pill"
+              x={-42}
+              y={-8}
+              width={80}
+              height={16}
+              rx={8}
+              fill="rgba(11, 38, 65, 0.72)"
+            />
+            <g data-testid="gf-draw-icon">
+              <circle cx={-35} cy={0} r={4.4} fill="#8d6e63" stroke="#f5f0dc" strokeWidth={1} />
+              <path d="M -35 -4.4 A 4.4 4.4 0 0 1 -30.6 0 L -35 0 Z" fill="#689f38" />
+            </g>
+            <text
+              data-testid="gf-draw-text"
+              x={-22}
+              y={2.7}
+              textAnchor="start"
+              fontSize="7.2"
+              fontWeight="900"
+              fill="#ffffff"
+              textLength={54}
+              lengthAdjust="spacingAndGlyphs"
+            >
+              DRAW {currentDrawCount}/TURN
+            </text>
+          </g>
+        </g>
+
+        {/* Render Slightly Larger Segmented Cells in 2 Concentric Curved Rows */}
+        {Array.from({ length: gfConfig.max + 1 }, (_, val) => {
+          // Row 0: 0..17 in 4P (0..14 in 3P), Row 1: 18..max in 4P (15..max in 3P)
+          const row0Count = playerCount === 4 ? 18 : 15;
+          const isSecondRow = val >= row0Count;
+          const colIdx = isSecondRow ? val - row0Count : val;
+          const totalColsInRow = isSecondRow ? (gfConfig.max + 1 - row0Count) : row0Count;
+
+          // Outer arc r=442, inner arc r=416 (26px radial difference ensures >12px clear gap between rows)
+          const rArc = isSecondRow ? 416 : 442;
+          const degStart = isSecondRow ? -56 : -66;
+          const degEnd = isSecondRow ? -25 : -15;
+
+          const deg =
+            totalColsInRow > 1
+              ? degStart + (colIdx / (totalColsInRow - 1)) * (degEnd - degStart)
+              : degStart;
+          const rad = (deg * Math.PI) / 180;
+
+          const cx = BOARD_CENTER_X + Math.cos(rad) * rArc;
+          const cy = BOARD_CENTER_Y + Math.sin(rad) * rArc;
+          const cellRot = deg + 90;
+
+          // Determine band color (matching BGG board's natural coastal green / olive / amber / earth bands)
+          let cellFill = '#3b9c3f'; // Green eco band (0..5: 2 draws)
+          const b1Max = playerCount === 4 ? 17 : 13;
+          const b2Max = playerCount === 4 ? 23 : 17;
+          if (val >= 6 && val <= b1Max) {
+            cellFill = '#7cb342'; // Neutral lime/olive band (1 draw)
+          } else if (val > b1Max && val <= b2Max) {
+            cellFill = '#c28b2e'; // Amber-tan warning band (2 draws)
+          } else if (val > b2Max) {
+            cellFill = '#785a46'; // Earth-brown smog band (3 draws)
+          }
+
+          const isCurrentGF = val === clampedGF;
+          // The current cell is a little larger, so the marker sits inside its ring with a clear gap
+          const half = isCurrentGF ? GF_CELL_CURRENT_HALF : GF_CELL_HALF;
+
+          return (
+            <g
+              key={val}
+              data-testid={`gf-space-${val}`}
+              transform={`translate(${cx.toFixed(1)}, ${cy.toFixed(1)}) rotate(${cellRot.toFixed(1)})`}
+            >
+              {/* Cell with curved corners; the current one wears a single yellow ring */}
+              <rect
+                x={-half}
+                y={-half}
+                width={half * 2}
+                height={half * 2}
+                rx={isCurrentGF ? 3.8 : 2.8}
+                fill={cellFill}
+                stroke={isCurrentGF ? '#f5d11d' : 'rgba(238, 245, 228, 0.85)'}
+                strokeWidth={isCurrentGF ? 1.6 : 1.0}
+              />
+              {/* The marker stands on the current cell's number (the widget shows the value) */}
+              {isCurrentGF ? (
+                <>
+                  {/* Soft glow just outside the ring */}
+                  <rect
+                    data-testid="gf-current-glow"
+                    x={-half - 2.3}
+                    y={-half - 2.3}
+                    width={half * 2 + 4.6}
+                    height={half * 2 + 4.6}
+                    rx={6}
+                    fill="none"
+                    stroke="#fff0a0"
+                    strokeOpacity={0.34}
+                    strokeWidth={3}
+                  />
+                  <GfMarker counterRotateDeg={-cellRot} />
+                </>
+              ) : (
+                <text x={0} y={2.8} textAnchor="middle" fontSize="7.5" fontWeight="900" fill="#ffffff">
+                  {val}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </g>
+
+      {/* =================================================================== */}
+      {/* 4. 7 COASTAL EVENT DISC ISLANDS: curved bands that follow the rim, labelled on their inner side */}
+      {/* =================================================================== */}
+      {(Object.keys(EVENT_TRACK_METADATA) as EventDiscType[]).map((trackKey) => {
+        const meta = EVENT_TRACK_METADATA[trackKey];
+        const filledCount = eventTracks[trackKey] ?? 0;
+        const isGreen = meta.category === 'green' || meta.category === 'hybrid';
+        const T = EVENT_TRACK;
+
+        const slotAngle = (i: number) => eventSlotAngle(meta.angleDeg, meta.capacity, i);
+        const firstAngle = slotAngle(0);
+        const lastAngle = slotAngle(meta.capacity - 1);
+
+        // The label is upright on the lower half of the board only if its path runs the other way round
+        const flipped = Math.sin((meta.angleDeg * Math.PI) / 180) > 0;
+        const labelText = `${meta.shortTitle} (${filledCount}/${meta.capacity})`;
+        const labelArcLength = eventLabelArcLength(labelText);
+        const labelSpanDeg = ((labelArcLength / T.labelR) * 180) / Math.PI;
+        const labelStart = meta.angleDeg + (flipped ? labelSpanDeg / 2 : -labelSpanDeg / 2);
+        const labelEnd = meta.angleDeg + (flipped ? -labelSpanDeg / 2 : labelSpanDeg / 2);
+        const labelPath = `M ${pt(polarPt(T.labelR, labelStart))} A ${T.labelR} ${T.labelR} 0 0 ${flipped ? 0 : 1} ${pt(polarPt(T.labelR, labelEnd))}`;
+        const labelId = `event-label-arc-${trackKey}`;
+
+        // '?' badge just past the start of the track
+        const badgeAngle = firstAngle - ((T.sandHalfW + 9.5) / T.rMid) * (180 / Math.PI);
+        const [badgeX, badgeY] = polarPt(T.rMid, badgeAngle);
+
+        return (
+          <g
+            key={trackKey}
+            data-testid={`event-track-${trackKey}`}
+            style={{ cursor: 'pointer' }}
+            onClick={() => onSelectEventTrackInfo?.(trackKey)}
+            role="button"
+            tabIndex={0}
+            aria-label={`${meta.title} Event Track: ${filledCount} of ${meta.capacity} discs`}
+          >
+            {/* Shallow turquoise reef halo */}
+            <path
+              data-testid={`event-reef-${trackKey}`}
+              d={vpBandPath(firstAngle, lastAngle, T.rMid, T.reefHalfW)}
+              fill="rgba(130, 228, 255, 0.28)"
+            />
+
+            {/* Coastal foam / sandy beach outline */}
+            <path
+              d={vpBandPath(firstAngle, lastAngle, T.rMid, T.sandHalfW)}
+              fill="#ece2c6"
+              stroke="rgba(255,255,255,0.75)"
+              strokeWidth={1.8}
+              strokeLinejoin="round"
+            />
+
+            {/* Island terrain (lush green for the beneficial events, rocky brown for the harmful ones) */}
+            <path
+              data-testid={`event-band-${trackKey}`}
+              d={vpBandPath(firstAngle, lastAngle, T.rMid, T.halfW)}
+              fill={isGreen ? 'url(#greenIslandGrad)' : 'url(#brownIslandGrad)'}
+              stroke={isGreen ? '#35591b' : '#4a3f2f'}
+              strokeWidth={1.4}
+              strokeLinejoin="round"
+            />
+
+            {/* '?' info badge */}
+            <g transform={`translate(${badgeX.toFixed(2)}, ${badgeY.toFixed(2)})`}>
+              <circle r={7.5} fill="#c8ba9e" stroke="#2d261c" strokeWidth={1.2} />
+              <text x={0} y={2.9} textAnchor="middle" fontSize="8.5" fontWeight="900" fill="#1e1a14">
+                ?
+              </text>
+            </g>
+
+            {/* Slots along the band (icons stay upright) */}
+            {Array.from({ length: meta.capacity }, (_, sIdx) => {
+              const [sx, sy] = polarPt(T.rMid, slotAngle(sIdx));
+              const isFilled = sIdx < filledCount;
+
+              return (
+                <g key={sIdx} data-testid={`event-slot-${trackKey}-${sIdx}`}>
+                  {/* Stone slot crater */}
+                  <circle
+                    cx={sx}
+                    cy={sy}
+                    r={9}
+                    fill="rgba(20, 24, 20, 0.42)"
+                    stroke="rgba(244, 242, 232, 0.8)"
+                    strokeWidth={1.2}
+                    strokeDasharray={isFilled ? undefined : '2.5 2'}
+                  />
+                  {!isFilled && (
+                    <g transform={`translate(${sx.toFixed(2)}, ${sy.toFixed(2)})`} opacity={0.42}>
+                      <EventIconSvg type={trackKey} scale={0.4} />
+                    </g>
+                  )}
+
+                  {/* Drawn event disc when filled */}
+                  {isFilled && (
+                    <g data-testid={`event-disc-${trackKey}-${sIdx}`}>
+                      <circle cx={sx + 1} cy={sy + 1.5} r={8.5} fill="rgba(0,0,0,0.35)" />
+                      <circle
+                        cx={sx}
+                        cy={sy}
+                        r={8.2}
+                        fill={isGreen ? '#7cb342' : '#8d6e63'}
+                        stroke="#f5f2e6"
+                        strokeWidth={1.4}
+                      />
+                      <circle cx={sx} cy={sy} r={5.8} fill="#fbf6ea" />
+                      <g transform={`translate(${sx.toFixed(2)}, ${sy.toFixed(2)})`}>
+                        <EventIconSvg type={trackKey} scale={0.4} />
+                      </g>
+                    </g>
+                  )}
+                </g>
+              );
+            })}
+
+            {/* Name label: a pill that follows the rim, set apart from the band with a clear gap */}
+            <g data-testid={`event-label-${trackKey}`}>
+              <path
+                id={labelId}
+                data-testid={`event-label-arc-${trackKey}`}
+                d={labelPath}
+                fill="none"
+                stroke="rgba(190, 232, 255, 0.45)"
+                strokeWidth={T.labelThickness + 1.8}
+                strokeLinecap="round"
+              />
+              <path
+                d={labelPath}
+                fill="none"
+                stroke="rgba(12, 32, 54, 0.92)"
+                strokeWidth={T.labelThickness}
+                strokeLinecap="round"
+              />
+              <text fontSize="7" fontWeight="800" fill="#f4f8fc" textAnchor="middle" dy="2.5">
+                <textPath href={`#${labelId}`} startOffset="50%">
+                  {labelText}
+                </textPath>
+              </text>
+            </g>
+          </g>
+        );
+      })}
+
+    </g>
+  );
+}

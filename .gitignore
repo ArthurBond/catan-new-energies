@@ -1,0 +1,26 @@
+node_modules
+dist
+.env
+.env.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+test-results/
+playwright-report/
+
+# Local game server
+saves/
+dist-server/
+*.log
+
+# Kept on this machine only, never published: agent skills and handover notes, design
+# references, planning docs and screenshots, and the rulebook text
+.agents/
+.claude/
+skills-lock.json
+handover/
+docs/
+rules_text.txt
+UI-design-style.png
+player-mat-reference.png
