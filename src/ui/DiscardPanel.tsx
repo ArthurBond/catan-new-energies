@@ -15,7 +15,22 @@ import { PlayerBadge } from './PlayersRail';
 import { CARD_METADATA, PLAYER_THEMES } from './theme';
 import { ResourceIconSvg } from './WoodenPiecesSvg';
 
-export type DiscardDecision = Extract<PendingDecision, { type: 'DISCARD_ON_SEVEN' }>;
+export type EventDiscardDecision = Extract<PendingDecision, { type: 'EVENT_CARD_CHOICE' }> & {
+  event: 'ClimateConferencePenalty';
+};
+
+export type DiscardDecision =
+  | Extract<PendingDecision, { type: 'DISCARD_ON_SEVEN' }>
+  | EventDiscardDecision;
+
+export function isDiscardDecision(
+  decision: PendingDecision | null | undefined
+): decision is DiscardDecision {
+  if (!decision) return false;
+  if (decision.type === 'DISCARD_ON_SEVEN') return true;
+  if (decision.type === 'EVENT_CARD_CHOICE' && decision.event === 'ClimateConferencePenalty') return true;
+  return false;
+}
 
 const CARD_ORDER: CardKey[] = ['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science'];
 
@@ -76,13 +91,14 @@ export function DiscardPanel({
   hidden?: boolean;
   onDispatch: (action: GameAction) => void;
 }) {
+  const isEvent = decision.type === 'EVENT_CARD_CHOICE';
   const player = state.players[decision.playerId]!;
   const pTheme = PLAYER_THEMES[decision.playerId];
   const [discardCounts, setDiscardCounts] = useState<Partial<Record<CardKey, number>>>({});
 
   const rolls = (production ?? getProductionNumbers(state, decision.playerId)).byCard;
   const totalSelected = Object.values(discardCounts).reduce((acc, v) => acc + (v || 0), 0);
-  const needed = decision.cardsToDiscard;
+  const needed = isEvent ? decision.cardCount : decision.cardsToDiscard;
   const limit = player.hasWarehouse ? 10 : 7;
   const ready = totalSelected === needed;
 
@@ -110,11 +126,15 @@ export function DiscardPanel({
         <div className="dp-head">
           <PlayerBadge playerId={decision.playerId} size={26} />
           <h3 className="dp-title" id="discard-title">
-            Seven! {player.name} discards {needed} card{needed > 1 ? 's' : ''}
+            {isEvent
+              ? `Climate Conference: ${player.name} discards 1 card`
+              : `Seven! ${player.name} discards ${needed} card${needed > 1 ? 's' : ''}`}
           </h3>
         </div>
         <p className="dp-sub">
-          Hand limit is {limit}, so half goes back to the supply. Tap cards to choose which.
+          {isEvent
+            ? 'Highest local footprint at the table. Tap the card you wish to discard.'
+            : `Hand limit is ${limit}, so half goes back to the supply. Tap cards to choose which.`}
         </p>
         <p className="dp-hint">
           Numbers under a card are the rolls that give it to you. Your towns and cities glow on the board.
@@ -131,17 +151,38 @@ export function DiscardPanel({
             const held = k === 'science' ? player.science : player.resources[k];
             const cur = discardCounts[k] || 0;
             const meta = CARD_METADATA[k];
-            const canAdd = cur < held && totalSelected < needed;
+            const countLeft = isEvent ? held : held - cur;
+            const canAdd = isEvent ? held > 0 && !hidden : cur < held && totalSelected < needed;
+
+            const handleCardClick = () => {
+              if (isEvent) {
+                if (held > 0 && !hidden) {
+                  onDispatch({
+                    type: 'RESOLVE_PENDING_DECISION',
+                    playerId: decision.playerId,
+                    decisionId: decision.id,
+                    response: { cardType: k },
+                  });
+                }
+              } else {
+                setDiscardCounts({ ...discardCounts, [k]: Math.min(held, cur + 1) });
+              }
+            };
+
             return (
               <div key={k} className="dp-col">
                 <button
                   type="button"
                   className="tt-res-card md-pick dp-pick"
                   data-testid={`discard-card-${k}`}
-                  data-empty={held - cur === 0 ? 'true' : 'false'}
+                  data-empty={countLeft === 0 ? 'true' : 'false'}
                   disabled={!canAdd}
-                  onClick={() => setDiscardCounts({ ...discardCounts, [k]: Math.min(held, cur + 1) })}
-                  aria-label={`Discard one ${meta.label} (${held - cur} left in hand)`}
+                  onClick={handleCardClick}
+                  aria-label={
+                    isEvent
+                      ? `Discard one ${meta.label} (${held} in hand)`
+                      : `Discard one ${meta.label} (${countLeft} left in hand)`
+                  }
                   style={{
                     ['--res-fill' as string]: meta.cardFill,
                     ['--res-border' as string]: meta.border,
@@ -154,28 +195,30 @@ export function DiscardPanel({
                   </svg>
                   <span className="tt-res-label">{meta.shortLabel}</span>
                   <span className="tt-res-count" data-testid={`discard-held-${k}`}>
-                    {held - cur}
+                    {countLeft}
                   </span>
                 </button>
-                <div className="md-stepper">
-                  <button
-                    type="button"
-                    aria-label={`Keep one ${meta.label}`}
-                    disabled={cur === 0}
-                    onClick={() => setDiscardCounts({ ...discardCounts, [k]: Math.max(0, cur - 1) })}
-                  >
-                    −
-                  </button>
-                  <span aria-live="polite">{cur}</span>
-                  <button
-                    type="button"
-                    aria-label={`Discard one ${meta.label}`}
-                    disabled={!canAdd}
-                    onClick={() => setDiscardCounts({ ...discardCounts, [k]: Math.min(held, cur + 1) })}
-                  >
-                    +
-                  </button>
-                </div>
+                {!isEvent && (
+                  <div className="md-stepper">
+                    <button
+                      type="button"
+                      aria-label={`Keep one ${meta.label}`}
+                      disabled={cur === 0}
+                      onClick={() => setDiscardCounts({ ...discardCounts, [k]: Math.max(0, cur - 1) })}
+                    >
+                      −
+                    </button>
+                    <span aria-live="polite">{cur}</span>
+                    <button
+                      type="button"
+                      aria-label={`Discard one ${meta.label}`}
+                      disabled={!canAdd}
+                      onClick={() => setDiscardCounts({ ...discardCounts, [k]: Math.min(held, cur + 1) })}
+                    >
+                      +
+                    </button>
+                  </div>
+                )}
                 <div className="dp-rolls-slot" data-testid={`discard-rolls-${k}`}>
                   <RollChips card={k} numbers={rolls[k]} />
                 </div>
@@ -186,21 +229,34 @@ export function DiscardPanel({
       )}
 
       <div className="dp-action">
-        <div className="dp-progress-label" aria-hidden="true">
-          {hidden ? `${needed} to discard` : `${totalSelected} of ${needed} chosen`}
-        </div>
-        <div className="dp-progress" aria-hidden="true">
-          <div style={{ width: `${hidden ? 0 : (totalSelected / needed) * 100}%` }} />
-        </div>
-        <button
-          type="button"
-          className={`tt-cta dp-confirm${ready ? ' is-ready' : ''}`}
-          data-testid="confirm-discard-btn"
-          disabled={!ready || hidden}
-          onClick={confirm}
-        >
-          {ready ? `Discard ${needed} card${needed > 1 ? 's' : ''}` : `Choose ${needed - totalSelected} more`}
-        </button>
+        {isEvent ? (
+          <>
+            <div className="dp-progress-label">
+              {hidden ? `${needed} to discard` : 'Tap a card to discard'}
+            </div>
+            <p className="dp-hint" style={{ textAlign: 'center', margin: 0 }}>
+              1 tap to discard
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="dp-progress-label" aria-hidden="true">
+              {hidden ? `${needed} to discard` : `${totalSelected} of ${needed} chosen`}
+            </div>
+            <div className="dp-progress" aria-hidden="true">
+              <div style={{ width: `${hidden ? 0 : (totalSelected / needed) * 100}%` }} />
+            </div>
+            <button
+              type="button"
+              className={`tt-cta dp-confirm${ready ? ' is-ready' : ''}`}
+              data-testid="confirm-discard-btn"
+              disabled={!ready || hidden}
+              onClick={confirm}
+            >
+              {ready ? `Discard ${needed} card${needed > 1 ? 's' : ''}` : `Choose ${needed - totalSelected} more`}
+            </button>
+          </>
+        )}
       </div>
     </section>
   );

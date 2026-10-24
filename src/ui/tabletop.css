@@ -213,7 +213,7 @@ button:not(:disabled):active {
   background: var(--ink-900);
   color: var(--ink-100);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
-  z-index: 90;
+  z-index: 250;
   min-width: 0;
 }
 

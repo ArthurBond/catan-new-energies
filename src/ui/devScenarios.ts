@@ -86,16 +86,38 @@ export function applyShowcaseScenario(input: GameState): GameState {
   return state;
 }
 
-export type DevScenario = 'showcase' | 'discard' | 'cardchoice' | 'victory' | 'draws2' | 'draws3' | 'cityfit' | 'plantfit' | 'airpollution';
+export type DevScenario = 'showcase' | 'discard' | 'eventdiscard' | 'productionincrease' | 'cardchoice' | 'victory' | 'draws2' | 'draws3' | 'cityfit' | 'plantfit' | 'airpollution';
 
 export function applyDevScenario(input: GameState, scenario: string): GameState {
-  if (!['showcase', 'discard', 'cardchoice', 'victory', 'draws2', 'draws3', 'cityfit', 'plantfit', 'airpollution'].includes(scenario)) return input;
+  if (!['showcase', 'discard', 'eventdiscard', 'productionincrease', 'cardchoice', 'victory', 'draws2', 'draws3', 'cityfit', 'plantfit', 'airpollution'].includes(scenario)) return input;
   const state = applyShowcaseScenario(input);
   if (scenario === 'discard') {
     state.phase = 'ProductionPhase';
     state.lastDiceRoll = [3, 4];
     state.pendingDecisions = [
       { id: 'dev-discard', type: 'DISCARD_ON_SEVEN', playerId: 'orange', cardsToDiscard: 6 },
+    ];
+  } else if (scenario === 'eventdiscard') {
+    state.phase = 'EventPhase';
+    state.pendingDecisions = [
+      {
+        id: 'dev-event-discard',
+        type: 'EVENT_CARD_CHOICE',
+        playerId: 'orange',
+        event: 'ClimateConferencePenalty',
+        cardCount: 1,
+        isOptional: false,
+      },
+    ];
+  } else if (scenario === 'productionincrease') {
+    state.phase = 'EventPhase';
+    state.pendingDecisions = [
+      {
+        id: 'dev-prod-inc',
+        type: 'EVENT_PRODUCTION_INCREASE',
+        playerId: 'orange',
+        isOptional: true,
+      },
     ];
   } else if (scenario === 'cardchoice') {
     state.phase = 'EventPhase';
