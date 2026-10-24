@@ -43,12 +43,14 @@ firewall, and `scripts\windows\host-game.cmd` starts the server with a double-cl
 
 ## Publishing updates
 
-GitHub Pages builds and deploys `main` with `.github/workflows/deploy-pages.yml`. To publish
-your latest committed work:
+To publish your latest committed work:
 
 ```bash
 npm run publish:pages
 ```
+
+This builds the site and pushes it to the `gh-pages` branch, which GitHub Pages serves, and
+pushes the source to `main`.
 
 ## Credits
 
