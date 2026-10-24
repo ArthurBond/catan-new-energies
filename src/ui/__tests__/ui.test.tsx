@@ -541,7 +541,7 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
     expect(transform).not.toBe('translate(0, 0)');
   });
 
-  it('highlights producing hexes on dice roll even when inspector is present with rich burnt orange flash', () => {
+  it('highlights producing hexes on dice roll even when inspector is present with flashing amber highlight', () => {
     const state = createInitialGameState({ setupMode: 'first', playerCount: 4, seed: 42 });
     const hexWithInspector = state.board.hexes.find((h) => h.hasInspector)!;
     act(() => {
@@ -555,9 +555,9 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
     });
     const producingEl = container.querySelector(`[data-testid="hex-producing-${hexWithInspector.id}"]`);
     expect(producingEl).not.toBeNull();
-    // Check that rich burnt orange styling is applied
-    const burntOrangePolygon = producingEl?.querySelector('polygon[stroke="#d94e10"]');
-    expect(burntOrangePolygon).not.toBeNull();
+    // Check that highlight styling matching inspector move is applied
+    const highlightPolygon = producingEl?.querySelector('polygon[stroke="#ffc83a"]');
+    expect(highlightPolygon).not.toBeNull();
   });
 
   it('renders cancel button on STEAL_TARGET pending decision to allow undoing inspector move', () => {

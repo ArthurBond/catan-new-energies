@@ -1432,7 +1432,7 @@ export function IslandBoardSvg({
                 </g>
               )}
 
-              {/* Production Roll Highlight Glow (Burnt Orange Flashing Highlight) */}
+              {/* Production Roll Highlight Glow (Matching Inspector Move Highlight Colour) */}
               {isProducing && (
                 <g data-testid={`hex-producing-${hex.id}`} pointerEvents="none" className="hex-producing">
                   {/* Dark backing border so the highlight stands out crisply against the white hex frame and all terrain types */}
@@ -1443,19 +1443,19 @@ export function IslandBoardSvg({
                     strokeWidth={6.5}
                     strokeLinejoin="round"
                   />
-                  {/* Rich burnt orange perimeter and warm translucent wash */}
+                  {/* Golden amber perimeter and warm translucent wash matching inspector move highlight */}
                   <polygon
                     points={getPointyHexPoints(0, 0, HEX_RADIUS - 5)}
-                    fill="rgba(217, 78, 16, 0.22)"
-                    stroke="#d94e10"
+                    fill="rgba(255, 200, 58, 0.28)"
+                    stroke="#ffc83a"
                     strokeWidth={4.5}
                     strokeLinejoin="round"
                   />
-                  {/* Concentric disc halo rings in burnt orange with active pulse */}
+                  {/* Concentric disc halo rings in matching highlight colour with active pulse */}
                   <circle cx={0} cy={0} r={21} fill="none" stroke="rgba(28, 16, 8, 0.35)" strokeWidth={5} />
-                  <circle cx={0} cy={0} r={21} fill="none" stroke="#d94e10" strokeWidth={3.5} />
+                  <circle cx={0} cy={0} r={21} fill="none" stroke="#ffc83a" strokeWidth={3.5} />
                   <g className="target-pulse">
-                    <circle cx={0} cy={0} r={23.5} fill="none" stroke="#e85d04" strokeWidth={2} strokeDasharray="5 3" />
+                    <circle cx={0} cy={0} r={23.5} fill="none" stroke="#ffc83a" strokeWidth={2.5} strokeDasharray="5 3" />
                   </g>
                 </g>
               )}
