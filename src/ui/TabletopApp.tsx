@@ -66,11 +66,11 @@ import { SetupCoach, SetupRollOff } from './SetupCoach';
 import { TableRail } from './TableRail';
 import { DEV_CARD_METADATA, EVENT_TRACK_METADATA, PLAYER_THEMES } from './theme';
 import type { OnlineTable } from './online/onlineTypes';
-import { TopBar } from './TopBar';
+import { DEFAULT_TABLECLOTH_COLOR, TopBar } from './TopBar';
 import { EventDiscSvg, EventIconSvg } from './WoodenPiecesSvg';
 
 const SAVED_GAME_KEY = 'catan_new_energies_saved_game_v2';
-const TABLECLOTH_COLOR_KEY = 'catan_new_energies_tablecloth_color_v1';
+const TABLECLOTH_COLOR_KEY = 'catan_new_energies_tablecloth_color_v2';
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 5;
 const TOAST_MS = 3400;
@@ -432,9 +432,13 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
 
   const [tableclothColor, setTableclothColor] = useState<string>(() => {
     try {
-      return localStorage.getItem(TABLECLOTH_COLOR_KEY) || '#181a1d';
+      const stored = localStorage.getItem(TABLECLOTH_COLOR_KEY);
+      if (stored) return stored;
+      const v1 = localStorage.getItem('catan_new_energies_tablecloth_color_v1');
+      if (v1 && v1 !== '#181a1d') return v1;
+      return DEFAULT_TABLECLOTH_COLOR;
     } catch {
-      return '#181a1d';
+      return DEFAULT_TABLECLOTH_COLOR;
     }
   });
 
@@ -1171,7 +1175,7 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
       data-my-seat={online ? (myPlayerId ?? 'none') : undefined}
       data-tablecloth-color={tableclothColor}
       style={{
-        // Buffalo-plaid gingham tablecloth (default black, changeable to any colour)
+        // Buffalo-plaid gingham tablecloth (default picnic red, changeable to any colour)
         backgroundColor: ginghamBase,
         backgroundImage: `
           linear-gradient(90deg, ${ginghamRgba} 50%, transparent 50%),

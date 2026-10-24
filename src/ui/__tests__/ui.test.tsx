@@ -277,9 +277,17 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
 
     // 4. Verify Tablecloth Color Picker & Presets (inside the table settings popover)
     const appShell = container.querySelector('[data-testid="tabletop-app"]') as HTMLElement;
+    expect(appShell.getAttribute('data-tablecloth-color')).toBe('#7a1c1c');
+
     act(() => {
       (container.querySelector('[data-testid="settings-btn"]') as HTMLButtonElement).click();
     });
+    const picnicPreset = container.querySelector(
+      '[data-testid="tablecloth-preset-7a1c1c"]'
+    ) as HTMLButtonElement;
+    expect(picnicPreset).not.toBeNull();
+    expect(picnicPreset.getAttribute('data-active')).toBe('true');
+
     const oceanPreset = container.querySelector(
       '[data-testid="tablecloth-preset-133b63"]'
     ) as HTMLButtonElement;
