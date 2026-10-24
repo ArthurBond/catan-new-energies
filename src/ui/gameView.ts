@@ -44,6 +44,8 @@ export interface BuildOption {
   reason?: string;
   /** Board placement mode this option enters (null = immediate action) */
   mode: ActiveBuildMode;
+  /** What this build option does / grants */
+  description?: string;
 }
 
 export const BUILD_COSTS: Record<BuildKind, CostKey[]> = {
@@ -54,6 +56,16 @@ export const BUILD_COSTS: Record<BuildKind, CostKey[]> = {
   fossil: ['science'],
   renewable: ['science', 'science', 'science'],
   warehouse: ['energy', 'energy'],
+};
+
+export const BUILD_DESCRIPTIONS: Record<BuildKind, string> = {
+  road: 'Connects settlements and expands your road network along hex edges.',
+  town: 'Worth 1 Victory Point. Produces 1 resource from adjacent hexes on dice rolls.',
+  city: 'Worth 2 Victory Points. Upgrades a town; produces 2 resources (or 1 resource + 1 science) on dice rolls.',
+  devCard: 'Gives you a development card from the deck (Clean Up, Progress cards, or +1 VP).',
+  fossil: 'Builds a fossil power plant; produces energy and 1 resource when built, but adds pollution.',
+  renewable: 'Builds a renewable power plant; produces clean energy and 1 resource when built with no pollution.',
+  warehouse: 'Increases hand size to 10 on a roll of 7 (keep up to 10 cards instead of 7).',
 };
 
 const COST_LABEL: Record<CostKey, string> = {
@@ -108,6 +120,7 @@ export function getBuildOptions(
     extraReason?: string | null
   ): BuildOption => {
     const cost = BUILD_COSTS[kind];
+    const description = BUILD_DESCRIPTIONS[kind];
     const available = canAct && has(legalType);
     let reason: string | undefined;
     if (!available) {
@@ -115,7 +128,7 @@ export function getBuildOptions(
       else if (remaining === 0) reason = 'None left on your board';
       else reason = describeShortfall(state, playerId, cost) ?? extraReason ?? 'No legal spot';
     }
-    return { kind, label, cost, remaining, available, reason, mode };
+    return { kind, label, cost, remaining, available, reason, mode, description };
   };
 
   return [

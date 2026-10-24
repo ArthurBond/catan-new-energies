@@ -118,7 +118,9 @@ function BuildTile({
   selected: boolean;
   onClick: () => void;
 }) {
-  const tooltip = `${option.label} — costs ${costText(option.cost)}${option.reason ? `. ${option.reason}` : ''}`;
+  const descText = option.description ? ` ${option.description.trim()}` : '';
+  const reasonText = option.reason ? ` ${option.reason.trim().replace(/\.*$/, '')}.` : '';
+  const tooltip = `${option.label} — costs ${costText(option.cost)}.${descText}${reasonText}`;
   return (
     <button
       type="button"

@@ -3,6 +3,7 @@ import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInitialGameState } from '../../engine/setup';
+import { BUILD_DESCRIPTIONS } from '../gameView';
 import { IslandBoardSvg } from '../IslandBoardSvg';
 import { PlayerMat } from '../PlayerMat';
 import { TabletopApp } from '../TabletopApp';
@@ -429,4 +430,66 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
       window.history.pushState({}, '', '/');
     }
   });
+
+  it('displays tooltips explaining what each build item does (e.g. warehouse increases hand size to 10, dev card gives a dev card)', () => {
+    expect(BUILD_DESCRIPTIONS.warehouse).toContain('Increases hand size to 10');
+    expect(BUILD_DESCRIPTIONS.devCard).toContain('Gives you a development card');
+
+    window.history.pushState({}, '', '/?placement=fixed');
+    act(() => {
+      render(<TabletopApp />, container);
+    });
+    window.history.pushState({}, '', '/');
+
+    // Bottom dock build options
+    const warehouseBtn = container.querySelector('[data-testid="build-warehouse"]') as HTMLButtonElement;
+    expect(warehouseBtn).not.toBeNull();
+    const warehouseTitle = warehouseBtn.getAttribute('title') ?? '';
+    expect(warehouseTitle.toLowerCase()).toContain('2 energy');
+    expect(warehouseTitle.toLowerCase()).toContain('increases hand size to 10');
+
+    const devCardBtn = container.querySelector('[data-testid="build-devCard"]') as HTMLButtonElement;
+    expect(devCardBtn).not.toBeNull();
+    const devCardTitle = devCardBtn.getAttribute('title') ?? '';
+    expect(devCardTitle.toLowerCase()).toContain('costs');
+    expect(devCardTitle.toLowerCase()).toContain('gives you a development card');
+
+    // Open the player board drawer to inspect PlayerMat elements
+    const toggleMatBtn = container.querySelector('[data-testid="toggle-player-mat-btn"]') as HTMLButtonElement;
+    expect(toggleMatBtn).not.toBeNull();
+    act(() => {
+      toggleMatBtn.click();
+    });
+
+    // Player mat warehouse tile
+    const warehouseTile = container.querySelector('[data-testid="warehouse-tile"]');
+    expect(warehouseTile).not.toBeNull();
+    const warehouseTileTitle = warehouseTile?.getAttribute('title') ?? '';
+    expect(warehouseTileTitle.toLowerCase()).toContain('increases hand size to 10');
+
+    // Standalone PlayerMat with showOrganiser for quick recipe buttons
+    const state = createInitialGameState({ setupMode: 'first', playerCount: 4, seed: 42 });
+    act(() => {
+      render(
+        <PlayerMat
+          player={state.players.orange}
+          isActiveTurn={true}
+          isActionPhase={true}
+          isPreEventWindow={false}
+          turnStats={state.turnStats}
+          devCardsBoughtThisTurn={[]}
+          devCardPlayedThisTurn={false}
+          activeBuildMode={null}
+          showOrganiser={true}
+        />,
+        container
+      );
+    });
+
+    const quickBuyDev = container.querySelector('[data-testid="quick-buy-dev"]');
+    expect(quickBuyDev).not.toBeNull();
+    const quickBuyDevTitle = quickBuyDev?.getAttribute('title') ?? '';
+    expect(quickBuyDevTitle.toLowerCase()).toContain('gives you a development card');
+  });
 });
+
