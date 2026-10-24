@@ -499,5 +499,32 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
     const quickBuyDevTitle = quickBuyDev?.getAttribute('title') ?? '';
     expect(quickBuyDevTitle.toLowerCase()).toContain('gives you a development card');
   });
+
+  it('allows passing production increase event from either the top banner or the dock yellow action button', () => {
+    window.history.pushState({}, '', '/?scenario=productionincrease&bots=0');
+    act(() => {
+      render(<TabletopApp />, container);
+    });
+    window.history.pushState({}, '', '/');
+
+    // Both pass buttons exist: the top banner button and the primary yellow dock button
+    const topPassBtn = container.querySelector('[data-testid="pass-production-increase-btn"]') as HTMLButtonElement;
+    expect(topPassBtn).not.toBeNull();
+
+    const dockPassBtn = container.querySelector('[data-testid="action-pass-production-increase-btn"]') as HTMLButtonElement;
+    expect(dockPassBtn).not.toBeNull();
+    expect(dockPassBtn.disabled).toBe(false);
+    expect(dockPassBtn.classList.contains('is-ready')).toBe(true);
+    expect(dockPassBtn.textContent).toBe('Pass');
+
+    // Clicking the yellow dock button resolves the decision
+    act(() => {
+      dockPassBtn.click();
+    });
+
+    // Once passed, the decision is resolved and no longer pending
+    expect(container.querySelector('[data-testid="action-pass-production-increase-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="pass-production-increase-btn"]')).toBeNull();
+  });
 });
 

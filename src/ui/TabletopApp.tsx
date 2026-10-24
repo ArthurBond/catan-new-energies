@@ -1118,6 +1118,20 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
           return { label: 'Move the inspector', disabled: true, sub: 'Click a glowing hex on the board' };
         case 'EVENT_HAZARD_CHOICE':
           return { label: 'Place a hazard', disabled: true, sub: 'Click one of your glowing buildings' };
+        case 'EVENT_PRODUCTION_INCREASE':
+          return {
+            label: 'Pass',
+            testId: 'action-pass-production-increase-btn',
+            disabled: false,
+            onClick: () =>
+              dispatchAction({
+                type: 'RESOLVE_PENDING_DECISION',
+                playerId: actingPlayerId,
+                decisionId: headDecision.id,
+                response: { pass: true },
+              }),
+            sub: 'Or click a glowing spot on the board to build',
+          };
         default:
           return { label: 'Your decision', disabled: true, sub: 'Answer the prompt on screen' };
       }
