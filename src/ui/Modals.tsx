@@ -1287,10 +1287,12 @@ export function PendingDecisionBanner({
   state,
   decision,
   onDispatch,
+  onUndo,
 }: {
   state: GameState;
   decision: PendingDecision;
   onDispatch: (action: GameAction) => void;
+  onUndo?: () => void;
 }) {
   const player = state.players[decision.playerId]!;
   const pTheme = PLAYER_THEMES[decision.playerId];
@@ -1481,6 +1483,26 @@ export function PendingDecisionBanner({
               </button>
             ))}
           </div>
+          {onUndo && (
+            <button
+              type="button"
+              className="tt-icon-btn"
+              data-testid="cancel-steal-target-btn"
+              onClick={onUndo}
+              style={{
+                marginTop: '12px',
+                width: '100%',
+                height: '38px',
+                justifyContent: 'center',
+                background: 'var(--ink-700)',
+                color: 'var(--ink-100)',
+                borderRadius: '8px',
+                fontWeight: 700,
+              }}
+            >
+              Cancel (change inspector hex)
+            </button>
+          )}
         </div>
       </div>
     );
@@ -1677,7 +1699,7 @@ export function PrivacyCurtainModal({
 }) {
   const pTheme = PLAYER_THEMES[nextPlayerId];
   return (
-    <div style={MODAL_BACKDROP_STYLE} data-testid="privacy-curtain-modal">
+    <div style={{ ...MODAL_BACKDROP_STYLE, zIndex: 500 }} data-testid="privacy-curtain-modal">
       <div style={{ ...MODAL_CARD_STYLE, maxWidth: '440px', textAlign: 'center' }}>
         <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'center' }}>
           <svg width="48" height="48" viewBox="-24 -24 48 48">

@@ -549,17 +549,6 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
     });
   }, [onlineNotice?.id]);
 
-  // Escape leaves a placement mode (or a card being played on the board) without doing anything
-  useEffect(() => {
-    if (!activeBuildMode && !devTargeting) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      setActiveBuildMode(null);
-      setDevTargeting(null);
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [activeBuildMode, devTargeting]);
 
   const actingPlayerId = getActingPlayerId(gameState) ?? gameState.activePlayerId;
   const actingSeatIsBot = lobbyConfig.seats[actingPlayerId]?.controller === 'bot';
@@ -744,6 +733,21 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
   }, [gameState, actingPlayerId, waitingOnOthers]);
 
   const headDecision = gameState.pendingDecisions[0] ?? null;
+
+  // Escape cancels current placement mode, dev targeting, or pending steal target decision
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (activeBuildMode || devTargeting) {
+        setActiveBuildMode(null);
+        setDevTargeting(null);
+      } else if (headDecision?.type === 'STEAL_TARGET' && history.length > 0) {
+        handleUndo();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [activeBuildMode, devTargeting, headDecision, history.length]);
 
   const { highlightedHexIds, highlightedNodeIds, highlightedEdgeIds, highlightedCutoutSlots } =
     useMemo(() => {
@@ -1054,7 +1058,7 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
     const sum = gameState.lastDiceRoll[0] + gameState.lastDiceRoll[1];
     if (sum === 7) return prod;
     for (const h of gameState.board.hexes) {
-      if (h.numberDisc === sum && !h.hasHazard && !h.hasInspector) prod.add(h.id);
+      if (h.numberDisc === sum && !h.hasHazard) prod.add(h.id);
     }
     return prod;
   }, [gameState.lastDiceRoll, gameState.phase, gameState.board.hexes]);
@@ -1560,7 +1564,12 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
       />
 
       {headDecision && !waitingOnOthers && (
-        <PendingDecisionBanner state={gameState} decision={headDecision} onDispatch={dispatchAction} />
+        <PendingDecisionBanner
+          state={gameState}
+          decision={headDecision}
+          onDispatch={dispatchAction}
+          onUndo={history.length > 0 ? handleUndo : undefined}
+        />
       )}
 
       {showTradeModal && (

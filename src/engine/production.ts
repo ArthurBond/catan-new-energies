@@ -360,9 +360,10 @@ export function executeStealCard(
     thief.resources[stolenCard]++;
   }
 
+  const cardLabel = stolenCard === 'natural_fiber' ? 'fiber' : stolenCard;
   state.log.push({
     timestamp: state.log.length,
-    message: `${thief.name} stole 1 card from ${victim.name}.`,
+    message: `${thief.name} stole 1 ${cardLabel} card from ${victim.name}.`,
   });
 
   return stolenCard;

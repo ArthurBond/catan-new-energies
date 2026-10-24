@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInitialGameState } from '../../engine/setup';
 import { BUILD_DESCRIPTIONS } from '../gameView';
 import { IslandBoardSvg } from '../IslandBoardSvg';
+import { PendingDecisionBanner } from '../Modals';
 import { PlayerMat } from '../PlayerMat';
 import { TabletopApp } from '../TabletopApp';
 
@@ -525,6 +526,65 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
     // Once passed, the decision is resolved and no longer pending
     expect(container.querySelector('[data-testid="action-pass-production-increase-btn"]')).toBeNull();
     expect(container.querySelector('[data-testid="pass-production-increase-btn"]')).toBeNull();
+  });
+
+  it('renders natural hazard on building with proper SVG transform coordinates immediately', () => {
+    const state = createInitialGameState({ setupMode: 'first', playerCount: 4, seed: 42 });
+    state.board.intersections[10]!.hasHazard = true;
+    act(() => {
+      render(<IslandBoardSvg state={state} freshPieceKeys={new Set(['nzh10'])} />, container);
+    });
+    const hazardGroup = container.querySelector('[data-testid="node-hazard-10"]');
+    expect(hazardGroup).not.toBeNull();
+    const transform = hazardGroup?.getAttribute('transform');
+    expect(transform).toMatch(/^translate\(-?\d+(\.\d+)?, -?\d+(\.\d+)?\)$/);
+    expect(transform).not.toBe('translate(0, 0)');
+  });
+
+  it('highlights producing hexes on dice roll even when inspector is present', () => {
+    const state = createInitialGameState({ setupMode: 'first', playerCount: 4, seed: 42 });
+    const hexWithInspector = state.board.hexes.find((h) => h.hasInspector)!;
+    act(() => {
+      render(
+        <IslandBoardSvg
+          state={state}
+          producingHexIds={new Set([hexWithInspector.id])}
+        />,
+        container
+      );
+    });
+    expect(
+      container.querySelector(`[data-testid="hex-producing-${hexWithInspector.id}"]`)
+    ).not.toBeNull();
+  });
+
+  it('renders cancel button on STEAL_TARGET pending decision to allow undoing inspector move', () => {
+    const state = createInitialGameState({ setupMode: 'first', playerCount: 4, seed: 42 });
+    const onUndo = vi.fn();
+    const onDispatch = vi.fn();
+    act(() => {
+      render(
+        <PendingDecisionBanner
+          state={state}
+          decision={{
+            id: 'steal-1',
+            type: 'STEAL_TARGET',
+            playerId: 'orange',
+            candidatePlayerIds: ['purple', 'blue'],
+          }}
+          onDispatch={onDispatch}
+          onUndo={onUndo}
+        />,
+        container
+      );
+    });
+
+    const cancelBtn = container.querySelector('[data-testid="cancel-steal-target-btn"]') as HTMLButtonElement;
+    expect(cancelBtn).not.toBeNull();
+    act(() => {
+      cancelBtn.click();
+    });
+    expect(onUndo).toHaveBeenCalledTimes(1);
   });
 });
 

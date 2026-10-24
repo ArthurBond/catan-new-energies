@@ -302,6 +302,9 @@ describe('PRD-04: Roll of 7 Inspector Movement and Card Steal', () => {
     expect(purpleCardsAfter).toBe(purpleCardsBefore - 1);
     expect(orangeCardsAfter).toBe(orangeCardsBefore + 1);
     expect(next2.phase).toBe('ActionPhase');
+    const stealLog = next2.log.find((l) => l.message.includes('stole 1'));
+    expect(stealLog).toBeDefined();
+    expect(stealLog!.message).toMatch(/(Orange|Hana) stole 1 (lumber|science) card from (Purple|Finn)\./);
   });
 
   it('cannot move Inspector to a hex with a Hazard token', () => {

@@ -1691,9 +1691,10 @@ export function IslandBoardSvg({
                   data-testid={`node-hazard-${node.id}`}
                   transform={`translate(${np.x.toFixed(2)}, ${np.y.toFixed(2)})`}
                   pointerEvents="none"
-                  className={isFresh(`hzn${node.id}`) ? 'piece-drop' : undefined}
                 >
-                  <HazardTokenSvg cx={0} cy={-2} r={node.building?.type === 'city' ? 17 : 15} holeRatio={0.46} />
+                  <g className={isFresh(`hzn${node.id}`) ? 'piece-drop' : undefined}>
+                    <HazardTokenSvg cx={0} cy={-2} r={node.building?.type === 'city' ? 17 : 15} holeRatio={0.46} />
+                  </g>
                 </g>
               )}
             </g>
