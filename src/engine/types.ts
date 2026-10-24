@@ -230,6 +230,15 @@ export type DevCardPlayParams =
 // Actions & Decisions
 // ============================================================================
 
+/** Cards, science and energy as counts (what a trade gives or wants). */
+export type TradeItems = Partial<Record<ResourceType | 'science' | 'energy', number>>;
+
+/** One player's counter-offer to a request for cards: they give the requested cards for `want`. */
+export interface TradeRequestOffer {
+  playerId: PlayerId;
+  want: TradeItems;
+}
+
 export type PendingDecision =
   | { id: string; type: 'SETUP_PLACE_SETTLEMENT'; playerId: PlayerId; round: 1 | 2 }
   | { id: string; type: 'SETUP_PLACE_ROAD'; playerId: PlayerId; round: 1 | 2; connectedToNodeId: NodeId }
@@ -250,6 +259,30 @@ export type PendingDecision =
       want: Partial<Record<ResourceType | 'science' | 'energy', number>>;
       /** Players to offer the same trade to, in this order, one at a time as each one declines */
       thenOffer?: PlayerId[];
+    }
+  /**
+   * `requestingPlayerId` asked for `ask` without saying what they would give. Each other player who
+   * holds it is asked in turn (one decision at a time): answer `{ pass: true }` or `{ want }` (what
+   * they want from the requester in return). `offers` are the replies so far, `waiting` the players
+   * still to be asked after this one.
+   */
+  | {
+      id: string;
+      type: 'TRADE_REQUEST_REPLY';
+      playerId: PlayerId;
+      requestingPlayerId: PlayerId;
+      ask: TradeItems;
+      offers: TradeRequestOffer[];
+      waiting: PlayerId[];
+    }
+  /** Everyone has replied: the requester takes one of the `offers` (`{ takeOfferFrom }`) or none (`{ decline: true }`). */
+  | {
+      id: string;
+      type: 'TRADE_REQUEST_CHOICE';
+      playerId: PlayerId;
+      requestingPlayerId: PlayerId;
+      ask: TradeItems;
+      offers: TradeRequestOffer[];
     };
 
 export type GameAction =
@@ -290,6 +323,8 @@ export type GameAction =
   | { type: 'TRADE_SUPPLY'; playerId: PlayerId; give: Partial<Record<ResourceType | 'science' | 'energy', number>>; receive: ResourceType | 'science' }
   | { type: 'TRADE_HARBOR'; playerId: PlayerId; harborId: HarborId; give: Partial<Record<ResourceType, number>>; receive: ResourceType | 'science' }
   | { type: 'OFFER_TRADE'; playerId: PlayerId; targetPlayerId?: PlayerId; thenOffer?: PlayerId[]; give: Partial<Record<ResourceType | 'science' | 'energy', number>>; want: Partial<Record<ResourceType | 'science' | 'energy', number>> }
+  /** Ask everyone for specific cards without naming a price; each player replies once (see `TRADE_REQUEST_REPLY`). */
+  | { type: 'REQUEST_TRADE'; playerId: PlayerId; ask: TradeItems }
 
   // Pending Decision Resolution
   | { type: 'RESOLVE_PENDING_DECISION'; playerId: PlayerId; decisionId: string; response: unknown };

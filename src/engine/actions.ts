@@ -19,6 +19,7 @@ import {
   isEdgeConnectedToPlayerNetwork,
 } from './dev-cards';
 import { getEligibleStealVictims, getHandSizeForSeven, isHandBreakdownHidden } from './production';
+import { tradeRequestChoiceActions, tradeRequestReplyActions } from './trade-requests';
 import {
   EdgeId,
   GameAction,
@@ -169,6 +170,8 @@ export function isActionEqual(a: GameAction, b: GameAction): boolean {
         canonicalJson(a.give) === canonicalJson(b.give) &&
         canonicalJson(a.want) === canonicalJson(b.want)
       );
+    case 'REQUEST_TRADE':
+      return b.type === a.type && canonicalJson(a.ask) === canonicalJson(b.ask);
     case 'REVEAL_VP_CARDS':
       return b.type === a.type && a.cardIds.length === b.cardIds.length && a.cardIds.every((id, idx) => id === b.cardIds[idx]);
     case 'RESOLVE_PENDING_DECISION':
@@ -658,6 +661,10 @@ export function legalActions(state: GameState, playerId: PlayerId): GameAction[]
       });
       return actions;
     }
+
+    // Replies are validated against the rules directly; these lists are only a sample of them
+    if (head.type === 'TRADE_REQUEST_REPLY') return tradeRequestReplyActions(state, head);
+    if (head.type === 'TRADE_REQUEST_CHOICE') return tradeRequestChoiceActions(state, head);
 
     return [];
   }
