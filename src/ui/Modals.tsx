@@ -1342,115 +1342,14 @@ export function PendingDecisionBanner({
   const player = state.players[decision.playerId]!;
   const pTheme = PLAYER_THEMES[decision.playerId];
 
-  const [discardCounts, setDiscardCounts] = useState<
-    Partial<Record<ResourceType | 'science', number>>
-  >({});
-
-  // Setup placements are guided by the setup coach in the dock and happen on the board
-  if (decision.type === 'SETUP_PLACE_SETTLEMENT' || decision.type === 'SETUP_PLACE_ROAD') {
+  // Setup placements are guided by the setup coach in the dock and happen on the board;
+  // a discard on a 7 is answered in the panel docked over the dock (DiscardPanel)
+  if (
+    decision.type === 'SETUP_PLACE_SETTLEMENT' ||
+    decision.type === 'SETUP_PLACE_ROAD' ||
+    decision.type === 'DISCARD_ON_SEVEN'
+  ) {
     return null;
-  }
-
-  // DISCARD ON 7 MODAL
-  if (decision.type === 'DISCARD_ON_SEVEN') {
-    const totalSelected = Object.values(discardCounts).reduce((acc, v) => acc + (v || 0), 0);
-    const needed = decision.cardsToDiscard;
-    const limit = player.hasWarehouse ? 10 : 7;
-
-    return (
-      <div style={MODAL_BACKDROP_STYLE} data-testid="pending-decision-modal">
-        <div style={{ ...MODAL_CARD_STYLE, maxWidth: '560px' }} role="dialog" aria-modal="true" aria-labelledby="discard-title">
-          <h3 className="md-title" id="discard-title">
-            Seven! {player.name} discards {needed} card{needed > 1 ? 's' : ''}
-          </h3>
-          <p className="md-sub">
-            Anyone holding more than {limit} cards gives up half, rounded down. Tap cards to choose
-            which ones go back to the supply.
-          </p>
-
-          <div className="md-cards">
-            {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science'] as const).map((k) => {
-              const held = k === 'science' ? player.science : player.resources[k];
-              const cur = discardCounts[k] || 0;
-              const meta = CARD_METADATA[k];
-              const canAdd = cur < held && totalSelected < needed;
-              return (
-                <div key={k} className="md-card-col">
-                  <button
-                    type="button"
-                    className="tt-res-card md-pick"
-                    data-testid={`discard-card-${k}`}
-                    data-empty={held - cur === 0 ? 'true' : 'false'}
-                    disabled={!canAdd}
-                    onClick={() => setDiscardCounts({ ...discardCounts, [k]: Math.min(held, cur + 1) })}
-                    aria-label={`Discard one ${meta.label} (${held - cur} left in hand)`}
-                    style={{
-                      ['--res-fill' as string]: meta.cardFill,
-                      ['--res-border' as string]: meta.border,
-                      ['--res-text' as string]: meta.textColor,
-                    }}
-                  >
-                    <svg width="32" height="32" viewBox="-14 -14 28 28" aria-hidden="true" style={{ marginTop: '-8px' }}>
-                      <circle r="12" fill={meta.bg} opacity={0.32} />
-                      <ResourceIconSvg type={k} scale={1.05} />
-                    </svg>
-                    <span className="tt-res-label">{meta.shortLabel}</span>
-                    <span className="tt-res-count">{held - cur}</span>
-                  </button>
-                  <div className="md-stepper">
-                    <button
-                      type="button"
-                      aria-label={`Keep one ${meta.label}`}
-                      disabled={cur === 0}
-                      onClick={() => setDiscardCounts({ ...discardCounts, [k]: Math.max(0, cur - 1) })}
-                    >
-                      −
-                    </button>
-                    <span aria-live="polite">{cur}</span>
-                    <button
-                      type="button"
-                      aria-label={`Discard one ${meta.label}`}
-                      disabled={!canAdd}
-                      onClick={() => setDiscardCounts({ ...discardCounts, [k]: Math.min(held, cur + 1) })}
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="md-progress" aria-hidden="true">
-            <div style={{ width: `${(totalSelected / needed) * 100}%` }} />
-          </div>
-
-          <button
-            type="button"
-            className="tt-cta"
-            data-testid="confirm-discard-btn"
-            disabled={totalSelected !== needed}
-            onClick={() => {
-              // Send only the cards actually chosen (no zero entries)
-              const cards = Object.fromEntries(
-                Object.entries(discardCounts).filter(([, n]) => (n ?? 0) > 0)
-              );
-              onDispatch({
-                type: 'RESOLVE_PENDING_DECISION',
-                playerId: decision.playerId,
-                decisionId: decision.id,
-                response: { cards },
-              });
-              setDiscardCounts({});
-            }}
-          >
-            {totalSelected === needed
-              ? `Discard ${needed} card${needed > 1 ? 's' : ''}`
-              : `Choose ${needed - totalSelected} more`}
-          </button>
-        </div>
-      </div>
-    );
   }
 
   // EVENT_CARD_CHOICE MODAL

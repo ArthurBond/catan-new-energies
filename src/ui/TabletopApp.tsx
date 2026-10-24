@@ -36,6 +36,7 @@ import { botStepDelayMs } from '../network/server-protocol';
 import { BroadcastChannelTransport } from '../network/transport';
 import { ActionDock, PrimaryAction } from './ActionDock';
 import { applyDevScenario } from './devScenarios';
+import { DiscardPanel } from './DiscardPanel';
 import {
   eventName,
   handCount,
@@ -63,6 +64,7 @@ import {
 } from './Modals';
 import { ActiveBuildMode, PlayerMat } from './PlayerMat';
 import { PlayerBadge, PlayersRail } from './PlayersRail';
+import { getProductionNumbers } from './productionNumbers';
 import { SetupCoach, SetupRollOff } from './SetupCoach';
 import { TableRail } from './TableRail';
 import { DEV_CARD_METADATA, EVENT_TRACK_METADATA, PLAYER_THEMES } from './theme';
@@ -1050,6 +1052,16 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
     return prod;
   }, [gameState.lastDiceRoll, gameState.phase, gameState.board.hexes]);
 
+  // A discard on a 7 is answered in a panel docked where the dock sits (no backdrop, so the island
+  // stays in view), with the hexes the player produces from lit up on the board
+  const discardDecision =
+    headDecision?.type === 'DISCARD_ON_SEVEN' && !waitingOnOthers && !isGameOver ? headDecision : null;
+  const discardHelp = useMemo(() => {
+    if (!discardDecision) return null;
+    const production = getProductionNumbers(gameState, discardDecision.playerId);
+    return { production, hexIds: new Set(production.hexIds) };
+  }, [gameState.board, discardDecision?.playerId]);
+
   const shouldRedactDisplayedMat = online
     ? displayedMatPlayerId !== myPlayerId
     : privacyCurtainForPlayer !== null || lobbyConfig.seats[displayedMatPlayerId]?.controller === 'bot';
@@ -1350,6 +1362,11 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
               highlightedEdgeIds={highlightedEdgeIds}
               highlightedCutoutSlots={highlightedCutoutSlots}
               producingHexIds={producingHexIds}
+              yourHexes={
+                discardDecision && discardHelp
+                  ? { playerId: discardDecision.playerId, hexIds: discardHelp.hexIds }
+                  : undefined
+              }
               previewNode={previewNode}
               previewEdge={previewEdge}
               pinnedEdges={pinnedEdges}
@@ -1470,8 +1487,20 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
             <SetupCoach state={gameState} seats={lobbyConfig.seats} hoveredNodeId={hoveredNodeId} />
           ) : undefined
         }
+        decisionPanel={
+          discardDecision && discardHelp ? (
+            <DiscardPanel
+              key={discardDecision.id}
+              state={gameState}
+              decision={discardDecision}
+              production={discardHelp.production}
+              hidden={privacyCurtainForPlayer !== null}
+              onDispatch={dispatchAction}
+            />
+          ) : undefined
+        }
         drawer={
-          isMatOpen ? (
+          isMatOpen && !discardDecision ? (
             <div className="tt-drawer" data-testid="player-board-drawer" role="dialog" aria-label={`${displayedPlayer.name}'s player board`}>
               <div className="tt-drawer-head">
                 <h3>{displayedPlayer.name}’s player board</h3>

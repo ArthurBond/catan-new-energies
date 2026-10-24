@@ -52,6 +52,8 @@ export interface IslandBoardSvgProps {
   state: GameState;
   highlightedHexIds?: Set<HexId>;
   producingHexIds?: Set<HexId>;
+  /** Hexes ringed in a player's colour: where they have a town or city (shown while they discard on a 7) */
+  yourHexes?: { playerId: PlayerId; hexIds: Set<HexId> };
   highlightedNodeIds?: Set<NodeId>;
   highlightedEdgeIds?: Set<EdgeId>;
   highlightedCutoutSlots?: Set<string>; // Format: `${nodeId}-${hexId}`
@@ -1221,6 +1223,7 @@ export function IslandBoardSvg({
   state,
   highlightedHexIds,
   producingHexIds,
+  yourHexes,
   highlightedNodeIds,
   highlightedEdgeIds,
   highlightedCutoutSlots,
@@ -1290,6 +1293,7 @@ export function IslandBoardSvg({
           const { x, y } = hexCoordToSvg(hex.coord);
           const isHighlighted = highlightedHexIds?.has(hex.id) ?? false;
           const isProducing = producingHexIds?.has(hex.id) ?? false;
+          const isYours = yourHexes?.hexIds.has(hex.id) ?? false;
           const isHighProb = hex.numberDisc === 6 || hex.numberDisc === 8;
           const pips = hex.numberDisc ? getNumberDiscPips(hex.numberDisc) : 0;
           const discInk = isHighProb
@@ -1315,6 +1319,44 @@ export function IslandBoardSvg({
             >
               {/* Vector Terrain Illustration */}
               <TerrainArtworkSvg terrain={hex.terrain} hexId={hex.id} />
+
+              {/* Discarding on a 7: hexes the player does not build on step back, theirs get a ring in their colour
+                  (all under the number disc, so the numbers stay clear). A hex a hazard or the Inspector blocks is dimmed. */}
+              {yourHexes && !isYours && (
+                <polygon
+                  data-testid={`hex-dimmed-${hex.id}`}
+                  points={getPointyHexPoints(0, 0, HEX_RADIUS - 1)}
+                  fill="rgba(7, 20, 33, 0.4)"
+                  pointerEvents="none"
+                />
+              )}
+              {isYours && yourHexes && (
+                <g
+                  data-testid={`hex-yours-${hex.id}`}
+                  className={`hex-yours${hex.hasHazard || hex.hasInspector ? ' is-blocked' : ''}`}
+                  pointerEvents="none"
+                >
+                  <g className="hex-yours-halo">
+                    <polygon
+                      points={getPointyHexPoints(0, 0, HEX_RADIUS - 5)}
+                      fill={PLAYER_THEMES[yourHexes.playerId].fill}
+                      fillOpacity={0.2}
+                      stroke="#ffffff"
+                      strokeWidth={8}
+                      strokeLinejoin="round"
+                    />
+                    <polygon
+                      points={getPointyHexPoints(0, 0, HEX_RADIUS - 5)}
+                      fill="none"
+                      stroke={PLAYER_THEMES[yourHexes.playerId].fill}
+                      strokeWidth={4.5}
+                      strokeLinejoin="round"
+                    />
+                    <circle cx={0} cy={0} r={21.5} fill="none" stroke="#ffffff" strokeWidth={4.5} />
+                    <circle cx={0} cy={0} r={21.5} fill="none" stroke={PLAYER_THEMES[yourHexes.playerId].fill} strokeWidth={2.5} />
+                  </g>
+                </g>
+              )}
 
               {/* Cream Circular Number Disc */}
               {hex.numberDisc !== null && (
