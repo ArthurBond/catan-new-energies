@@ -1949,7 +1949,9 @@ select.lb-input {
 }
 
 .hex-producing {
-  animation: hexGlow 1.4s ease-out 1 both;
+  animation: hexProducingFlash 1.5s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
 .ocean-whale-animated {
@@ -2050,15 +2052,27 @@ select.lb-input {
   }
 }
 
-@keyframes hexGlow {
-  0% {
-    opacity: 0;
-  }
-  25% {
+@keyframes hexProducingFlash {
+  0%,
+  100% {
+    transform: scale(1);
     opacity: 1;
   }
+  50% {
+    transform: scale(1.025);
+    opacity: 0.55;
+  }
+}
+
+@keyframes hexGlow {
+  0%,
   100% {
-    opacity: 0.85;
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.025);
+    opacity: 0.55;
   }
 }
 

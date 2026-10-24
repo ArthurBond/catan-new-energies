@@ -532,7 +532,7 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
     const state = createInitialGameState({ setupMode: 'first', playerCount: 4, seed: 42 });
     state.board.intersections[10]!.hasHazard = true;
     act(() => {
-      render(<IslandBoardSvg state={state} freshPieceKeys={new Set(['nzh10'])} />, container);
+      render(<IslandBoardSvg state={state} />, container);
     });
     const hazardGroup = container.querySelector('[data-testid="node-hazard-10"]');
     expect(hazardGroup).not.toBeNull();
@@ -541,7 +541,7 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
     expect(transform).not.toBe('translate(0, 0)');
   });
 
-  it('highlights producing hexes on dice roll even when inspector is present', () => {
+  it('highlights producing hexes on dice roll even when inspector is present with rich burnt orange flash', () => {
     const state = createInitialGameState({ setupMode: 'first', playerCount: 4, seed: 42 });
     const hexWithInspector = state.board.hexes.find((h) => h.hasInspector)!;
     act(() => {
@@ -553,9 +553,11 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
         container
       );
     });
-    expect(
-      container.querySelector(`[data-testid="hex-producing-${hexWithInspector.id}"]`)
-    ).not.toBeNull();
+    const producingEl = container.querySelector(`[data-testid="hex-producing-${hexWithInspector.id}"]`);
+    expect(producingEl).not.toBeNull();
+    // Check that rich burnt orange styling is applied
+    const burntOrangePolygon = producingEl?.querySelector('polygon[stroke="#d94e10"]');
+    expect(burntOrangePolygon).not.toBeNull();
   });
 
   it('renders cancel button on STEAL_TARGET pending decision to allow undoing inspector move', () => {
@@ -571,6 +573,7 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
             type: 'STEAL_TARGET',
             playerId: 'orange',
             candidatePlayerIds: ['purple', 'blue'],
+            hexId: 5,
           }}
           onDispatch={onDispatch}
           onUndo={onUndo}
