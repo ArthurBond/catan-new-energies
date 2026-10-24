@@ -41,8 +41,15 @@ import {
   PLAYER_THEMES,
   TERRAIN_THEMES,
 } from './theme';
+import { TradeCard, tradeLabel, type TradeKind } from './TradeCard';
 import {
-  EnergyBoltSvg,
+  AskForCardsPanel,
+  TradeModeSwitch,
+  TradeRequestChoicePrompt,
+  TradeRequestReplyPrompt,
+  type TradeMode,
+} from './TradeRequest';
+import {
   HazardTokenSvg,
   InspectorPawnSvg,
   PieceDefs,
@@ -419,69 +426,6 @@ export function LobbyModal({
 // 2. TRADE & SUPPLY / HARBOR / DOMESTIC P2P MODAL
 // ============================================================================
 
-type TradeKind = ResourceType | 'science' | 'energy';
-
-const ENERGY_CARD_STYLE = { cardFill: '#fff6cf', border: '#b8900a', textColor: '#3d2c00', bg: '#ffc83a' };
-
-function tradeLabel(kind: TradeKind): string {
-  if (kind === 'energy') return 'energy';
-  return CARD_METADATA[kind].shortLabel.toLowerCase();
-}
-
-/** A tappable resource / science / energy card used to compose trades. */
-function TradeCard({
-  kind,
-  badge,
-  caption,
-  selected,
-  disabled,
-  onClick,
-  testId,
-  footer,
-  dim,
-}: {
-  kind: TradeKind;
-  badge: string;
-  caption: string;
-  selected: boolean;
-  disabled: boolean;
-  onClick: () => void;
-  testId: string;
-  /** Replaces the caption, e.g. with a stepper */
-  footer?: ComponentChildren;
-  /** Grey the card out (defaults to `disabled`) */
-  dim?: boolean;
-}) {
-  const meta = kind === 'energy' ? { ...ENERGY_CARD_STYLE, shortLabel: 'Energy' } : CARD_METADATA[kind];
-  return (
-    <div className="md-card-col">
-      <button
-        type="button"
-        className="tt-res-card md-pick"
-        data-testid={testId}
-        data-selected={selected ? 'true' : 'false'}
-        data-empty={(dim ?? disabled) ? 'true' : 'false'}
-        disabled={disabled}
-        aria-pressed={selected}
-        onClick={onClick}
-        style={{
-          ['--res-fill' as string]: meta.cardFill,
-          ['--res-border' as string]: meta.border,
-          ['--res-text' as string]: meta.textColor,
-        }}
-      >
-        <svg width="32" height="32" viewBox="-14 -14 28 28" aria-hidden="true" style={{ marginTop: '-8px' }}>
-          <circle r="12" fill={meta.bg} opacity={0.32} />
-          {kind === 'energy' ? <EnergyBoltSvg scale={0.62} /> : <ResourceIconSvg type={kind} scale={1.05} />}
-        </svg>
-        <span className="tt-res-label">{meta.shortLabel}</span>
-        <span className="tt-res-count">{badge}</span>
-      </button>
-      {footer ?? <span style={{ fontSize: '11px', color: 'var(--ink-300)' }}>{caption}</span>}
-    </div>
-  );
-}
-
 export function TradeModal({
   state,
   onDispatch,
@@ -528,6 +472,8 @@ export function TradeModal({
     setPrefsState(next);
     onPrefsChange?.(next);
   };
+  // Players tab: offer a swap, or ask for cards and let everyone name their price
+  const [tradeMode, setTradeMode] = useState<TradeMode>('offer');
   const [domesticGive, setDomesticGive] = useState<TradeItems>(() => ({ ...remembered?.give }));
   const [domesticWant, setDomesticWant] = useState<TradeItems>(() => ({ ...remembered?.want }));
   const recipients = tradeRecipients(prefs);
@@ -777,7 +723,13 @@ export function TradeModal({
           </div>
         )}
 
-        {tab === 'domestic' && (
+        {tab === 'domestic' && <TradeModeSwitch mode={tradeMode} onChange={setTradeMode} />}
+
+        {tab === 'domestic' && tradeMode === 'ask' && (
+          <AskForCardsPanel state={state} onDispatch={onDispatch} onClose={onClose} />
+        )}
+
+        {tab === 'domestic' && tradeMode === 'offer' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
               <span className="md-sub" style={{ marginTop: 0, fontWeight: 700, color: '#ffffff' }}>
@@ -1612,6 +1564,14 @@ export function PendingDecisionBanner({
         </div>
       </div>
     );
+  }
+
+  // TRADE_REQUEST_REPLY / TRADE_REQUEST_CHOICE (ask for cards); each prompt keeps its own state per decision
+  if (decision.type === 'TRADE_REQUEST_REPLY') {
+    return <TradeRequestReplyPrompt key={decision.id} state={state} decision={decision} onDispatch={onDispatch} />;
+  }
+  if (decision.type === 'TRADE_REQUEST_CHOICE') {
+    return <TradeRequestChoicePrompt key={decision.id} state={state} decision={decision} onDispatch={onDispatch} />;
   }
 
   // Board-interactive decisions (MOVE_INSPECTOR, EVENT_HAZARD_CHOICE, EVENT_PRODUCTION_INCREASE)

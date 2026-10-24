@@ -67,6 +67,7 @@ import { PlayerBadge, PlayersRail } from './PlayersRail';
 import { getProductionNumbers } from './productionNumbers';
 import { SetupCoach, SetupRollOff } from './SetupCoach';
 import { TableRail } from './TableRail';
+import { describeTradeRequestMove } from './TradeRequest';
 import { DEV_CARD_METADATA, EVENT_TRACK_METADATA, PLAYER_THEMES } from './theme';
 import type { OnlineTable } from './online/onlineTypes';
 import { DEFAULT_TABLECLOTH_COLOR, TopBar } from './TopBar';
@@ -364,6 +365,12 @@ function describeAction(
       return { ...base, title: `${name} traded at a harbor` };
     case 'OFFER_TRADE':
       return { ...base, title: `${name} offered a trade` };
+    case 'REQUEST_TRADE':
+      return { ...base, title: describeTradeRequestMove(prev, action) ?? `${name} asked for cards` };
+    case 'RESOLVE_PENDING_DECISION': {
+      const requestMove = describeTradeRequestMove(prev, action);
+      return requestMove ? { ...base, title: requestMove, detail: '' } : { ...base, title: detail || name, detail: '' };
+    }
     case 'END_TURN': {
       const nextName = next.players[next.activePlayerId]?.name ?? next.activePlayerId;
       return { ...base, playerId: next.activePlayerId, title: `${nextName}’s turn`, detail: `Turn ${next.currentTurn}` };
