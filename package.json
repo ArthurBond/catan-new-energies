@@ -10,6 +10,7 @@
     "build:server": "vite build --config vite.server.config.ts",
     "server": "node dist-server/main.js",
     "host": "npm run build && npm run build:server && npm run server",
+    "publish:pages": "node scripts/publish-pages.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
