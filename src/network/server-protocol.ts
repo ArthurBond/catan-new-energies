@@ -165,6 +165,17 @@ export function createDefaultOnlineLobbyConfig(seed = 1): OnlineLobbyConfig {
   };
 }
 
+/**
+ * How long a bot waits before each step (setup placements are paced slower so people can follow
+ * them). Used by the in-browser bots (TabletopApp) and the game server (`botDelayForSpeed`).
+ * The stored keys predate the current pacing: 'normal' is shown as "Relaxed", 'fast' as "Fast".
+ */
+export function botStepDelayMs(speed: OnlineBotSpeed, isSetup: boolean): number {
+  if (speed === 'instant') return 10;
+  if (speed === 'fast') return isSetup ? 950 : 600;
+  return isSetup ? 2000 : 1400;
+}
+
 /** Seats taking part in a game with this config, in turn order. */
 export function activeSeatIds(config: Pick<OnlineLobbyConfig, 'playerCount'>): PlayerId[] {
   return config.playerCount === 3 ? ['orange', 'purple', 'pink'] : [...ALL_PLAYER_IDS];

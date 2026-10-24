@@ -32,6 +32,7 @@ import {
   NodeId,
   PlayerId,
 } from '../engine/types';
+import { botStepDelayMs } from '../network/server-protocol';
 import { BroadcastChannelTransport } from '../network/transport';
 import { ActionDock, PrimaryAction } from './ActionDock';
 import { applyDevScenario } from './devScenarios';
@@ -703,9 +704,7 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
     if (!seat || seat.controller !== 'bot') return;
 
     const isSetup = gameState.phase === 'SetupRoll' || gameState.phase === 'SetupDraft';
-    const speed = lobbyConfig.botSpeed;
-    const delayMs =
-      speed === 'instant' ? 10 : speed === 'fast' ? (isSetup ? 420 : 150) : isSetup ? 950 : 600;
+    const delayMs = botStepDelayMs(lobbyConfig.botSpeed, isSetup);
 
     const timer = setTimeout(() => {
       try {

@@ -24,6 +24,7 @@ import { redactForPlayer, redactForSpectator, type RedactOptions } from '@/netwo
 import {
   activeSeatIds,
   ALL_PLAYER_IDS,
+  botStepDelayMs,
   createDefaultOnlineLobbyConfig,
   SERVER_PROTOCOL_VERSION,
   type ClientMessage,
@@ -194,9 +195,7 @@ function mapDifficulty(d: OnlineBotDifficulty): BotDifficulty {
 /** Same pacing as the in-browser bots (TabletopApp). */
 export function botDelayForSpeed(config: OnlineLobbyConfig, state: GameState): number {
   const isSetup = state.phase === 'SetupRoll' || state.phase === 'SetupDraft';
-  if (config.botSpeed === 'instant') return 10;
-  if (config.botSpeed === 'fast') return isSetup ? 420 : 150;
-  return isSetup ? 950 : 600;
+  return botStepDelayMs(config.botSpeed, isSetup);
 }
 
 const defaultTimers: RoomTimers = {

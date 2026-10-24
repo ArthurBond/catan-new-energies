@@ -2,6 +2,11 @@ import { expect, test } from '@playwright/test';
 
 test('with autoplay off the bots take one step per click, named on the button', async ({ page }) => {
   await page.goto('/?scenario=showcase&bots=3&seed=42');
+  // Instant bots: the wait for "nothing happens by itself" below is then a real check, and the
+  // bots finish their turns quickly once autoplay is back on (Relaxed paces them 1.4 s a step)
+  await page.getByTestId('settings-btn').click();
+  await page.getByRole('button', { name: 'Instant' }).click();
+  await page.keyboard.press('Escape');
   const toggle = page.getByTestId('autoplay-toggle');
   await expect(toggle).toHaveAttribute('aria-checked', 'true');
 

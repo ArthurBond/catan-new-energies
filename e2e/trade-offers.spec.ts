@@ -63,6 +63,10 @@ test('an offer goes to each player in turn until someone takes it, and is rememb
 test('the offer starts fresh on the first trade of a new turn', async ({ page }) => {
   // Orange is the only human; the bots take their turns on their own
   await page.goto(`/?scenario=showcase&bots=3&seed=42`);
+  // Instant bots, so the waits below are not paced by the Relaxed speed (1.4 s per bot step)
+  await page.getByTestId('settings-btn').click();
+  await page.getByRole('button', { name: 'Instant' }).click();
+  await page.keyboard.press('Escape');
   await openPlayersTab(page);
   await page.getByTestId('domestic-give-steel').click();
   await page.getByTestId('domestic-want-brick').click();
