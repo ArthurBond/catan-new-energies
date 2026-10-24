@@ -32,9 +32,11 @@ import {
   NodeId,
   PlayerId,
 } from '../engine/types';
+import { botStepDelayMs } from '../network/server-protocol';
 import { BroadcastChannelTransport } from '../network/transport';
 import { ActionDock, PrimaryAction } from './ActionDock';
 import { applyDevScenario } from './devScenarios';
+import { DiscardPanel } from './DiscardPanel';
 import {
   eventName,
   handCount,
@@ -62,15 +64,17 @@ import {
 } from './Modals';
 import { ActiveBuildMode, PlayerMat } from './PlayerMat';
 import { PlayerBadge, PlayersRail } from './PlayersRail';
+import { getProductionNumbers } from './productionNumbers';
 import { SetupCoach, SetupRollOff } from './SetupCoach';
 import { TableRail } from './TableRail';
+import { describeTradeRequestMove } from './TradeRequest';
 import { DEV_CARD_METADATA, EVENT_TRACK_METADATA, PLAYER_THEMES } from './theme';
 import type { OnlineTable } from './online/onlineTypes';
-import { TopBar } from './TopBar';
+import { DEFAULT_TABLECLOTH_COLOR, TopBar } from './TopBar';
 import { EventDiscSvg, EventIconSvg } from './WoodenPiecesSvg';
 
 const SAVED_GAME_KEY = 'catan_new_energies_saved_game_v2';
-const TABLECLOTH_COLOR_KEY = 'catan_new_energies_tablecloth_color_v1';
+const TABLECLOTH_COLOR_KEY = 'catan_new_energies_tablecloth_color_v2';
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 5;
 const TOAST_MS = 3400;
@@ -361,6 +365,12 @@ function describeAction(
       return { ...base, title: `${name} traded at a harbor` };
     case 'OFFER_TRADE':
       return { ...base, title: `${name} offered a trade` };
+    case 'REQUEST_TRADE':
+      return { ...base, title: describeTradeRequestMove(prev, action) ?? `${name} asked for cards` };
+    case 'RESOLVE_PENDING_DECISION': {
+      const requestMove = describeTradeRequestMove(prev, action);
+      return requestMove ? { ...base, title: requestMove, detail: '' } : { ...base, title: detail || name, detail: '' };
+    }
     case 'END_TURN': {
       const nextName = next.players[next.activePlayerId]?.name ?? next.activePlayerId;
       return { ...base, playerId: next.activePlayerId, title: `${nextName}’s turn`, detail: `Turn ${next.currentTurn}` };
@@ -432,9 +442,13 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
 
   const [tableclothColor, setTableclothColor] = useState<string>(() => {
     try {
-      return localStorage.getItem(TABLECLOTH_COLOR_KEY) || '#181a1d';
+      const stored = localStorage.getItem(TABLECLOTH_COLOR_KEY);
+      if (stored) return stored;
+      const v1 = localStorage.getItem('catan_new_energies_tablecloth_color_v1');
+      if (v1 && v1 !== '#181a1d') return v1;
+      return DEFAULT_TABLECLOTH_COLOR;
     } catch {
-      return '#181a1d';
+      return DEFAULT_TABLECLOTH_COLOR;
     }
   });
 
@@ -699,9 +713,7 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
     if (!seat || seat.controller !== 'bot') return;
 
     const isSetup = gameState.phase === 'SetupRoll' || gameState.phase === 'SetupDraft';
-    const speed = lobbyConfig.botSpeed;
-    const delayMs =
-      speed === 'instant' ? 10 : speed === 'fast' ? (isSetup ? 420 : 150) : isSetup ? 950 : 600;
+    const delayMs = botStepDelayMs(lobbyConfig.botSpeed, isSetup);
 
     const timer = setTimeout(() => {
       try {
@@ -1047,6 +1059,16 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
     return prod;
   }, [gameState.lastDiceRoll, gameState.phase, gameState.board.hexes]);
 
+  // A discard on a 7 is answered in a panel docked where the dock sits (no backdrop, so the island
+  // stays in view), with the hexes the player produces from lit up on the board
+  const discardDecision =
+    headDecision?.type === 'DISCARD_ON_SEVEN' && !waitingOnOthers && !isGameOver ? headDecision : null;
+  const discardHelp = useMemo(() => {
+    if (!discardDecision) return null;
+    const production = getProductionNumbers(gameState, discardDecision.playerId);
+    return { production, hexIds: new Set(production.hexIds) };
+  }, [gameState.board, discardDecision?.playerId]);
+
   const shouldRedactDisplayedMat = online
     ? displayedMatPlayerId !== myPlayerId
     : privacyCurtainForPlayer !== null || lobbyConfig.seats[displayedMatPlayerId]?.controller === 'bot';
@@ -1171,7 +1193,7 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
       data-my-seat={online ? (myPlayerId ?? 'none') : undefined}
       data-tablecloth-color={tableclothColor}
       style={{
-        // Buffalo-plaid gingham tablecloth (default black, changeable to any colour)
+        // Buffalo-plaid gingham tablecloth (default picnic red, changeable to any colour)
         backgroundColor: ginghamBase,
         backgroundImage: `
           linear-gradient(90deg, ${ginghamRgba} 50%, transparent 50%),
@@ -1347,6 +1369,11 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
               highlightedEdgeIds={highlightedEdgeIds}
               highlightedCutoutSlots={highlightedCutoutSlots}
               producingHexIds={producingHexIds}
+              yourHexes={
+                discardDecision && discardHelp
+                  ? { playerId: discardDecision.playerId, hexIds: discardHelp.hexIds }
+                  : undefined
+              }
               previewNode={previewNode}
               previewEdge={previewEdge}
               pinnedEdges={pinnedEdges}
@@ -1437,6 +1464,7 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
           }
           rollAnimKey={rollAnimKey}
           producingCount={producingHexIds.size}
+          onSelectEventTrackInfo={(track) => setSelectedEventInfo(track)}
         />
       </div>
 
@@ -1466,8 +1494,20 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
             <SetupCoach state={gameState} seats={lobbyConfig.seats} hoveredNodeId={hoveredNodeId} />
           ) : undefined
         }
+        decisionPanel={
+          discardDecision && discardHelp ? (
+            <DiscardPanel
+              key={discardDecision.id}
+              state={gameState}
+              decision={discardDecision}
+              production={discardHelp.production}
+              hidden={privacyCurtainForPlayer !== null}
+              onDispatch={dispatchAction}
+            />
+          ) : undefined
+        }
         drawer={
-          isMatOpen ? (
+          isMatOpen && !discardDecision ? (
             <div className="tt-drawer" data-testid="player-board-drawer" role="dialog" aria-label={`${displayedPlayer.name}'s player board`}>
               <div className="tt-drawer-head">
                 <h3>{displayedPlayer.name}’s player board</h3>

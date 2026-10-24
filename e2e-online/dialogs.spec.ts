@@ -19,6 +19,13 @@ async function ownHand(page: Page): Promise<Record<(typeof RESOURCES)[number], n
   return hand;
 }
 
+/** While a discard is open the panel takes the dock's place, so the hand is read from its cards. */
+async function heldInDiscardPanel(page: Page): Promise<Record<(typeof RESOURCES)[number], number>> {
+  const hand = {} as Record<(typeof RESOURCES)[number], number>;
+  for (const r of RESOURCES) hand[r] = Number(await page.getByTestId(`discard-held-${r}`).textContent());
+  return hand;
+}
+
 const total = (hand: Record<string, number>) => Object.values(hand).reduce((a, b) => a + b, 0);
 
 async function clickMany(page: Page, testId: string, times: number) {
@@ -49,7 +56,7 @@ test.describe('a roll of 7, a steal, a trade and development cards', () => {
       await expect(app(A)).toHaveAttribute('data-my-seat', 'orange');
       await expect(app(B)).toHaveAttribute('data-my-seat', 'purple');
       await expect(app(A)).toHaveAttribute('data-phase', 'ProductionPhase');
-      expect(total(await ownHand(A))).toBe(9);
+      expect(total(await heldInDiscardPanel(A))).toBe(9);
       expect(total(await ownHand(B))).toBe(8);
       // Everyone else's hand is only a number
       await expect(A.getByTestId('corner-cards-purple')).toHaveText('8');
@@ -114,6 +121,8 @@ test.describe('a roll of 7, a steal, a trade and development cards', () => {
       await A.getByTestId('action-open-trade-btn').click();
       await expect(A.getByTestId('trade-modal')).toBeVisible();
       await A.getByTestId('trade-tab-domestic').click();
+      // Offers go to everyone in turn by default; this one is for the friend only
+      await A.getByTestId('trade-auto-offer-toggle').click();
       await A.getByTestId('domestic-target-purple').click();
       await A.getByTestId('domestic-give-natural_fiber').click();
       await A.getByTestId('domestic-want-steel').click();

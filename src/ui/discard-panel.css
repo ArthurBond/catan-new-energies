@@ -1,0 +1,283 @@
+/*
+ * Discard on a 7: a panel docked where the action dock sits, with no backdrop so the island stays
+ * visible. Also the highlight on the board for the hexes the discarding player produces from.
+ */
+
+.dp-panel {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(260px, 1.3fr) minmax(0, 2.6fr) minmax(180px, 0.75fr);
+  gap: 18px;
+  align-items: center;
+  min-height: 135px;
+  padding: 12px 16px 8px 22px;
+  border-radius: var(--radius-l);
+  background: var(--ink-800);
+  border: 1px solid rgba(163, 183, 202, 0.22);
+  color: var(--ink-100);
+  box-shadow:
+    inset 6px 0 0 var(--dp-accent, var(--volt)),
+    0 -8px 28px -10px rgba(3, 12, 22, 0.75),
+    var(--shadow-ink);
+  animation: dpIn 260ms var(--ease-out);
+}
+
+.dp-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.dp-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.dp-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: #ffffff;
+}
+
+.dp-sub {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--ink-100);
+}
+
+.dp-hint {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--ink-300);
+}
+
+.dp-cards {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+  align-items: start;
+}
+
+.dp-cards-hidden {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 90px;
+  border-radius: var(--radius-m);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--ink-300);
+  font-size: 13px;
+  text-align: center;
+  padding: 8px 16px;
+}
+
+.dp-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.dp-pick {
+  height: 56px;
+  max-width: 60px;
+}
+
+.dp-rolls-slot {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  min-height: 22px;
+}
+
+.dp-rolls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 3px;
+  list-style: none;
+  max-width: 100%;
+}
+
+.dp-roll {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: #f3efe2;
+  border: 1.5px solid #cbbca0;
+  color: #22252a;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 12.5px;
+  line-height: 1;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+}
+
+.dp-roll[data-hot='true'] {
+  color: #c93b2b;
+  border-color: #c93b2b;
+}
+
+.dp-roll small {
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+/* A roll that gives nothing right now (hazard or inspector): greyed and struck through */
+.dp-roll:not([data-blocked='none']) {
+  background: transparent;
+  border: 1.5px dashed var(--ink-500);
+  color: var(--ink-300);
+  text-decoration: line-through;
+  box-shadow: none;
+  opacity: 0.8;
+}
+
+.dp-none {
+  font-size: 11.5px;
+  font-style: italic;
+  line-height: 22px;
+  color: var(--ink-300);
+}
+
+.dp-action {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dp-progress-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-300);
+  text-align: center;
+}
+
+.dp-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--ink-950);
+  overflow: hidden;
+}
+
+.dp-progress div {
+  height: 100%;
+  background: var(--volt);
+  border-radius: 999px;
+  transition: width 240ms var(--ease-out);
+}
+
+/* The yellow button reads as "not yet" when it is disabled, on the dark panel */
+.tt-cta.dp-confirm:disabled {
+  background: var(--ink-700);
+  color: var(--ink-300);
+  box-shadow: 0 3px 0 var(--ink-900);
+  font-size: 15px;
+}
+
+/* Board: hexes the discarding player has a town or city on */
+.hex-yours-halo {
+  animation: dpHexGlow 2.2s ease-in-out infinite;
+}
+
+.hex-yours.is-blocked {
+  opacity: 0.55;
+}
+
+@keyframes dpIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dpHexGlow {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (min-width: 1600px) and (min-height: 940px) {
+  .dp-panel {
+    min-height: 162px;
+    gap: 24px;
+    padding: 12px 20px 10px 26px;
+  }
+  .dp-title {
+    font-size: 21px;
+  }
+  .dp-sub {
+    font-size: 13.5px;
+  }
+  .dp-hint {
+    font-size: 12.5px;
+  }
+  .dp-pick {
+    height: 76px;
+    max-width: 74px;
+  }
+  .dp-roll {
+    min-width: 25px;
+    height: 25px;
+    font-size: 13.5px;
+  }
+  .dp-rolls-slot {
+    min-height: 25px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .dp-panel {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .dp-action {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+  .dp-progress-label {
+    white-space: nowrap;
+  }
+  .dp-progress {
+    flex: 1 1 60px;
+  }
+  .dp-confirm {
+    flex: 0 1 220px;
+  }
+}
+
+@media (max-width: 600px) {
+  .dp-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 12px;
+  }
+  .dp-action {
+    flex-wrap: wrap;
+  }
+  .dp-confirm {
+    flex: 1 1 100%;
+  }
+}

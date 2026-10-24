@@ -29,6 +29,14 @@ import {
   canOfferTrade,
 } from './energy-trades';
 import { applyEventDecision } from './event-resolvers';
+import {
+  applyRequestTrade,
+  applyTradeRequestChoice,
+  applyTradeRequestReply,
+  canRequestTrade,
+  canResolveTradeChoice,
+  canResolveTradeReply,
+} from './trade-requests';
 import { checkPostDecisionEventPhase, stepEventDraw } from './events';
 import { clampGF, computePlayerLF, computeTrueTotalLF } from './footprint';
 import { Mulberry32PRNG } from './prng';
@@ -66,6 +74,11 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       action.want
     ).canOffer;
   }
+  if (!isLegal && action.type === 'REQUEST_TRADE') {
+    const request = canRequestTrade(state, action.playerId, action.ask);
+    if (!request.canRequest) throw new IllegalActionError(request.reason ?? 'Illegal trade request');
+    isLegal = true;
+  }
   if (!isLegal && action.type === 'PLAY_DEV_CARD') {
     isLegal = canPlayDevCard(state, action.playerId, action.cardId, action.params).canPlay;
   }
@@ -79,6 +92,20 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       isLegal = true;
     } else if (state.pendingDecisions[0]?.type === 'DISCARD_ON_SEVEN') {
       throw new IllegalActionError(discard.reason ?? 'Illegal discard');
+    }
+  }
+  // Trade request replies and choices are validated the same way (any valid reply is allowed)
+  if (!isLegal && action.type === 'RESOLVE_PENDING_DECISION') {
+    const head = state.pendingDecisions[0];
+    const check =
+      head?.type === 'TRADE_REQUEST_REPLY'
+        ? canResolveTradeReply(state, action.playerId, action.decisionId, action.response)
+        : head?.type === 'TRADE_REQUEST_CHOICE'
+          ? canResolveTradeChoice(state, action.playerId, action.decisionId, action.response)
+          : null;
+    if (check) {
+      if (!check.ok) throw new IllegalActionError(check.reason ?? 'Illegal trade request answer');
+      isLegal = true;
     }
   }
 
@@ -460,6 +487,10 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       } else if (head.type === 'DOMESTIC_TRADE_RESPONSE') {
         const resp = action.response as { accept: boolean };
         applyTradeResponse(next, head.id, resp.accept);
+      } else if (head.type === 'TRADE_REQUEST_REPLY') {
+        applyTradeRequestReply(next, head.id, action.response);
+      } else if (head.type === 'TRADE_REQUEST_CHOICE') {
+        applyTradeRequestChoice(next, head.id, action.response);
       }
       break;
     }
@@ -528,6 +559,11 @@ export function applyAction(state: GameState, action: GameAction): GameState {
 
     case 'OFFER_TRADE': {
       applyOfferTrade(next, action.playerId, action.targetPlayerId, action.give, action.want, action.thenOffer);
+      break;
+    }
+
+    case 'REQUEST_TRADE': {
+      applyRequestTrade(next, action.playerId, action.ask);
       break;
     }
 

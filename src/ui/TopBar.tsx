@@ -12,11 +12,13 @@ import type { BotSpeedMode } from './Modals';
 import { PLAYER_THEMES } from './theme';
 import { PlayerEmblemSvg } from './WoodenPiecesSvg';
 
+export const DEFAULT_TABLECLOTH_COLOR = '#7a1c1c';
+
 export const TABLECLOTH_PRESETS: { color: string; label: string }[] = [
+  { color: '#7a1c1c', label: 'Picnic red' },
   { color: '#181a1d', label: 'Classic black' },
   { color: '#133b63', label: 'Ocean blue' },
   { color: '#174f2c', label: 'Forest green' },
-  { color: '#7a1c1c', label: 'Picnic red' },
 ];
 
 type StepState = 'done' | 'current' | 'upcoming';

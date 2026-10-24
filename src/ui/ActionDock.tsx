@@ -118,7 +118,9 @@ function BuildTile({
   selected: boolean;
   onClick: () => void;
 }) {
-  const tooltip = `${option.label} — costs ${costText(option.cost)}${option.reason ? `. ${option.reason}` : ''}`;
+  const descText = option.description ? ` ${option.description.trim()}` : '';
+  const reasonText = option.reason ? ` ${option.reason.trim().replace(/\.*$/, '')}.` : '';
+  const tooltip = `${option.label} — costs ${costText(option.cost)}.${descText}${reasonText}`;
   return (
     <button
       type="button"
@@ -271,6 +273,8 @@ export interface ActionDockProps {
   drawer?: ComponentChildren;
   /** Replaces the build palette while starting pieces are being placed */
   setupPanel?: ComponentChildren;
+  /** Takes the whole dock while a decision is answered here (a discard on a 7) */
+  decisionPanel?: ComponentChildren;
 }
 
 export function ActionDock({
@@ -295,6 +299,7 @@ export function ActionDock({
   onToggleMat,
   drawer,
   setupPanel,
+  decisionPanel,
   fixedViewer = false,
 }: ActionDockProps) {
   const p = state.players[viewedPlayerId]!;
@@ -338,6 +343,17 @@ export function ActionDock({
       : state.phase === 'ActionPhase' && !isActing
         ? `${state.players[actingPlayerId]?.name ?? ''} is building`
         : 'Unlocks in the action phase';
+
+  if (decisionPanel) {
+    return (
+      <footer className="tt-dock" data-testid="bottom-player-dock" data-decision="true">
+        {decisionPanel}
+        <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
+          <PieceDefs />
+        </svg>
+      </footer>
+    );
+  }
 
   return (
     <footer className="tt-dock" data-testid="bottom-player-dock">

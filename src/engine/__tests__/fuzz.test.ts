@@ -10,6 +10,7 @@ import {
   TOTAL_SCIENCE_CARDS,
 } from '../config';
 import { clampGF, computePlayerLF } from '../footprint';
+import { canRequestTrade, TRADE_KINDS } from '../trade-requests';
 import { getDevCardType } from '../dev-cards';
 import { Mulberry32PRNG } from '../prng';
 import { GameAction, GameState } from '../types';
@@ -175,6 +176,8 @@ describe('M2 Property-Based Fuzzing Suite (500 Complete Games)', () => {
       let tenVpVictories = 0;
       let emptyBagVictories = 0;
       let collapseEndings = 0;
+      let tradeRequests = 0;
+      let requestedTradesTaken = 0;
 
       fc.assert(
         fc.property(gameConfigArbitrary, ({ playerCount, setupMode, seed }) => {
@@ -194,9 +197,21 @@ describe('M2 Property-Based Fuzzing Suite (500 Complete Games)', () => {
             const actions = legalActions(state, activePid);
             expect(actions.length).toBeGreaterThan(0); // Zero deadlocks!
 
-            const chosenAction = selectBiasedAction(actions, simPrng);
+            let chosenAction = selectBiasedAction(actions, simPrng);
+            // Now and then the active player asks for cards (like a plain offer, this is not listed in
+            // legalActions): everyone replies from their legal moves and the requester picks or declines
+            if (state.phase === 'ActionPhase' && state.pendingDecisions.length === 0 && simPrng.nextInt(0, 19) === 0) {
+              const kind = TRADE_KINDS[simPrng.nextInt(0, TRADE_KINDS.length - 1)]!;
+              const ask = { [kind]: simPrng.nextInt(1, 2) };
+              if (canRequestTrade(state, activePid, ask).canRequest) {
+                chosenAction = { type: 'REQUEST_TRADE', playerId: activePid, ask };
+                tradeRequests++;
+              }
+            }
             const hazardsBefore = countBoardHazards(state);
+            const logBefore = state.log.length;
             state = applyAction(state, chosenAction);
+            requestedTradesTaken += state.log.slice(logBefore).filter((l) => /took .+'s offer\.$/.test(l.message)).length;
             if (countBoardHazards(state) > hazardsBefore) {
               expect(HAZARD_PLACING_ACTIONS.has(chosenAction.type)).toBe(true);
             }
@@ -225,6 +240,8 @@ describe('M2 Property-Based Fuzzing Suite (500 Complete Games)', () => {
 
       // Verify that simulations terminated naturally and produced diverse endings
       expect(gamesCompleted).toBeGreaterThan(0);
+      expect(tradeRequests).toBeGreaterThan(0);
+      expect(requestedTradesTaken).toBeGreaterThan(0);
       expect(tenVpVictories + emptyBagVictories + collapseEndings).toBe(gamesCompleted);
     },
     180_000 // 3 minutes timeout for 500 full games

@@ -18,8 +18,14 @@ import { RESOURCE_TYPES } from '../engine/config';
 import { getDevCardType } from '../engine/dev-cards';
 import { calculateLongestRoad } from '../engine/longest-road';
 import { Mulberry32PRNG } from '../engine/prng';
-import { getHandSizeForSeven } from '../engine/production';
+import { getHandSizeForSeven, isHandBreakdownHidden } from '../engine/production';
 import { TERRAIN_RESOURCE_MAP } from '../engine/setup';
+import {
+  canResolveTradeReply,
+  canTakeRequestOffer,
+  type TradeRequestChoice,
+  type TradeRequestReply,
+} from '../engine/trade-requests';
 import {
   CleanupOption,
   DevCardPlayParams,
@@ -1239,6 +1245,126 @@ function scoreTradeOrEnergyBuy(
 }
 
 // ============================================================================
+// Trade requests: "I need a brick, name your price"
+// ============================================================================
+
+type TradeItems = Partial<Record<CardKey | 'energy', number>>;
+
+const REQUESTABLE_CARDS: CardKey[] = [...RESOURCE_TYPES, 'science'];
+
+function tradeItemCount(items: TradeItems): number {
+  return Object.values(items).reduce((sum, n) => sum + (n ?? 0), 0);
+}
+
+/** The hand after paying `lose` and collecting `gain` (energy is not part of a hand's readiness). */
+function handAfterSwap(player: PlayerState, lose: TradeItems, gain: TradeItems) {
+  const resources = { ...player.resources };
+  let science = player.science;
+  for (const k of REQUESTABLE_CARDS) {
+    const change = (gain[k] ?? 0) - (lose[k] ?? 0);
+    if (k === 'science') science += change;
+    else resources[k] += change;
+  }
+  return { resources, science };
+}
+
+/**
+ * Answers "Orange wants 1 brick": offer it for something the requester holds if that leaves this
+ * bot's hand better placed for what it is building, else pass. Never asks for a card the requester
+ * does not hold (when their hand can be seen). Harder or more industrial bots want a premium.
+ */
+function chooseTradeRequestReply(
+  state: GameState,
+  playerId: PlayerId,
+  head: TradeRequestReply,
+  config: BotConfig,
+  rng: Mulberry32PRNG
+): GameAction {
+  const answer = (response: unknown): GameAction => ({
+    type: 'RESOLVE_PENDING_DECISION',
+    playerId,
+    decisionId: head.id,
+    response,
+  });
+  const pass = answer({ pass: true });
+  const { personality, difficulty } = config;
+  const player = state.players[playerId]!;
+  const requester = state.players[head.requestingPlayerId]!;
+
+  // Keep energy, and never help someone who is close to winning
+  if ((head.ask.energy ?? 0) > 0) return pass;
+  if (requester.victoryPoints >= (difficulty === 'Hard' ? 7 : 8)) return pass;
+
+  const seen = !isHandBreakdownHidden(requester);
+  const handSize = getHandSizeForSeven(requester);
+  const before = scoreHandBuildReadiness(state, playerId, player.resources, player.science, personality);
+  const premium = difficulty === 'Hard' || personality === 'IndustrialExpansionist' ? 1 : 0;
+  const target = tradeItemCount(head.ask) + premium;
+  const minGain = difficulty === 'Hard' ? 3 : difficulty === 'Easy' ? -4 : 0;
+
+  const heldByRequester = (k: CardKey) => (k === 'science' ? requester.science : requester.resources[k]);
+  const candidates: TradeItems[] = [];
+  const open = REQUESTABLE_CARDS.filter((k) => (head.ask[k] ?? 0) === 0 && (!seen || heldByRequester(k) > 0));
+  // Roughly fair: never more cards back than asked for plus the premium
+  for (const k of open) {
+    for (let n = 1; n <= target; n++) {
+      if (seen ? heldByRequester(k) >= n : handSize >= n) candidates.push({ [k]: n });
+    }
+  }
+  if (target >= 2) {
+    for (let i = 0; i < open.length; i++) {
+      for (let j = i + 1; j < open.length; j++) candidates.push({ [open[i]!]: 1, [open[j]!]: 1 });
+    }
+  }
+
+  let best: { want: TradeItems; score: number } | null = null;
+  for (const want of candidates) {
+    if (!canResolveTradeReply(state, playerId, head.id, { want }).ok) continue;
+    const hand = handAfterSwap(player, head.ask, want);
+    const gain = scoreHandBuildReadiness(state, playerId, hand.resources, hand.science, personality) - before;
+    if (gain <= minGain) continue;
+    let score = gain - Math.abs(tradeItemCount(want) - target) * 4;
+    if (difficulty === 'Easy') score += (rng.next() - 0.5) * 12;
+    if (!best || score > best.score) best = { want, score };
+  }
+  return best ? answer({ want: best.want }) : pass;
+}
+
+/**
+ * Picks among the offers made to a bot that asked for cards: the one that leaves its hand best
+ * placed, if any improves it, never one from a player about to win; else turns them all down.
+ */
+function chooseTradeRequestChoice(
+  state: GameState,
+  playerId: PlayerId,
+  head: TradeRequestChoice,
+  config: BotConfig
+): GameAction {
+  const answer = (response: unknown): GameAction => ({
+    type: 'RESOLVE_PENDING_DECISION',
+    playerId,
+    decisionId: head.id,
+    response,
+  });
+  const { personality, difficulty } = config;
+  const player = state.players[playerId]!;
+  const before = scoreHandBuildReadiness(state, playerId, player.resources, player.science, personality);
+
+  let best: { from: PlayerId; gain: number } | null = null;
+  for (const offer of head.offers) {
+    if (!canTakeRequestOffer(state, playerId, head.ask, offer).ok) continue;
+    if (state.players[offer.playerId]!.victoryPoints >= 8) continue;
+    const hand = handAfterSwap(player, offer.want, head.ask);
+    const energyChange = ((head.ask.energy ?? 0) - (offer.want.energy ?? 0)) * 4;
+    const gain =
+      scoreHandBuildReadiness(state, playerId, hand.resources, hand.science, personality) - before + energyChange;
+    if (!best || gain > best.gain) best = { from: offer.playerId, gain };
+  }
+  if (best && best.gain > (difficulty === 'Hard' ? 3 : 0)) return answer({ takeOfferFrom: best.from });
+  return answer({ decline: true });
+}
+
+// ============================================================================
 // Main Entry Point: chooseBotAction
 // ============================================================================
 
@@ -1252,6 +1378,18 @@ export function chooseBotAction(
   if (actions.length === 0) {
     throw new Error(`No legal actions available for player ${playerId} in phase ${state.phase}`);
   }
+
+  // Trade requests are answered from the whole rules, not from the sample `legalActions` lists
+  const requestHead = state.pendingDecisions[0];
+  if (requestHead?.playerId === playerId) {
+    if (requestHead.type === 'TRADE_REQUEST_REPLY') {
+      return chooseTradeRequestReply(state, playerId, requestHead, config, prng ?? getFallbackPRNG(state, playerId));
+    }
+    if (requestHead.type === 'TRADE_REQUEST_CHOICE') {
+      return chooseTradeRequestChoice(state, playerId, requestHead, config);
+    }
+  }
+
   if (actions.length === 1) {
     return actions[0]!;
   }

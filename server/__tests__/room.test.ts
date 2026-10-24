@@ -13,7 +13,14 @@ import {
   type StateMessage,
 } from '@/network/server-protocol';
 import { createFileStore } from '../persistence';
-import { drawnEventDisc, GameRoom, type GameRoomOptions, type RoomTimers, type SavedRoom } from '../room';
+import {
+  botDelayForSpeed,
+  drawnEventDisc,
+  GameRoom,
+  type GameRoomOptions,
+  type RoomTimers,
+  type SavedRoom,
+} from '../room';
 import { createInitialGameState } from '@/engine/setup';
 
 const HOST_KEY = 'test-host-key-123';
@@ -487,6 +494,50 @@ describe('GameRoom bots', () => {
     expect(pending.size).toBe(1); // purple (bot) is next
     room.shutdown();
     expect(pending.size).toBe(0);
+  });
+});
+
+describe('botDelayForSpeed', () => {
+  const base = createInitialGameState({ seed: 3 });
+  const rollState = { ...base, phase: 'SetupRoll' as const };
+  const draftState = { ...base, phase: 'SetupDraft' as const };
+  const playState = { ...base, phase: 'ActionPhase' as const };
+  const withSpeed = (botSpeed: OnlineLobbyConfig['botSpeed']): OnlineLobbyConfig => ({
+    ...createDefaultOnlineLobbyConfig(3),
+    botSpeed,
+  });
+
+  it('paces server bots like the browser: Relaxed 1.4 s (2 s in setup), Fast 0.6 s (0.95 s), Instant 10 ms', () => {
+    expect(botDelayForSpeed(withSpeed('normal'), playState)).toBe(1400);
+    expect(botDelayForSpeed(withSpeed('normal'), rollState)).toBe(2000);
+    expect(botDelayForSpeed(withSpeed('normal'), draftState)).toBe(2000);
+    expect(botDelayForSpeed(withSpeed('fast'), playState)).toBe(600);
+    expect(botDelayForSpeed(withSpeed('fast'), rollState)).toBe(950);
+    expect(botDelayForSpeed(withSpeed('fast'), draftState)).toBe(950);
+    expect(botDelayForSpeed(withSpeed('instant'), playState)).toBe(10);
+    expect(botDelayForSpeed(withSpeed('instant'), draftState)).toBe(10);
+  });
+
+  it('a room with no fixed delay waits the lobby speed before each bot step', () => {
+    const delays: number[] = [];
+    const timers: RoomTimers = {
+      setTimeout: (_fn, ms) => {
+        delays.push(ms);
+        return delays.length;
+      },
+      clearTimeout: () => {},
+    };
+    const { room, join } = makeRoom({ timers, botDelayMs: undefined });
+    join('h', { name: 'Hana', hostKey: HOST_KEY });
+    const cfg = createDefaultOnlineLobbyConfig(5);
+    cfg.hostPlayerId = 'blue';
+    cfg.seats.blue.controller = 'human';
+    cfg.seats.orange.controller = 'bot';
+    cfg.botSpeed = 'normal';
+    room.handleMessage('h', { type: 'configure', config: cfg });
+    room.handleMessage('h', { type: 'start' });
+    expect(delays).toEqual([2000]); // orange (bot) rolls first in the setup roll-off
+    room.shutdown();
   });
 });
 

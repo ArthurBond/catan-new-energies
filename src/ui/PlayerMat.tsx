@@ -557,7 +557,17 @@ export function PlayerMat({
                   ? 'Warehouse built: you keep up to 10 cards on a 7'
                   : 'Build the warehouse (2 energy): keep up to 10 cards on a 7'
               }
+              title={
+                player.hasWarehouse
+                  ? 'Warehouse built: keeps up to 10 cards safe on a roll of 7.'
+                  : `Warehouse — costs 2 energy. Increases hand size to 10 on a roll of 7 (keep up to 10 cards instead of 7).${canAffordWarehouse ? '' : ' (Needs 2 energy)'}`
+              }
             >
+              <title>
+                {player.hasWarehouse
+                  ? 'Warehouse built: keeps up to 10 cards safe on a roll of 7.'
+                  : `Warehouse — costs 2 energy. Increases hand size to 10 on a roll of 7 (keep up to 10 cards instead of 7).${canAffordWarehouse ? '' : ' (Needs 2 energy)'}`}
+              </title>
               <rect x={1.5} y={2.5} width={108} height={58} rx={8} fill="rgba(0,0,0,0.22)" />
               <rect
                 x={0}
@@ -806,6 +816,8 @@ export function PlayerMat({
                 onClick={() =>
                   onSelectBuildMode?.(activeBuildMode === 'BUILD_ROAD' ? null : 'BUILD_ROAD')
                 }
+                title={`Road — costs 1 lumber, 1 brick. Connects settlements and expands your road network along hex edges.${canAffordRoad ? '' : ' (Cannot afford)'}`}
+                aria-label={`Road — costs 1 lumber, 1 brick. Connects settlements and expands your road network along hex edges.${canAffordRoad ? '' : ' (Cannot afford)'}`}
                 style={{
                   padding: '3px 8px',
                   fontSize: '11px',
@@ -826,6 +838,8 @@ export function PlayerMat({
                 onClick={() =>
                   onSelectBuildMode?.(activeBuildMode === 'BUILD_TOWN' ? null : 'BUILD_TOWN')
                 }
+                title={`Town — costs 1 lumber, 1 brick, 1 fiber, 1 food. Worth 1 Victory Point; produces 1 resource from adjacent hexes on dice rolls.${canAffordTown ? '' : ' (Cannot afford)'}`}
+                aria-label={`Town — costs 1 lumber, 1 brick, 1 fiber, 1 food. Worth 1 Victory Point; produces 1 resource from adjacent hexes on dice rolls.${canAffordTown ? '' : ' (Cannot afford)'}`}
                 style={{
                   padding: '3px 8px',
                   fontSize: '11px',
@@ -846,6 +860,8 @@ export function PlayerMat({
                 onClick={() =>
                   onSelectBuildMode?.(activeBuildMode === 'BUILD_CITY' ? null : 'BUILD_CITY')
                 }
+                title={`City — costs 2 food, 3 steel. Worth 2 Victory Points; upgrades a town and produces 2 resources (or 1 resource + 1 science) on dice rolls.${canAffordCity ? '' : ' (Cannot afford)'}`}
+                aria-label={`City — costs 2 food, 3 steel. Worth 2 Victory Points; upgrades a town and produces 2 resources (or 1 resource + 1 science) on dice rolls.${canAffordCity ? '' : ' (Cannot afford)'}`}
                 style={{
                   padding: '3px 8px',
                   fontSize: '11px',
@@ -868,6 +884,8 @@ export function PlayerMat({
                     activeBuildMode === 'BUILD_FOSSIL_PLANT' ? null : 'BUILD_FOSSIL_PLANT'
                   )
                 }
+                title={`Fossil plant — costs 1 science. Builds a fossil power plant; produces energy and 1 resource when built, but adds pollution.${canAffordFossil ? '' : ' (Cannot afford)'}`}
+                aria-label={`Fossil plant — costs 1 science. Builds a fossil power plant; produces energy and 1 resource when built, but adds pollution.${canAffordFossil ? '' : ' (Cannot afford)'}`}
                 style={{
                   padding: '3px 8px',
                   fontSize: '11px',
@@ -891,6 +909,8 @@ export function PlayerMat({
                     activeBuildMode === 'BUILD_RENEWABLE_PLANT' ? null : 'BUILD_RENEWABLE_PLANT'
                   )
                 }
+                title={`Renewable plant — costs 3 science. Builds a renewable power plant; produces clean energy and 1 resource when built with no pollution.${canAffordRenewable ? '' : ' (Cannot afford)'}`}
+                aria-label={`Renewable plant — costs 3 science. Builds a renewable power plant; produces clean energy and 1 resource when built with no pollution.${canAffordRenewable ? '' : ' (Cannot afford)'}`}
                 style={{
                   padding: '3px 8px',
                   fontSize: '11px',
@@ -912,6 +932,8 @@ export function PlayerMat({
                 data-testid="quick-buy-dev"
                 disabled={!canAffordDevCard}
                 onClick={() => onBuyDevCard?.()}
+                title={`Dev card — costs 1 fiber, 1 food, 1 steel. Gives you a development card from the deck (Clean Up, Progress cards, or +1 VP).${canAffordDevCard ? '' : ' (Cannot afford)'}`}
+                aria-label={`Dev card — costs 1 fiber, 1 food, 1 steel. Gives you a development card from the deck (Clean Up, Progress cards, or +1 VP).${canAffordDevCard ? '' : ' (Cannot afford)'}`}
                 style={{
                   padding: '3px 8px',
                   fontSize: '11px',
