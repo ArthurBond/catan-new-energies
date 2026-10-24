@@ -4,7 +4,8 @@
  */
 
 import 'preact/compat';
-import { GameState, PlayerId, ResourceType } from '../engine/types';
+import { EventDiscType, GameState, PlayerId, ResourceType } from '../engine/types';
+import { EventRow } from './EventRow';
 import { CARD_METADATA, PLAYER_THEMES } from './theme';
 import { EnergyBoltSvg, HazardTokenSvg, PieceDefs, ResourceIconSvg } from './WoodenPiecesSvg';
 
@@ -136,6 +137,8 @@ export interface TableRailProps {
   onRoll: () => void;
   rollAnimKey: number | null;
   producingCount: number;
+  /** Open the rules for an event track (the row of tracks under the awards) */
+  onSelectEventTrackInfo?: (track: EventDiscType) => void;
 }
 
 export function TableRail({
@@ -147,6 +150,7 @@ export function TableRail({
   onRoll,
   rollAnimKey,
   producingCount,
+  onSelectEventTrackInfo,
 }: TableRailProps) {
   const dice = state.lastDiceRoll;
   const sum = dice ? dice[0] + dice[1] : null;
@@ -309,6 +313,8 @@ export function TableRail({
           'leaf'
         )}
       </section>
+
+      <EventRow state={state} onSelect={onSelectEventTrackInfo} />
     </aside>
   );
 }

@@ -1441,6 +1441,7 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
           }
           rollAnimKey={rollAnimKey}
           producingCount={producingHexIds.size}
+          onSelectEventTrackInfo={(track) => setSelectedEventInfo(track)}
         />
       </div>
 

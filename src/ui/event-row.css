@@ -1,0 +1,137 @@
+/* ========================================================================== */
+/* Right rail: event tracks in a row, nearest to triggering first             */
+/* ========================================================================== */
+
+/* At 1366x768 the rail has 65px left under the awards, so this card is sized to fit it exactly */
+.tt-events {
+  padding: 5px 8px 5px;
+  flex: 0 0 auto;
+}
+
+.tt-events-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 4px;
+  margin-bottom: 1px;
+}
+
+.tt-events-head .tt-card-title {
+  font-size: 13px;
+  line-height: 15px;
+}
+
+.tt-events-head small {
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.tt-events-row {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.tt-events-row li {
+  min-width: 0;
+  display: flex;
+}
+
+.tt-event {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 0 2px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text);
+  font: inherit;
+  --event-pip: #8d6e63;
+}
+
+.tt-event[data-green='true'] {
+  --event-pip: #2f8f47;
+}
+
+.tt-event:hover {
+  background: var(--card-well);
+}
+
+/* One disc away from triggering */
+.tt-event[data-remaining='1'] {
+  background: rgba(255, 200, 58, 0.22);
+  box-shadow: inset 0 0 0 1.5px var(--volt-deep);
+}
+
+.tt-event svg {
+  display: block;
+  width: 24px;
+  height: auto;
+}
+
+.tt-event-pips {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  height: 5px;
+}
+
+.tt-event-pips i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--card-well);
+  box-shadow: inset 0 0 0 1px var(--card-edge-deep);
+}
+
+.tt-event-pips i[data-on='true'] {
+  background: var(--event-pip);
+  box-shadow: none;
+}
+
+@media (min-width: 1600px) and (min-height: 940px) {
+  .tt-events {
+    padding: 9px 10px 10px;
+  }
+  .tt-events-head {
+    padding: 0 2px;
+    margin-bottom: 4px;
+  }
+  .tt-events-head .tt-card-title {
+    font-size: 15.5px;
+    line-height: 18px;
+  }
+  .tt-event {
+    padding: 3px 0 4px;
+    gap: 3px;
+  }
+  .tt-event svg {
+    width: 32px;
+  }
+  .tt-events-row {
+    gap: 3px;
+  }
+  .tt-event-pips {
+    gap: 3px;
+    height: 6px;
+  }
+  .tt-event-pips i {
+    width: 6px;
+    height: 6px;
+  }
+  .tt-events-head small {
+    font-size: 12px;
+    line-height: 18px;
+  }
+}

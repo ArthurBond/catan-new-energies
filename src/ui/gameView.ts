@@ -6,10 +6,12 @@
  * steps, and what an intersection would produce.
  */
 
+import { EVENT_TRACK_LENGTHS } from '../engine/config';
 import { getDevCardType } from '../engine/dev-cards';
 import { TERRAIN_RESOURCE_MAP } from '../engine/setup';
 import {
   Board,
+  EventDiscType,
   GameAction,
   GameState,
   HexId,
@@ -19,7 +21,7 @@ import {
   TerrainType,
 } from '../engine/types';
 import { playerHandCount } from '../network/hydrate';
-import { getNumberDiscPips } from './theme';
+import { EVENT_TRACK_METADATA, getNumberDiscPips } from './theme';
 import type { ActiveBuildMode } from './PlayerMat';
 
 export type CostKey = ResourceType | 'science' | 'energy';
@@ -415,6 +417,65 @@ export function splitLogNames<T extends { name: string }>(message: string, playe
 
 export function eventName(type: string): string {
   return EVENT_NAMES[type] ?? type;
+}
+
+// ============================================================================
+// Event tracks, nearest to triggering first
+// ============================================================================
+
+export interface EventTrackStanding {
+  type: EventDiscType;
+  /** Discs on the track now */
+  filled: number;
+  capacity: number;
+  /** Spaces left before it fills and the event triggers */
+  remaining: number;
+  /**
+   * Index in `state.log` of the draw that put the newest disc on the track, or -1 when no disc is on it
+   * (never drawn, or it filled and was cleared) or the log has no record of the draw (dev scenarios).
+   */
+  lastDrawnIndex: number;
+}
+
+/** "Orange drew a airPollution event disc (1/2)." (see `stepEventDraw`) */
+const EVENT_DRAW_LINE = / drew an? (\w+) event disc \(\d+\/\d+\)\.$/;
+/** "The airPollution track is full." */
+const EVENT_FULL_LINE = /^The (\w+) track is full\.$/;
+
+const EVENT_TRACK_TYPES = Object.keys(EVENT_TRACK_METADATA) as EventDiscType[];
+
+/**
+ * The seven event tracks in display order: the ones with the fewest empty spaces first. Between equal
+ * tracks the one whose disc was drawn most recently goes first, then board order so the row never jumps
+ * about. Recency comes from the activity log (public, so it works online too).
+ */
+export function eventTrackStandings(state: Pick<GameState, 'eventTracks' | 'log'>): EventTrackStanding[] {
+  const lastDrawn = new Map<string, number>();
+  state.log.forEach((entry, index) => {
+    const message = entry.message;
+    const full = EVENT_FULL_LINE.exec(message);
+    if (full) {
+      // A full track is cleared, so the discs drawn so far no longer count
+      lastDrawn.delete(full[1]!);
+      return;
+    }
+    const drew = EVENT_DRAW_LINE.exec(message);
+    if (drew) lastDrawn.set(drew[1]!, index);
+  });
+
+  const standings = EVENT_TRACK_TYPES.map((type): EventTrackStanding => {
+    const capacity = EVENT_TRACK_LENGTHS[type];
+    const filled = Math.min(capacity, Math.max(0, state.eventTracks[type] ?? 0));
+    return {
+      type,
+      filled,
+      capacity,
+      remaining: capacity - filled,
+      lastDrawnIndex: filled > 0 ? (lastDrawn.get(type) ?? -1) : -1,
+    };
+  });
+  // Array.sort is stable, so equal tracks stay in board order
+  return standings.sort((a, b) => a.remaining - b.remaining || b.lastDrawnIndex - a.lastDrawnIndex);
 }
 
 /**
