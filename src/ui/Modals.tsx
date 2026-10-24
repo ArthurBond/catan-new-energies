@@ -41,6 +41,7 @@ import {
   PLAYER_THEMES,
   TERRAIN_THEMES,
 } from './theme';
+import { isDiscardDecision } from './DiscardPanel';
 import { TradeCard, tradeLabel, type TradeKind } from './TradeCard';
 import {
   AskForCardsPanel,
@@ -1295,11 +1296,11 @@ export function PendingDecisionBanner({
   const pTheme = PLAYER_THEMES[decision.playerId];
 
   // Setup placements are guided by the setup coach in the dock and happen on the board;
-  // a discard on a 7 is answered in the panel docked over the dock (DiscardPanel)
+  // discards on a 7 or from an event penalty are answered in the panel docked over the dock (DiscardPanel)
   if (
     decision.type === 'SETUP_PLACE_SETTLEMENT' ||
     decision.type === 'SETUP_PLACE_ROAD' ||
-    decision.type === 'DISCARD_ON_SEVEN'
+    isDiscardDecision(decision)
   ) {
     return null;
   }

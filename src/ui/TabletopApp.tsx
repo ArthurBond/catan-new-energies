@@ -36,7 +36,7 @@ import { botStepDelayMs } from '../network/server-protocol';
 import { BroadcastChannelTransport } from '../network/transport';
 import { ActionDock, PrimaryAction } from './ActionDock';
 import { applyDevScenario } from './devScenarios';
-import { DiscardPanel } from './DiscardPanel';
+import { DiscardPanel, isDiscardDecision } from './DiscardPanel';
 import {
   eventName,
   handCount,
@@ -1059,10 +1059,10 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
     return prod;
   }, [gameState.lastDiceRoll, gameState.phase, gameState.board.hexes]);
 
-  // A discard on a 7 is answered in a panel docked where the dock sits (no backdrop, so the island
-  // stays in view), with the hexes the player produces from lit up on the board
+  // A discard on a 7 or from an event penalty is answered in a panel docked where the dock sits
+  // (no backdrop, so the island stays in view), with the hexes the player produces from lit up on the board
   const discardDecision =
-    headDecision?.type === 'DISCARD_ON_SEVEN' && !waitingOnOthers && !isGameOver ? headDecision : null;
+    isDiscardDecision(headDecision) && !waitingOnOthers && !isGameOver ? headDecision : null;
   const discardHelp = useMemo(() => {
     if (!discardDecision) return null;
     const production = getProductionNumbers(gameState, discardDecision.playerId);
