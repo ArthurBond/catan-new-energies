@@ -532,7 +532,7 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
     const state = createInitialGameState({ setupMode: 'first', playerCount: 4, seed: 42 });
     state.board.intersections[10]!.hasHazard = true;
     act(() => {
-      render(<IslandBoardSvg state={state} freshPieceKeys={new Set(['nzh10'])} />, container);
+      render(<IslandBoardSvg state={state} />, container);
     });
     const hazardGroup = container.querySelector('[data-testid="node-hazard-10"]');
     expect(hazardGroup).not.toBeNull();
@@ -541,7 +541,7 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
     expect(transform).not.toBe('translate(0, 0)');
   });
 
-  it('highlights producing hexes on dice roll even when inspector is present', () => {
+  it('highlights producing hexes on dice roll even when inspector is present with rich burnt orange flash', () => {
     const state = createInitialGameState({ setupMode: 'first', playerCount: 4, seed: 42 });
     const hexWithInspector = state.board.hexes.find((h) => h.hasInspector)!;
     act(() => {
@@ -553,9 +553,11 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
         container
       );
     });
-    expect(
-      container.querySelector(`[data-testid="hex-producing-${hexWithInspector.id}"]`)
-    ).not.toBeNull();
+    const producingEl = container.querySelector(`[data-testid="hex-producing-${hexWithInspector.id}"]`);
+    expect(producingEl).not.toBeNull();
+    // Check that rich burnt orange styling is applied
+    const burntOrangePolygon = producingEl?.querySelector('polygon[stroke="#d94e10"]');
+    expect(burntOrangePolygon).not.toBeNull();
   });
 
   it('renders cancel button on STEAL_TARGET pending decision to allow undoing inspector move', () => {
@@ -571,6 +573,7 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
             type: 'STEAL_TARGET',
             playerId: 'orange',
             candidatePlayerIds: ['purple', 'blue'],
+            hexId: 5,
           }}
           onDispatch={onDispatch}
           onUndo={onUndo}
@@ -585,6 +588,84 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
       cancelBtn.click();
     });
     expect(onUndo).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders ClimateConferenceReward modal with in-hand badges and peek at board button', () => {
+    const state = createInitialGameState({ setupMode: 'first', playerCount: 4, seed: 42 });
+    state.players.orange.resources.lumber = 3;
+    state.players.orange.resources.steel = 2;
+    state.players.orange.science = 1;
+    const onPeek = vi.fn();
+    const onDispatch = vi.fn();
+
+    act(() => {
+      render(
+        <PendingDecisionBanner
+          state={state}
+          decision={{
+            id: 'cc-1',
+            type: 'EVENT_CARD_CHOICE',
+            playerId: 'orange',
+            event: 'ClimateConferenceReward',
+            cardCount: 1,
+            isOptional: false,
+          }}
+          onDispatch={onDispatch}
+          onPeek={onPeek}
+        />,
+        container
+      );
+    });
+
+    // Check in-hand indicators
+    expect(container.querySelector('[data-testid="in-hand-lumber"]')?.textContent).toContain('3 in hand');
+    expect(container.querySelector('[data-testid="in-hand-steel"]')?.textContent).toContain('2 in hand');
+    expect(container.querySelector('[data-testid="in-hand-science"]')?.textContent).toContain('1 in hand');
+
+    // Check peek button
+    const peekBtn = container.querySelector('[data-testid="peek-board-btn"]') as HTMLButtonElement;
+    expect(peekBtn).not.toBeNull();
+    act(() => {
+      peekBtn.click();
+    });
+    expect(onPeek).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows peeking at board during ClimateConferenceReward and unhiding via blue dock action button', () => {
+    window.history.pushState({}, '', '/?scenario=cardchoice&bots=0');
+    act(() => {
+      render(<TabletopApp />, container);
+    });
+    window.history.pushState({}, '', '/');
+
+    // Modal is initially visible
+    expect(container.querySelector('[data-testid="pending-decision-modal"]')).not.toBeNull();
+
+    // Click peek button
+    const peekBtn = container.querySelector('[data-testid="peek-board-btn"]') as HTMLButtonElement;
+    expect(peekBtn).not.toBeNull();
+    act(() => {
+      peekBtn.click();
+    });
+
+    // Modal is hidden
+    expect(container.querySelector('[data-testid="pending-decision-modal"]')).toBeNull();
+
+    // Banner and bottom dock button "Unhide card selection" are visible with blue styling
+    expect(container.querySelector('[data-testid="peeking-card-choice-banner"]')).not.toBeNull();
+    const unhideBtn = container.querySelector('[data-testid="unhide-card-choice-btn"]') as HTMLButtonElement;
+    expect(unhideBtn).not.toBeNull();
+    expect(unhideBtn.textContent).toBe('Unhide card selection');
+    expect(unhideBtn.classList.contains('is-blue')).toBe(true);
+
+    // Click Unhide button
+    act(() => {
+      unhideBtn.click();
+    });
+
+    // Modal is restored
+    expect(container.querySelector('[data-testid="pending-decision-modal"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="peeking-card-choice-banner"]')).toBeNull();
   });
 });
 

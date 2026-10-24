@@ -1288,11 +1288,13 @@ export function PendingDecisionBanner({
   decision,
   onDispatch,
   onUndo,
+  onPeek,
 }: {
   state: GameState;
   decision: PendingDecision;
   onDispatch: (action: GameAction) => void;
   onUndo?: () => void;
+  onPeek?: () => void;
 }) {
   const player = state.players[decision.playerId]!;
   const pTheme = PLAYER_THEMES[decision.playerId];
@@ -1333,10 +1335,44 @@ export function PendingDecisionBanner({
     return (
       <div style={MODAL_BACKDROP_STYLE} data-testid="pending-decision-modal">
         <div style={{ ...MODAL_CARD_STYLE, maxWidth: '520px' }} role="dialog" aria-modal="true" aria-labelledby="event-choice-title">
-          <h3 className="md-title" id="event-choice-title">
-            {copy[decision.event].title}
-          </h3>
-          <p className="md-sub">{copy[decision.event].body}</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '4px' }}>
+            <div>
+              <h3 className="md-title" id="event-choice-title">
+                {copy[decision.event].title}
+              </h3>
+              <p className="md-sub">{copy[decision.event].body}</p>
+            </div>
+            {onPeek && (
+              <button
+                type="button"
+                className="tt-icon-btn"
+                data-testid="peek-board-btn"
+                onClick={onPeek}
+                title="Temporarily hide this prompt to inspect the board and your hand"
+                style={{
+                  padding: '6px 12px',
+                  fontSize: '12.5px',
+                  fontWeight: 700,
+                  background: 'var(--ink-700)',
+                  color: 'var(--ink-100)',
+                  borderRadius: '8px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  border: 'none',
+                  flexShrink: 0,
+                  marginTop: '2px',
+                }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                Peek at board
+              </button>
+            )}
+          </div>
 
           {isGov ? (
             <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
@@ -1384,6 +1420,7 @@ export function PendingDecisionBanner({
                     : k === 'science'
                       ? state.supply.science
                       : state.supply.resources[k];
+                  const inHand = k === 'science' ? player.science : player.resources[k];
                   const meta = CARD_METADATA[k];
 
                   return (
@@ -1402,27 +1439,73 @@ export function PendingDecisionBanner({
                             response: { cardType: k },
                           })
                         }
-                        aria-label={`${isPenalty ? 'Discard' : 'Take'} ${meta.label} (${count} ${isPenalty ? 'in hand' : 'in supply'})`}
+                        aria-label={`${isPenalty ? 'Discard' : 'Take'} ${meta.label} (${count} ${isPenalty ? 'in hand' : 'in supply'}${!isPenalty ? `, ${inHand} in hand` : ''})`}
                         style={{
                           ['--res-fill' as string]: meta.cardFill,
                           ['--res-border' as string]: meta.border,
                           ['--res-text' as string]: meta.textColor,
                         }}
                       >
-                        <svg width="32" height="32" viewBox="-14 -14 28 28" aria-hidden="true" style={{ marginTop: '-8px' }}>
+                        <svg width="32" height="32" viewBox="-14 -14 28 28" aria-hidden="true" style={{ marginTop: '-4px' }}>
                           <circle r="12" fill={meta.bg} opacity={0.32} />
                           <ResourceIconSvg type={k} scale={1.05} />
                         </svg>
                         <span className="tt-res-label">{meta.shortLabel}</span>
-                        <span className="tt-res-count">{count}</span>
+                        <span className="tt-res-count" title={isPenalty ? `${count} in hand` : `${count} left in supply`}>{count}</span>
+                        {!isPenalty && (
+                          <span
+                            className="md-in-hand"
+                            data-testid={`in-hand-${k}`}
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              marginTop: '2px',
+                              color: 'var(--text-muted)',
+                              background: 'rgba(0, 0, 0, 0.08)',
+                              padding: '1px 5px',
+                              borderRadius: '6px',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {inHand} in hand
+                          </span>
+                        )}
                       </button>
                     </div>
                   );
                 })}
               </div>
-              <p className="md-sub" style={{ marginTop: '10px' }}>
-                {isPenalty ? 'Numbers show the cards in your hand.' : 'Numbers show what is left in the supply.'}
-              </p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', gap: '8px' }}>
+                <p className="md-sub" style={{ margin: 0 }}>
+                  {isPenalty
+                    ? 'Numbers show the cards in your hand.'
+                    : 'Large numbers show what is left in the supply · Badges show your hand.'}
+                </p>
+                {onPeek && (
+                  <button
+                    type="button"
+                    className="tt-chip-btn"
+                    data-testid="peek-board-btn-bottom"
+                    onClick={onPeek}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      padding: '4px 10px',
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    Peek at board
+                  </button>
+                )}
+              </div>
               {decision.isOptional && (
                 <button
                   type="button"
