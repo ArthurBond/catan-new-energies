@@ -439,6 +439,7 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
   );
   const [rollAnimKey, setRollAnimKey] = useState<number | null>(null);
   const [eventReveal, setEventReveal] = useState<EventReveal | null>(null);
+  const [isPeekingCardChoice, setIsPeekingCardChoice] = useState(false);
 
   const [tableclothColor, setTableclothColor] = useState<string>(() => {
     try {
@@ -734,11 +735,19 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
 
   const headDecision = gameState.pendingDecisions[0] ?? null;
 
-  // Escape cancels current placement mode, dev targeting, or pending steal target decision
+  useEffect(() => {
+    if (!headDecision || headDecision.type !== 'EVENT_CARD_CHOICE') {
+      setIsPeekingCardChoice(false);
+    }
+  }, [headDecision?.id]);
+
+  // Escape cancels current placement mode, dev targeting, pending steal target decision, or peeking card choice
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      if (activeBuildMode || devTargeting) {
+      if (isPeekingCardChoice) {
+        setIsPeekingCardChoice(false);
+      } else if (activeBuildMode || devTargeting) {
         setActiveBuildMode(null);
         setDevTargeting(null);
       } else if (headDecision?.type === 'STEAL_TARGET' && history.length > 0) {
@@ -747,7 +756,7 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [activeBuildMode, devTargeting, headDecision, history.length]);
+  }, [activeBuildMode, devTargeting, headDecision, history.length, isPeekingCardChoice]);
 
   const { highlightedHexIds, highlightedNodeIds, highlightedEdgeIds, highlightedCutoutSlots } =
     useMemo(() => {
@@ -1106,6 +1115,16 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
         label: `${actingName} is playing`,
         disabled: true,
         sub: 'Bots move on their own',
+      };
+    }
+    if (isPeekingCardChoice) {
+      return {
+        label: 'Unhide card selection',
+        testId: 'unhide-card-choice-btn',
+        disabled: false,
+        variant: 'blue',
+        onClick: () => setIsPeekingCardChoice(false),
+        sub: 'Return to pick your free resource',
       };
     }
     if (headDecision && headDecision.playerId === actingPlayerId) {
@@ -1563,13 +1582,58 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
         }
       />
 
-      {headDecision && !waitingOnOthers && (
+      {headDecision && !waitingOnOthers && !isPeekingCardChoice && (
         <PendingDecisionBanner
           state={gameState}
           decision={headDecision}
           onDispatch={dispatchAction}
           onUndo={history.length > 0 ? handleUndo : undefined}
+          onPeek={headDecision.type === 'EVENT_CARD_CHOICE' ? () => setIsPeekingCardChoice(true) : undefined}
         />
+      )}
+
+      {isPeekingCardChoice && (
+        <div
+          data-testid="peeking-card-choice-banner"
+          style={{
+            position: 'fixed',
+            top: '56px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 100,
+            background: 'var(--ink-900)',
+            color: 'var(--ink-100)',
+            padding: '8px 16px',
+            borderRadius: '20px',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            fontSize: '13px',
+            fontWeight: 700,
+            border: '1px solid var(--ink-700)',
+          }}
+        >
+          <span>Peeking at board & hand</span>
+          <button
+            type="button"
+            className="tt-chip-btn"
+            data-testid="banner-unhide-card-choice-btn"
+            onClick={() => setIsPeekingCardChoice(false)}
+            style={{
+              background: 'var(--ink-700)',
+              color: '#ffffff',
+              padding: '4px 10px',
+              borderRadius: '12px',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 800,
+              fontSize: '12px',
+            }}
+          >
+            Unhide card selection
+          </button>
+        </div>
       )}
 
       {showTradeModal && (

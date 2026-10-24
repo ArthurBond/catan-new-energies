@@ -47,6 +47,7 @@ export interface PrimaryAction {
   onClick?: () => void;
   /** true = waiting on someone/something else; button is shown but inert */
   disabled: boolean;
+  variant?: 'blue';
 }
 
 function CostPip({ k }: { k: CostKey }) {
@@ -558,7 +559,7 @@ export function ActionDock({
       <section className="tt-card tt-action-panel" aria-label="Turn action">
         <button
           type="button"
-          className={`tt-cta${primary.disabled ? '' : ' is-ready'}`}
+          className={`tt-cta${primary.disabled ? '' : ' is-ready'}${primary.variant ? ` is-${primary.variant}` : ''}`}
           data-testid={primary.testId ?? 'primary-action-btn'}
           disabled={primary.disabled}
           onClick={primary.onClick}
