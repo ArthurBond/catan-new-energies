@@ -121,6 +121,8 @@ test.describe('a roll of 7, a steal, a trade and development cards', () => {
       await A.getByTestId('action-open-trade-btn').click();
       await expect(A.getByTestId('trade-modal')).toBeVisible();
       await A.getByTestId('trade-tab-domestic').click();
+      // Offers go to everyone in turn by default; this one is for the friend only
+      await A.getByTestId('trade-auto-offer-toggle').click();
       await A.getByTestId('domestic-target-purple').click();
       await A.getByTestId('domestic-give-natural_fiber').click();
       await A.getByTestId('domestic-want-steel').click();
