@@ -41,12 +41,24 @@ export interface PlayersRailProps {
   onInspect: (pid: PlayerId) => void;
   /** Online: ready-made caption per seat ("You", "Friend · offline"), replacing the offline wording. */
   roleLabels?: Partial<Record<PlayerId, string>>;
+  privacyCurtain?: boolean;
+  viewerPlayerId?: PlayerId | null;
 }
 
-export function PlayersRail({ state, seats, inspectedPlayerId, onInspect, roleLabels }: PlayersRailProps) {
+export function PlayersRail({
+  state,
+  seats,
+  inspectedPlayerId,
+  onInspect,
+  roleLabels,
+  privacyCurtain,
+  viewerPlayerId,
+}: PlayersRailProps) {
   const humanCount = state.playerOrder.filter((pid) => seats[pid]?.controller === 'human').length;
   const recent = state.log.slice(-40).reverse();
   const names = state.playerOrder.map((pid) => ({ pid, name: state.players[pid]!.name }));
+  const activeViewerId = viewerPlayerId ?? inspectedPlayerId;
+  const viewerName = activeViewerId ? state.players[activeViewerId]?.name : null;
 
   return (
     <aside className="tt-rail" data-testid="left-table-margin" aria-label="Players">
@@ -133,7 +145,7 @@ export function PlayersRail({ state, seats, inspectedPlayerId, onInspect, roleLa
         </div>
         <div className="tt-feed-list" aria-live="polite">
           {recent.map((entry, idx) => {
-            const text = humanizeLog(entry.message);
+            const text = humanizeLog(entry.message, { privacyCurtain, viewerName });
             if (!text) return null;
             const who = logActor(entry.message, names);
             return (
