@@ -15,6 +15,12 @@ import {
   TurnStats,
 } from '../engine/types';
 import {
+  BUILD_COSTS,
+  buildTooltip,
+  costText,
+  handLimitFor,
+} from './gameView';
+import {
   CARD_METADATA,
   DEV_CARD_METADATA,
   PLAYER_THEMES,
@@ -31,6 +37,9 @@ import {
   TOWN_PATH_D,
   TownPieceSvg,
 } from './WoodenPiecesSvg';
+
+// Hover text and screen-reader label for a button
+const tip = (text: string) => ({ title: text, 'aria-label': text });
 
 export type ActiveBuildMode =
   | null
@@ -176,6 +185,14 @@ export function PlayerMat({
 
   const canAffordWarehouse =
     canInteract && !player.hasWarehouse && player.energy >= 2;
+
+  const warehouseTip = player.hasWarehouse
+    ? `Warehouse built: on a roll of 7 you keep up to ${handLimitFor(true)} cards.`
+    : buildTooltip(
+        'warehouse',
+        'Warehouse',
+        canAffordWarehouse ? undefined : `Needs ${costText(BUILD_COSTS.warehouse)}`
+      );
 
   const canEnergyBuyCard = canInteract && player.energy >= 2;
   const canEnergyCleanHazard = canInteract && player.energy >= 1;
@@ -331,7 +348,7 @@ export function PlayerMat({
               style={{ cursor: canAffordDevCard ? 'pointer' : 'default' }}
               role="button"
               tabIndex={canAffordDevCard ? 0 : -1}
-              aria-label="Buy a development card (1 food, 1 fiber, 1 steel)"
+              aria-label={`Buy a development card (${costText(BUILD_COSTS.devCard)})`}
             >
               <rect x={-44} y={-38} width={92} height={80} rx={9} fill="rgba(0,0,0,0.25)" transform="translate(2, 3)" />
               <rect
@@ -362,7 +379,7 @@ export function PlayerMat({
               style={{ cursor: canAffordRoad ? 'pointer' : 'default' }}
               role="button"
               tabIndex={canAffordRoad ? 0 : -1}
-              aria-label={`Build a road (1 lumber, 1 brick). ${player.roadsInReserve} roads left.`}
+              aria-label={`Build a road (${costText(BUILD_COSTS.road)}). ${player.roadsInReserve} roads left.`}
             >
               <rect
                 x={WINDOW.x}
@@ -527,7 +544,7 @@ export function PlayerMat({
                   style={{ cursor: canAffordFossil ? 'pointer' : 'default' }}
                   role="button"
                   tabIndex={canAffordFossil ? 0 : -1}
-                  aria-label={`Fossil fuel plant ${idx + 1}: ${hasPlantInReserve ? 'in reserve (1 science)' : 'built (+1 footprint)'}`}
+                  aria-label={`Fossil fuel plant ${idx + 1}: ${hasPlantInReserve ? `in reserve (${costText(BUILD_COSTS.fossil)})` : 'built (+1 footprint)'}`}
                 >
                   <circle
                     r={22}
@@ -552,22 +569,9 @@ export function PlayerMat({
               style={{ cursor: canAffordWarehouse ? 'pointer' : 'default' }}
               role="button"
               tabIndex={canAffordWarehouse ? 0 : -1}
-              aria-label={
-                player.hasWarehouse
-                  ? 'Warehouse built: you keep up to 10 cards on a 7'
-                  : 'Build the warehouse (2 energy): keep up to 10 cards on a 7'
-              }
-              title={
-                player.hasWarehouse
-                  ? 'Warehouse built: keeps up to 10 cards safe on a roll of 7.'
-                  : `Warehouse — costs 2 energy. Increases hand size to 10 on a roll of 7 (keep up to 10 cards instead of 7).${canAffordWarehouse ? '' : ' (Needs 2 energy)'}`
-              }
+              aria-label={warehouseTip}
             >
-              <title>
-                {player.hasWarehouse
-                  ? 'Warehouse built: keeps up to 10 cards safe on a roll of 7.'
-                  : `Warehouse — costs 2 energy. Increases hand size to 10 on a roll of 7 (keep up to 10 cards instead of 7).${canAffordWarehouse ? '' : ' (Needs 2 energy)'}`}
-              </title>
+              <title>{warehouseTip}</title>
               <rect x={1.5} y={2.5} width={108} height={58} rx={8} fill="rgba(0,0,0,0.22)" />
               <rect
                 x={0}
@@ -731,7 +735,7 @@ export function PlayerMat({
                   style={{ cursor: canAffordRenewable ? 'pointer' : 'default' }}
                   role="button"
                   tabIndex={canAffordRenewable ? 0 : -1}
-                  aria-label={`Renewable plant ${idx + 1}: ${hasPlantInReserve ? 'in reserve (3 science)' : 'built (-1 footprint)'}`}
+                  aria-label={`Renewable plant ${idx + 1}: ${hasPlantInReserve ? `in reserve (${costText(BUILD_COSTS.renewable)})` : 'built (-1 footprint)'}`}
                 >
                   <circle
                     r={22}
@@ -803,7 +807,7 @@ export function PlayerMat({
                   fontWeight: 700,
                 }}
               >
-                Hand: {totalResourceHand + player.science} / {player.hasWarehouse ? 10 : 7}
+                Hand: {totalResourceHand + player.science} / {handLimitFor(player.hasWarehouse)}
               </span>
             </div>
 
@@ -816,8 +820,7 @@ export function PlayerMat({
                 onClick={() =>
                   onSelectBuildMode?.(activeBuildMode === 'BUILD_ROAD' ? null : 'BUILD_ROAD')
                 }
-                title={`Road — costs 1 lumber, 1 brick. Connects settlements and expands your road network along hex edges.${canAffordRoad ? '' : ' (Cannot afford)'}`}
-                aria-label={`Road — costs 1 lumber, 1 brick. Connects settlements and expands your road network along hex edges.${canAffordRoad ? '' : ' (Cannot afford)'}`}
+                {...tip(buildTooltip('road', 'Road', canAffordRoad ? undefined : 'Cannot afford'))}
                 style={{
                   padding: '3px 8px',
                   fontSize: '11px',
@@ -838,8 +841,7 @@ export function PlayerMat({
                 onClick={() =>
                   onSelectBuildMode?.(activeBuildMode === 'BUILD_TOWN' ? null : 'BUILD_TOWN')
                 }
-                title={`Town — costs 1 lumber, 1 brick, 1 fiber, 1 food. Worth 1 Victory Point; produces 1 resource from adjacent hexes on dice rolls.${canAffordTown ? '' : ' (Cannot afford)'}`}
-                aria-label={`Town — costs 1 lumber, 1 brick, 1 fiber, 1 food. Worth 1 Victory Point; produces 1 resource from adjacent hexes on dice rolls.${canAffordTown ? '' : ' (Cannot afford)'}`}
+                {...tip(buildTooltip('town', 'Town', canAffordTown ? undefined : 'Cannot afford'))}
                 style={{
                   padding: '3px 8px',
                   fontSize: '11px',
@@ -860,8 +862,7 @@ export function PlayerMat({
                 onClick={() =>
                   onSelectBuildMode?.(activeBuildMode === 'BUILD_CITY' ? null : 'BUILD_CITY')
                 }
-                title={`City — costs 2 food, 3 steel. Worth 2 Victory Points; upgrades a town and produces 2 resources (or 1 resource + 1 science) on dice rolls.${canAffordCity ? '' : ' (Cannot afford)'}`}
-                aria-label={`City — costs 2 food, 3 steel. Worth 2 Victory Points; upgrades a town and produces 2 resources (or 1 resource + 1 science) on dice rolls.${canAffordCity ? '' : ' (Cannot afford)'}`}
+                {...tip(buildTooltip('city', 'City', canAffordCity ? undefined : 'Cannot afford'))}
                 style={{
                   padding: '3px 8px',
                   fontSize: '11px',
@@ -884,8 +885,7 @@ export function PlayerMat({
                     activeBuildMode === 'BUILD_FOSSIL_PLANT' ? null : 'BUILD_FOSSIL_PLANT'
                   )
                 }
-                title={`Fossil plant — costs 1 science. Builds a fossil power plant; produces energy and 1 resource when built, but adds pollution.${canAffordFossil ? '' : ' (Cannot afford)'}`}
-                aria-label={`Fossil plant — costs 1 science. Builds a fossil power plant; produces energy and 1 resource when built, but adds pollution.${canAffordFossil ? '' : ' (Cannot afford)'}`}
+                {...tip(buildTooltip('fossil', 'Fossil plant', canAffordFossil ? undefined : 'Cannot afford'))}
                 style={{
                   padding: '3px 8px',
                   fontSize: '11px',
@@ -909,8 +909,7 @@ export function PlayerMat({
                     activeBuildMode === 'BUILD_RENEWABLE_PLANT' ? null : 'BUILD_RENEWABLE_PLANT'
                   )
                 }
-                title={`Renewable plant — costs 3 science. Builds a renewable power plant; produces clean energy and 1 resource when built with no pollution.${canAffordRenewable ? '' : ' (Cannot afford)'}`}
-                aria-label={`Renewable plant — costs 3 science. Builds a renewable power plant; produces clean energy and 1 resource when built with no pollution.${canAffordRenewable ? '' : ' (Cannot afford)'}`}
+                {...tip(buildTooltip('renewable', 'Renewable plant', canAffordRenewable ? undefined : 'Cannot afford'))}
                 style={{
                   padding: '3px 8px',
                   fontSize: '11px',
@@ -932,8 +931,7 @@ export function PlayerMat({
                 data-testid="quick-buy-dev"
                 disabled={!canAffordDevCard}
                 onClick={() => onBuyDevCard?.()}
-                title={`Dev card — costs 1 fiber, 1 food, 1 steel. Gives you a development card from the deck (Clean Up, Progress cards, or +1 VP).${canAffordDevCard ? '' : ' (Cannot afford)'}`}
-                aria-label={`Dev card — costs 1 fiber, 1 food, 1 steel. Gives you a development card from the deck (Clean Up, Progress cards, or +1 VP).${canAffordDevCard ? '' : ' (Cannot afford)'}`}
+                {...tip(buildTooltip('devCard', 'Dev card', canAffordDevCard ? undefined : 'Cannot afford'))}
                 style={{
                   padding: '3px 8px',
                   fontSize: '11px',

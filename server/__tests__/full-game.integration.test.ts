@@ -25,7 +25,7 @@ import { applyAction } from '@/engine/reducer';
 import { evaluateEmptyBagVictory } from '@/engine/victory';
 import type { GameAction, GameState, PlayerId, ResourceType } from '@/engine/types';
 import { hydrateRedactedState } from '@/network/hydrate';
-import { redactForPlayer } from '@/network/redact';
+import { redactActionFor, redactForPlayer } from '@/network/redact';
 import {
   createDefaultOnlineLobbyConfig,
   type ClientMessage,
@@ -95,15 +95,26 @@ const emptyTally = (): Tally => ({
 });
 
 /**
- * The truth the clients are compared with: the game replayed from the seed with the actions the
- * server broadcast. Independent of the server's own copy, so a client that drifts or a server
- * that sends a wrong view both show up.
+ * The truth the clients are compared with: the game replayed from the seed with the moves the
+ * server applied (its `onAction` hook; the broadcast `lastAction` hides other seats' private
+ * picks). Independent of the server's own copy, so a client that drifts or a server that sends a
+ * wrong view both show up.
  */
 class Replay {
   private readonly states = new Map<number, GameState>();
   readonly actions: GameAction[] = [];
-  constructor(initial: GameState) {
+  constructor(
+    initial: GameState,
+    private readonly applied: ReadonlyMap<number, GameAction>
+  ) {
     this.states.set(0, initial);
+  }
+
+  /** The move that produced a version, as the server applied it. */
+  appliedAt(version: number): GameAction {
+    const action = this.applied.get(version);
+    if (!action) throw new Error(`The server applied no move for version ${version}.`);
+    return action;
   }
 
   truthAt(msg: StateMessage): GameState {
@@ -111,8 +122,9 @@ class Replay {
     if (!this.states.has(v)) {
       const prev = this.states.get(v - 1);
       if (!prev || !msg.lastAction) throw new Error(`State version ${v} arrived out of order.`);
-      this.states.set(v, applyAction(prev, msg.lastAction));
-      this.actions.push(msg.lastAction);
+      const action = this.appliedAt(v);
+      this.states.set(v, applyAction(prev, action));
+      this.actions.push(action);
       this.states.delete(v - 64);
     }
     return this.states.get(v)!;
@@ -132,6 +144,10 @@ class Replay {
     const expected = wire(redactForPlayer(this.truthAt(msg), seat, DEFAULT_ROOM_REDACT_OPTIONS));
     if (!isDeepStrictEqual(msg.state, expected)) {
       expect(msg.state, `${seat} view at version ${msg.version} drifted from the server's truth`).toEqual(expected);
+    }
+    if (msg.lastAction) {
+      const expectedMove = wire(redactActionFor(this.appliedAt(msg.version), seat, DEFAULT_ROOM_REDACT_OPTIONS));
+      expect(msg.lastAction, `${seat} was sent the wrong move at version ${msg.version}`).toEqual(expectedMove);
     }
   }
 
@@ -275,7 +291,9 @@ class Human {
     this.version = msg.version;
     const view = hydrateRedactedState(msg.state, msg.yourPlayerId);
     this.view = view;
-    if (msg.lastAction && msg.lastAction.playerId === this.seat && before) this.count(before, msg.lastAction);
+    if (msg.lastAction && msg.lastAction.playerId === this.seat && before) {
+      this.count(before, table.replay.appliedAt(msg.version));
+    }
     if (
       this.dropAtVersion !== null &&
       msg.version >= this.dropAtVersion &&
@@ -499,6 +517,7 @@ async function playWholeGame(
   const distDir = path.join(tmpRoot, 'dist');
   fs.mkdirSync(distDir, { recursive: true });
   fs.writeFileSync(path.join(distDir, 'index.html'), '<!doctype html><title>Catan test</title>');
+  const applied = new Map<number, GameAction>();
   const server = await startServer({
     port: 0,
     savesDir: path.join(tmpRoot, `saves-${seed}-${playerCount}`),
@@ -506,6 +525,7 @@ async function playWholeGame(
     openBrowser: false,
     botDelayMs: 0,
     log: () => {},
+    onAction: (action, version) => applied.set(version, action),
   });
   servers.push(server);
 
@@ -526,7 +546,7 @@ async function playWholeGame(
   });
   const table: Table = {
     server,
-    replay: new Replay(createGameFromOnlineConfig(cfg, names)),
+    replay: new Replay(createGameFromOnlineConfig(cfg, names), applied),
     humans,
     fail: (e) => failure?.(e),
   };

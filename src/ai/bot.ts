@@ -14,7 +14,7 @@
 
 import { legalActions } from '../engine/actions';
 import { getHarborTradeRates, isValidDistance } from '../engine/board';
-import { RESOURCE_TYPES } from '../engine/config';
+import { BOARD_CONSTANTS, RESOURCE_TYPES } from '../engine/config';
 import { getDevCardType } from '../engine/dev-cards';
 import { calculateLongestRoad } from '../engine/longest-road';
 import { Mulberry32PRNG } from '../engine/prng';
@@ -1231,7 +1231,7 @@ function scoreTradeOrEnergyBuy(
       if (score > bestScore) bestScore = score;
     } else if (difficulty === 'Hard' || target.name === 'renewablePlant') {
       const handSize = getHandSizeForSeven(player);
-      const handLimit = player.hasWarehouse ? 10 : 7;
+      const handLimit = player.hasWarehouse ? BOARD_CONSTANTS.handLimitWarehouse : BOARD_CONSTANTS.handLimitStandard;
       const needsRenewableUrgently =
         target.name === 'renewablePlant' && player.renewablePlantsBuilt <= player.fossilPlantsBuilt;
       if (handSize > handLimit || (giveKey === 'energy' && player.energy >= 4) || needsRenewableUrgently) {

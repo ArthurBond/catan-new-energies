@@ -105,6 +105,8 @@ test.describe('CATAN: New Energies — discard panel', () => {
       const panel = page.getByTestId('pending-decision-modal');
       await expect(panel).toBeVisible();
       await expect(panel).toContainText('Seven! Orange discards 6 cards');
+      // Measure once the panel has finished sliding in (dpIn moves it up 16px)
+      await panel.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
 
       // The panel sits below the board, not over it
       const stage = (await page.getByTestId('tabletop-board').boundingBox())!;

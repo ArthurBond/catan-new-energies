@@ -181,6 +181,11 @@ export interface GameEventLog {
   timestamp: number;
   message: string;
   data?: unknown;
+  /**
+   * Set when `message` names a card only some players may see. Players in `playerIds` read
+   * `message`; everyone else reads `publicMessage` (see `logMessageFor`).
+   */
+  private?: { playerIds: PlayerId[]; publicMessage: string };
 }
 
 export interface TurnStats {

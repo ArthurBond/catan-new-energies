@@ -13,6 +13,23 @@ import { PLAYER_THEMES } from './theme';
 import { PlayerEmblemSvg } from './WoodenPiecesSvg';
 
 export const DEFAULT_TABLECLOTH_COLOR = '#7a1c1c';
+export const TABLECLOTH_COLOR_KEY = 'catan_new_energies_tablecloth_color_v2';
+// The first version stored its (black) default too, so a v1 value of that colour was never a choice
+const TABLECLOTH_COLOR_KEY_V1 = 'catan_new_energies_tablecloth_color_v1';
+const TABLECLOTH_V1_DEFAULT = '#181a1d';
+
+/** Saved tablecloth colour: v2 if set, else a colour the player picked under v1, else the default. */
+export function loadTableclothColor(): string {
+  try {
+    const stored = localStorage.getItem(TABLECLOTH_COLOR_KEY);
+    if (stored) return stored;
+    const v1 = localStorage.getItem(TABLECLOTH_COLOR_KEY_V1);
+    if (v1 && v1 !== TABLECLOTH_V1_DEFAULT) return v1;
+    return DEFAULT_TABLECLOTH_COLOR;
+  } catch {
+    return DEFAULT_TABLECLOTH_COLOR;
+  }
+}
 
 export const TABLECLOTH_PRESETS: { color: string; label: string }[] = [
   { color: '#7a1c1c', label: 'Picnic red' },
@@ -142,7 +159,7 @@ export function TopBar({
             <circle r="10" fill="rgba(0,0,0,0.16)" />
             <PlayerEmblemSvg playerId={state.activePlayerId} cx={0} cy={0} r={6} />
           </svg>
-          <span>
+          <span className="tt-turn-name">
             {active.name}
             <span className="tt-btn-label"> · {activeLabel}</span>
           </span>
@@ -174,6 +191,7 @@ export function TopBar({
             type="button"
             role="switch"
             aria-checked={autoplay}
+            aria-label="Autoplay"
             className="tt-autoplay"
             data-testid="autoplay-toggle"
             data-on={autoplay ? 'true' : 'false'}
@@ -185,7 +203,7 @@ export function TopBar({
             }
           >
             <span className="tt-autoplay-knob" aria-hidden="true" />
-            Autoplay
+            <span className="tt-autoplay-label">Autoplay</span>
           </button>
         )}
 

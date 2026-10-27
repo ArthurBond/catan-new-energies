@@ -213,7 +213,7 @@ button:not(:disabled):active {
   background: var(--ink-900);
   color: var(--ink-100);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
-  z-index: 250;
+  z-index: 90;
   min-width: 0;
 }
 
@@ -1412,32 +1412,32 @@ button:not(:disabled):active {
   animation: ctaGlow 2.4s ease-in-out infinite;
 }
 
-.tt-cta.is-blue {
-  background: var(--ink-800);
-  color: var(--ink-100);
+.tt-cta.is-resume {
+  background: var(--sea);
+  color: #ffffff;
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.25) inset,
     0 4px 0 var(--ink-950),
     0 10px 18px -8px rgba(11, 29, 46, 0.7);
 }
 
-.tt-cta.is-blue:hover:not(:disabled) {
-  background: var(--ink-700);
+.tt-cta.is-resume:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--sea) 85%, white);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.3) inset,
     0 5px 0 var(--ink-950),
     0 14px 22px -8px rgba(11, 29, 46, 0.85);
 }
 
-.tt-cta.is-blue:not(:disabled):active {
+.tt-cta.is-resume:not(:disabled):active {
   transform: translateY(2px) scale(0.99);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.25) inset,
     0 2px 0 var(--ink-950);
 }
 
-.tt-cta.is-blue.is-ready {
-  animation: ctaBlueGlow 2.4s ease-in-out infinite;
+.tt-cta.is-resume.is-ready {
+  animation: ctaResumeGlow 2.4s ease-in-out infinite;
 }
 
 .tt-cta-sub {
@@ -1653,6 +1653,83 @@ button:not(:disabled):active {
   box-shadow: 0 0 0 3px var(--volt), 0 6px 12px -4px rgba(0, 0, 0, 0.5);
 }
 
+.md-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.md-peek-btn {
+  height: auto;
+  padding: 6px 12px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  background: var(--ink-700);
+  border-radius: var(--radius-s);
+}
+
+.md-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.md-foot .md-sub {
+  margin: 0;
+}
+
+/* What the player already holds, kept outside the card so an empty supply does not dim it */
+.md-in-hand {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--ink-950);
+  color: var(--ink-300);
+  white-space: nowrap;
+}
+
+.md-cancel-btn {
+  width: 100%;
+  height: 38px;
+  margin-top: 12px;
+  background: var(--ink-700);
+  border-radius: var(--radius-s);
+}
+
+/* Floating reminder while the card-choice prompt is hidden to look at the board */
+.tt-peek-banner {
+  position: fixed;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--ink-700);
+  background: var(--ink-900);
+  color: var(--ink-100);
+  box-shadow: var(--shadow-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.tt-peek-banner .tt-icon-btn {
+  height: 26px;
+  border-radius: 13px;
+  background: var(--ink-700);
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 12px;
+}
 .md-stepper {
   display: inline-flex;
   align-items: center;
@@ -2092,18 +2169,6 @@ select.lb-input {
   }
 }
 
-@keyframes hexGlow {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.025);
-    opacity: 0.55;
-  }
-}
-
 @keyframes cardBump {
   0% {
     transform: translateY(0);
@@ -2134,21 +2199,21 @@ select.lb-input {
   }
 }
 
-@keyframes ctaBlueGlow {
+@keyframes ctaResumeGlow {
   0%,
   100% {
     box-shadow:
       0 1px 0 rgba(255, 255, 255, 0.25) inset,
       0 4px 0 var(--ink-950),
       0 10px 18px -8px rgba(11, 29, 46, 0.7),
-      0 0 0 0 rgba(31, 120, 193, 0.6);
+      0 0 0 0 color-mix(in srgb, var(--sea) 60%, transparent);
   }
   50% {
     box-shadow:
       0 1px 0 rgba(255, 255, 255, 0.25) inset,
       0 4px 0 var(--ink-950),
       0 10px 18px -8px rgba(11, 29, 46, 0.7),
-      0 0 0 6px rgba(31, 120, 193, 0);
+      0 0 0 6px transparent;
   }
 }
 
@@ -2277,18 +2342,25 @@ select.lb-input {
   .tt-turn-round {
     display: none;
   }
+  /* The build palette gets the larger share so "Fossil plant" fits (half of a 1440p screen) */
+  .tt-dock {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(200px, 0.6fr);
+  }
 }
 
-@media (max-width: 1100px) {
-  .tt-dock {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
+@media (max-width: 1200px) {
   .tt-build b {
     font-size: 11.5px;
   }
   .tt-build {
     --build-pad: 5px;
     --build-icon: 26px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .tt-dock {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   }
   .tt-action-panel {
     grid-column: 1 / -1;
@@ -2301,37 +2373,66 @@ select.lb-input {
 }
 
 @media (max-width: 900px) {
-  /* Phone / narrow: one scrolling column — board, then your hand & action, then the rails */
+  /* Split view (next to an editor) / phone: the page scrolls. Board, then your hand & action, then
+     the two rails side by side. The board leaves room for the dock, so board, hand and the turn's
+     button fit on one screen in a tall split-view window; in a short one the button sticks to the
+     bottom of the screen. */
   .tt-app {
-    display: flex;
-    flex-direction: column;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: 52px;
+    grid-auto-rows: max-content;
+    align-content: start;
+    overflow-x: hidden;
     overflow-y: auto;
-    height: 100vh;
   }
   .tt-topbar {
+    grid-column: 1 / -1;
     position: sticky;
     top: 0;
-    flex: 0 0 52px;
   }
   .tt-table {
     display: contents;
   }
   .tt-board-area {
     order: 1;
-    flex: 0 0 auto;
-    height: min(100vw, 70vh);
+    grid-column: 1 / -1;
+    /* Top bar and margin, then the dock as measured by ActionDock (useDockHeight) */
+    height: min(calc(100vw - 20px), max(60vh, calc(100vh - 62px - var(--dock-h, 294px))));
     margin: 8px 10px 0;
   }
   .tt-dock {
     order: 2;
-    grid-template-columns: 1fr;
+    grid-column: 1 / -1;
+    gap: 10px;
     padding: 10px;
+  }
+  /* Hand and the turn's button side by side, the build palette (or setup coach) across the full
+     width so its labels fit. The button stays on screen while the board is in view. */
+  .tt-action-panel {
+    grid-column: 2;
+    grid-row: 1;
+    flex-direction: column;
+    align-items: stretch;
+    position: sticky;
+    bottom: 8px;
+    z-index: 2;
+  }
+  .tt-build-panel,
+  .tt-coach {
+    grid-column: 1 / -1;
   }
   .tt-rail {
     order: 3;
     overflow: visible;
     margin: 0;
     padding: 0 10px 12px;
+  }
+  /* The rail has no height of its own here: keep the feed to a window that scrolls */
+  .tt-feed {
+    flex: 1 1 240px;
+  }
+  .tt-feed-list {
+    min-height: 0;
   }
   .tt-gf,
   .tt-brand-word,
@@ -2344,6 +2445,33 @@ select.lb-input {
   }
   .tt-turn {
     justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .tt-app,
+  .tt-dock {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tt-action-panel {
+    grid-column: auto;
+    grid-row: auto;
+    flex-direction: row;
+    align-items: center;
+  }
+  /* Top bar: the switch without its word, and a long name shortens instead of running under it */
+  .tt-autoplay {
+    padding: 0 5px;
+  }
+  .tt-autoplay-label {
+    display: none;
+  }
+  .tt-turn-chip {
+    min-width: 0;
+  }
+  .tt-turn-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 

@@ -20,7 +20,7 @@ import {
 import { applyAction } from '@/engine/reducer';
 import { createInitialGameState } from '@/engine/setup';
 import type { EventDiscType, GameAction, GameState, PlayerId } from '@/engine/types';
-import { redactForPlayer, redactForSpectator, type RedactOptions } from '@/network/redact';
+import { redactActionFor, redactForPlayer, redactForSpectator, type RedactOptions } from '@/network/redact';
 import {
   activeSeatIds,
   ALL_PLAYER_IDS,
@@ -79,6 +79,8 @@ export interface GameRoomOptions {
    * (only `hiddenResourcesCount` is sent), because every player sits at their own screen.
    */
   redactOptions?: RedactOptions;
+  /** Called with every move the room applies, before it is broadcast (the soak test replays them). */
+  onAction?: (action: GameAction, version: number) => void;
 }
 
 /** Players on separate laptops only see how many cards the others hold, not which. */
@@ -514,6 +516,7 @@ export class GameRoom {
     this.version += 1;
     this.lastAction = action;
     this.persist();
+    this.opts.onAction?.(action, this.version);
     this.broadcastState(action, drawn);
     if (next.phase === 'GameEnd' || next.winner !== null) this.log('Game over.');
     this.scheduleBot();
@@ -708,7 +711,7 @@ export class GameRoom {
       type: 'state',
       state,
       version: this.version,
-      lastAction,
+      lastAction: redactActionFor(lastAction, rec.playerId, this.redactOptions),
       drawnEventDisc: drawn,
       yourPlayerId: rec.playerId,
     });

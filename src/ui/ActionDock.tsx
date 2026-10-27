@@ -11,11 +11,13 @@ import { DevelopmentCardType, GameAction, GameState, PlayerId, ResourceType } fr
 import {
   BuildKind,
   BuildOption,
+  buildTooltip,
   CostKey,
   EnergyOption,
   getBuildOptions,
   getEnergyOptions,
   handCount,
+  handLimitFor,
   vpCardIdsOf,
 } from './gameView';
 import { Icon } from './Icons';
@@ -47,7 +49,8 @@ export interface PrimaryAction {
   onClick?: () => void;
   /** true = waiting on someone/something else; button is shown but inert */
   disabled: boolean;
-  variant?: 'blue';
+  /** 'resume' = returns to a prompt the player has hidden (drawn in the sea blue, not the usual volt) */
+  variant?: 'resume';
 }
 
 function CostPip({ k }: { k: CostKey }) {
@@ -65,14 +68,6 @@ function CostPip({ k }: { k: CostKey }) {
       <ResourceIconSvg type={k} scale={0.5} />
     </svg>
   );
-}
-
-function costText(cost: CostKey[]): string {
-  const counts = new Map<CostKey, number>();
-  for (const k of cost) counts.set(k, (counts.get(k) ?? 0) + 1);
-  return [...counts]
-    .map(([k, n]) => `${n} ${k === 'natural_fiber' ? 'fiber' : k}`)
-    .join(', ');
 }
 
 function BuildIcon({ kind, playerId }: { kind: BuildKind; playerId: PlayerId }) {
@@ -119,9 +114,7 @@ function BuildTile({
   selected: boolean;
   onClick: () => void;
 }) {
-  const descText = option.description ? ` ${option.description.trim()}` : '';
-  const reasonText = option.reason ? ` ${option.reason.trim().replace(/\.*$/, '')}.` : '';
-  const tooltip = `${option.label} — costs ${costText(option.cost)}.${descText}${reasonText}`;
+  const tooltip = buildTooltip(option.kind, option.label, option.reason);
   return (
     <button
       type="button"
@@ -248,6 +241,24 @@ function useBumpKeys(playerId: PlayerId, counts: Record<string, number>): Record
   return keys.current;
 }
 
+/**
+ * Tells the app shell how tall the dock is (`--dock-h`). In the stacked layout (split view next to
+ * an editor, phone) the board takes the height the dock leaves, so board, hand and the turn's
+ * button share one screen whatever the hand holds.
+ */
+function useDockHeight(mode: string) {
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const dock = ref.current;
+    const app = dock?.parentElement;
+    if (!dock || !app || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => app.style.setProperty('--dock-h', `${dock.offsetHeight}px`));
+    observer.observe(dock);
+    return () => observer.disconnect();
+  }, [mode]);
+  return ref;
+}
+
 export interface ActionDockProps {
   state: GameState;
   /** Online: the dock is fixed to my own seat, so the other players' colour switches are hidden. */
@@ -305,6 +316,7 @@ export function ActionDock({
 }: ActionDockProps) {
   const p = state.players[viewedPlayerId]!;
   const t = PLAYER_THEMES[viewedPlayerId];
+  const dockRef = useDockHeight(decisionPanel ? 'decision' : 'dock');
   const counts: Record<string, number> = {
     lumber: p.resources.lumber,
     brick: p.resources.brick,
@@ -315,7 +327,7 @@ export function ActionDock({
   };
   const bumpKeys = useBumpKeys(viewedPlayerId, counts);
   const hand = handCount(state, viewedPlayerId);
-  const handLimit = p.hasWarehouse ? 10 : 7;
+  const handLimit = handLimitFor(p.hasWarehouse);
   const isActing = viewedPlayerId === actingPlayerId;
   const buildOptions = getBuildOptions(state, viewedPlayerId, isActing ? legal : [], canAct);
   const energyOptions = getEnergyOptions(state, viewedPlayerId, isActing ? legal : [], canAct);
@@ -347,7 +359,7 @@ export function ActionDock({
 
   if (decisionPanel) {
     return (
-      <footer className="tt-dock" data-testid="bottom-player-dock" data-decision="true">
+      <footer ref={dockRef} className="tt-dock" data-testid="bottom-player-dock" data-decision="true">
         {decisionPanel}
         <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
           <PieceDefs />
@@ -357,7 +369,7 @@ export function ActionDock({
   }
 
   return (
-    <footer className="tt-dock" data-testid="bottom-player-dock">
+    <footer ref={dockRef} className="tt-dock" data-testid="bottom-player-dock">
       {drawer}
 
       {/* Hand */}
@@ -508,7 +520,7 @@ export function ActionDock({
 
       {/* Build palette (or the setup coach while starting pieces are placed) */}
       {setupPanel ?? (
-      <section className="tt-card tt-dock-panel" aria-label="Build" data-testid="dock-build">
+      <section className="tt-card tt-dock-panel tt-build-panel" aria-label="Build" data-testid="dock-build">
         <div className="tt-dock-head">
           <span className="tt-card-title">
             Build

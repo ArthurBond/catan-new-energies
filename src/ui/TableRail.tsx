@@ -136,7 +136,9 @@ export interface TableRailProps {
   canRoll: boolean;
   onRoll: () => void;
   rollAnimKey: number | null;
-  producingCount: number;
+  /** Rolled hexes that paid out, and rolled hexes that did not (inspector, or a hazard the roll cleared) */
+  producedCount: number;
+  blockedCount: number;
   /** Open the rules for an event track (the row of tracks under the awards) */
   onSelectEventTrackInfo?: (track: EventDiscType) => void;
 }
@@ -149,7 +151,8 @@ export function TableRail({
   canRoll,
   onRoll,
   rollAnimKey,
-  producingCount,
+  producedCount,
+  blockedCount,
   onSelectEventTrackInfo,
 }: TableRailProps) {
   const dice = state.lastDiceRoll;
@@ -161,7 +164,10 @@ export function TableRail({
   if (canRoll) diceCaption = isSetupRoll ? 'Roll for turn order' : 'Roll for production';
   else if (isSetupRoll || state.phase === 'SetupDraft') diceCaption = 'Highest roll placed first';
   else if (sum === 7) diceCaption = 'Seven: the inspector moves';
-  else if (showsProductionRoll) diceCaption = `${producingCount} hex${producingCount === 1 ? '' : 'es'} produced`;
+  else if (showsProductionRoll && state.phase === 'ActionPhase') {
+    diceCaption = `${producedCount} hex${producedCount === 1 ? '' : 'es'} produced`;
+    if (blockedCount > 0) diceCaption += `, ${blockedCount} blocked`;
+  }
   else diceCaption = 'Rolled in the production phase';
 
   const award = (

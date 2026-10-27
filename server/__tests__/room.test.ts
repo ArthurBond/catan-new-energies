@@ -328,6 +328,31 @@ describe('GameRoom actions', () => {
       }
     }
   });
+
+  it('never sends a socket the card named in a private log line, nor the private field', () => {
+    const { room, saves } = startedRoom();
+    const saved = saves.at(-1)!;
+    saved.game!.log.push({
+      timestamp: saved.game!.log.length,
+      message: 'Hana traded with supply to receive 1 secretcard.',
+      private: { playerIds: ['orange'], publicMessage: 'Hana traded with supply to receive 1 card.' },
+    });
+    room.shutdown();
+
+    const { room: room2, join } = makeRoom({ saved });
+    const host = join('h', { name: 'Hana', hostKey: HOST_KEY });
+    const friend = join('f', { name: 'Finn', seatToken: saved.seats.purple!.token });
+    const watcher = join('w', { name: 'Wes' });
+
+    const lastLog = (c: FakeClient) => c.last('state')!.state.log.at(-1)!;
+    expect(lastLog(host).message).toBe('Hana traded with supply to receive 1 secretcard.');
+    for (const c of [friend, watcher]) {
+      expect(lastLog(c).message).toBe('Hana traded with supply to receive 1 card.');
+      expect(JSON.stringify(c.messages)).not.toContain('secretcard');
+    }
+    for (const c of [host, friend, watcher]) expect(JSON.stringify(c.messages)).not.toContain('"private"');
+    room2.shutdown();
+  });
 });
 
 describe('GameRoom game end', () => {

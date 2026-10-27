@@ -6,7 +6,14 @@
  * steps, and what an intersection would produce.
  */
 
-import { EVENT_TRACK_LENGTHS } from '../engine/config';
+import {
+  BOARD_CONSTANTS,
+  BUILDING_COSTS,
+  DEV_CARD_COUNTS,
+  EVENT_TRACK_LENGTHS,
+  LF_DELTAS,
+  MAX_PLAYER_ENERGY,
+} from '../engine/config';
 import { getDevCardType } from '../engine/dev-cards';
 import { TERRAIN_RESOURCE_MAP } from '../engine/setup';
 import {
@@ -21,7 +28,7 @@ import {
   TerrainType,
 } from '../engine/types';
 import { playerHandCount } from '../network/hydrate';
-import { EVENT_TRACK_METADATA, getNumberDiscPips } from './theme';
+import { DEV_CARD_METADATA, EVENT_TRACK_METADATA, getNumberDiscPips } from './theme';
 import type { ActiveBuildMode } from './PlayerMat';
 
 export type CostKey = ResourceType | 'science' | 'energy';
@@ -46,28 +53,34 @@ export interface BuildOption {
   reason?: string;
   /** Board placement mode this option enters (null = immediate action) */
   mode: ActiveBuildMode;
-  /** What this build option does / grants */
-  description?: string;
+}
+
+/** One entry per card in the engine's cost table, repeated per unit ({ food: 2 } -> food, food). */
+function costKeys(cost: {
+  readonly resources?: Partial<Record<ResourceType | 'fiber', number>>;
+  readonly science?: number;
+  readonly energy?: number;
+}): CostKey[] {
+  const keys: CostKey[] = [];
+  const add = (key: CostKey, n = 0) => {
+    for (let i = 0; i < n; i++) keys.push(key);
+  };
+  for (const [res, n] of Object.entries(cost.resources ?? {})) {
+    add(res === 'fiber' ? 'natural_fiber' : (res as ResourceType), n);
+  }
+  add('science', cost.science);
+  add('energy', cost.energy);
+  return keys;
 }
 
 export const BUILD_COSTS: Record<BuildKind, CostKey[]> = {
-  road: ['lumber', 'brick'],
-  town: ['lumber', 'brick', 'natural_fiber', 'food'],
-  city: ['food', 'food', 'steel', 'steel', 'steel'],
-  devCard: ['natural_fiber', 'food', 'steel'],
-  fossil: ['science'],
-  renewable: ['science', 'science', 'science'],
-  warehouse: ['energy', 'energy'],
-};
-
-export const BUILD_DESCRIPTIONS: Record<BuildKind, string> = {
-  road: 'Connects settlements and expands your road network along hex edges.',
-  town: 'Worth 1 Victory Point. Produces 1 resource from adjacent hexes on dice rolls.',
-  city: 'Worth 2 Victory Points. Upgrades a town; produces 2 resources (or 1 resource + 1 science) on dice rolls.',
-  devCard: 'Gives you a development card from the deck (Clean Up, Progress cards, or +1 VP).',
-  fossil: 'Builds a fossil power plant; produces energy and 1 resource when built, but adds pollution.',
-  renewable: 'Builds a renewable power plant; produces clean energy and 1 resource when built with no pollution.',
-  warehouse: 'Increases hand size to 10 on a roll of 7 (keep up to 10 cards instead of 7).',
+  road: costKeys(BUILDING_COSTS.road),
+  town: costKeys(BUILDING_COSTS.town),
+  city: costKeys(BUILDING_COSTS.city),
+  devCard: costKeys(BUILDING_COSTS.devCard),
+  fossil: costKeys(BUILDING_COSTS.fossilPlant),
+  renewable: costKeys(BUILDING_COSTS.renewablePlant),
+  warehouse: costKeys(BUILDING_COSTS.warehouse),
 };
 
 const COST_LABEL: Record<CostKey, string> = {
@@ -79,6 +92,47 @@ const COST_LABEL: Record<CostKey, string> = {
   science: 'science',
   energy: 'energy',
 };
+
+/** "2 food, 3 steel" */
+export function costText(cost: CostKey[]): string {
+  const counts = new Map<CostKey, number>();
+  for (const k of cost) counts.set(k, (counts.get(k) ?? 0) + 1);
+  return [...counts].map(([k, n]) => `${n} ${COST_LABEL[k]}`).join(', ');
+}
+
+/** Cards you can hold through a roll of 7 without discarding. */
+export function handLimitFor(hasWarehouse: boolean): number {
+  return hasWarehouse ? BOARD_CONSTANTS.handLimitWarehouse : BOARD_CONSTANTS.handLimitStandard;
+}
+
+// Shared by both power plants. Matches evaluateProduction and isValidCutoutForPlant in the engine.
+const PLANT_RULES =
+  `Goes on a hex next to your town (holds ${BOARD_CONSTANTS.maxPlantsOnTown}) or city (holds up to ${BOARD_CONSTANTS.maxPlantsOnCity}). ` +
+  `Gives 1 energy when that hex's number is rolled (you can hold at most ${MAX_PLAYER_ENERGY}), unless a hazard or the inspector blocks it.`;
+
+const signed = (n: number) => (n > 0 ? `+${n}` : `−${Math.abs(n)}`);
+
+// Card names in deck order, from the same tables the deck and the card faces use.
+const DEV_CARD_NAMES = (Object.keys(DEV_CARD_COUNTS) as (keyof typeof DEV_CARD_COUNTS)[])
+  .map((type) => DEV_CARD_METADATA[type].title)
+  .join(', ');
+
+/** What each build does, for tooltips. Numbers come from the engine config. */
+export const BUILD_DESCRIPTIONS: Record<BuildKind, string> = {
+  road: 'Extends your road network from one of your own roads or buildings.',
+  town: `Worth 1 VP. Gives 1 resource from each adjacent hex when its number is rolled. Footprint ${signed(LF_DELTAS.town)}.`,
+  city: `Replaces one of your towns; worth 2 VP. Gives 1 resource and 1 science from each adjacent hex when its number is rolled. Footprint ${signed(LF_DELTAS.cityNetUpgrade)}.`,
+  devCard: `Draws a hidden card: ${DEV_CARD_NAMES}. Play one per turn, not on the turn you buy it.`,
+  fossil: `${PLANT_RULES} Footprint ${signed(LF_DELTAS.fossilPlant)}. One power plant per turn.`,
+  renewable: `${PLANT_RULES} Footprint ${signed(LF_DELTAS.renewablePlant)}, and one of your green event discs goes into the event bag. One power plant per turn.`,
+  warehouse: `Raises your hand limit on a roll of 7 from ${BOARD_CONSTANTS.handLimitStandard} to ${BOARD_CONSTANTS.handLimitWarehouse} cards. Once per game.`,
+};
+
+/** "Town — costs 1 lumber, ... What it does. <note>." for a build button's tooltip. */
+export function buildTooltip(kind: BuildKind, label: string, note?: string): string {
+  const tail = note ? ` ${note.trim().replace(/\.*$/, '')}.` : '';
+  return `${label} — costs ${costText(BUILD_COSTS[kind])}. ${BUILD_DESCRIPTIONS[kind]}${tail}`;
+}
 
 function heldAmount(state: GameState, playerId: PlayerId, key: CostKey): number {
   const p = state.players[playerId]!;
@@ -122,7 +176,6 @@ export function getBuildOptions(
     extraReason?: string | null
   ): BuildOption => {
     const cost = BUILD_COSTS[kind];
-    const description = BUILD_DESCRIPTIONS[kind];
     const available = canAct && has(legalType);
     let reason: string | undefined;
     if (!available) {
@@ -130,7 +183,7 @@ export function getBuildOptions(
       else if (remaining === 0) reason = 'None left on your board';
       else reason = describeShortfall(state, playerId, cost) ?? extraReason ?? 'No legal spot';
     }
-    return { kind, label, cost, remaining, available, reason, mode, description };
+    return { kind, label, cost, remaining, available, reason, mode };
   };
 
   return [
@@ -360,18 +413,11 @@ const EVENT_NAMES: Record<string, string> = {
   governmentFunding: 'Government Funding',
 };
 
-export interface HumanizeLogOptions {
-  privacyCurtain?: boolean;
-  viewerName?: string | null;
-}
-
 /**
  * Rewrites engine log lines for people: event ids become names, board ids (intersection 12,
  * path 26, hex 3) are dropped, and bookkeeping lines are phrased plainly.
- * When privacyCurtain is active, resource gains from supply, steals, and trades are redacted
- * for any viewer other than the actor who took them.
  */
-export function humanizeLog(message: string, options?: HumanizeLogOptions): string {
+export function humanizeLog(message: string): string {
   let m = message;
   for (const [id, name] of Object.entries(EVENT_NAMES)) {
     m = m.split(id).join(name);
@@ -395,74 +441,6 @@ export function humanizeLog(message: string, options?: HumanizeLogOptions): stri
     .replace(/ track reached capacity/, ' track')
     .replace(/ \(\d+\/\d+\)\.$/, '.')
     .replace(/ \(\+1 net VP, \+1 net LF\)| \(\+1 VP, \+1 LF\)/g, '');
-
-  if (options?.privacyCurtain) {
-    const viewer = options.viewerName?.trim();
-
-    // 1. Steal: `${thief} stole 1 ${cardLabel} card from ${victim}.`
-    m = m.replace(
-      /^(.+?) stole 1 (?:lumber|brick|natural_fiber|fiber|food|steel|science) card from (.+?)\.$/,
-      (match, thief, victim) => {
-        if (viewer && thief.trim() === viewer) return match;
-        return `${thief} stole 1 card from ${victim}.`;
-      }
-    );
-
-    // 2. Events taking from supply: `... (Name) took 1 <cardType> card from the supply.`
-    m = m.replace(
-      /(.*?\(([^)]+)\)|^(.+?))\s+took 1 (?:lumber|brick|natural_fiber|fiber|food|steel|science) card from the supply\./g,
-      (match, prefix, parenActor, startActor) => {
-        const actor = (parenActor ?? startActor).trim();
-        if (viewer && actor === viewer) return match;
-        return `${prefix} took 1 card from the supply.`;
-      }
-    );
-
-    // 3. Production Increase: `... (Name) built a free fossil fuel plant ... and took 1 <res>.`
-    m = m.replace(
-      /(Production Increase: Highest local footprint \(([^)]+)\) built a free fossil fuel plant.*?\s+and took 1 )(?:lumber|brick|natural_fiber|fiber|food|steel|science)(\.)/,
-      (match, prefix, actor, suffix) => {
-        if (viewer && actor.trim() === viewer) return match;
-        return `${prefix.replace(/and took 1 $/, 'and took 1 card')}${suffix}`;
-      }
-    );
-
-    // 4. Supply trade: `${player} traded with supply to receive 1 <res>.`
-    m = m.replace(
-      /^(.+?) traded with supply to receive 1 (?:lumber|brick|natural_fiber|fiber|food|steel|science)\.$/,
-      (match, actor) => {
-        if (viewer && actor.trim() === viewer) return match;
-        return `${actor} traded with supply to receive 1 card.`;
-      }
-    );
-
-    // 5. Harbor trade: `${player} traded at harbor ... to receive 1 <res>.`
-    m = m.replace(
-      /^(.+?) traded at harbor(?: \S+)? to receive 1 (?:lumber|brick|natural_fiber|fiber|food|steel|science)\.$/,
-      (match, actor) => {
-        if (viewer && actor.trim() === viewer) return match;
-        return `${actor} traded at harbor to receive 1 card.`;
-      }
-    );
-
-    // 6. Energy buy card: `${player} spent 2 energy to take 1 <res> from supply.`
-    m = m.replace(
-      /^(.+?) spent 2 energy to take 1 (?:lumber|brick|natural_fiber|fiber|food|steel|science) from supply\.$/,
-      (match, actor) => {
-        if (viewer && actor.trim() === viewer) return match;
-        return `${actor} spent 2 energy to take 1 card from supply.`;
-      }
-    );
-
-    // 7. Research Grant: `${player} played Research Grant: took 2 cards (<cards>) from supply.`
-    m = m.replace(
-      /^(.+?) played Research Grant: took 2 cards \([^)]+\) from supply\.$/,
-      (match, actor) => {
-        if (viewer && actor.trim() === viewer) return match;
-        return `${actor} played Research Grant: took 2 cards from supply.`;
-      }
-    );
-  }
 
   return m;
 }

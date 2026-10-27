@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { EventDiscType, GameAction, GameState, PlayerId } from '../../engine/types';
 import { hydrateRedactedState } from '../../network/hydrate';
+import type { RedactedGameAction } from '../../network/redact';
 import {
   SEAT_TOKEN_STORAGE_KEY,
   SERVER_APP_ID,
@@ -101,7 +102,7 @@ export interface OnlineGameUpdate {
   /** The state before `lastAction` (null on a resync or a fresh game). */
   prev: GameState | null;
   version: number;
-  lastAction: GameAction | null;
+  lastAction: RedactedGameAction | null;
   drawnEventDisc: EventDiscType | null;
   yourPlayerId: PlayerId | null;
 }

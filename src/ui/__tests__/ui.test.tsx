@@ -3,11 +3,9 @@ import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInitialGameState } from '../../engine/setup';
-import { BUILD_DESCRIPTIONS, humanizeLog } from '../gameView';
 import { IslandBoardSvg } from '../IslandBoardSvg';
 import { PendingDecisionBanner } from '../Modals';
 import { PlayerMat } from '../PlayerMat';
-import { PlayersRail } from '../PlayersRail';
 import { TabletopApp } from '../TabletopApp';
 
 describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
@@ -441,67 +439,6 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
     }
   });
 
-  it('displays tooltips explaining what each build item does (e.g. warehouse increases hand size to 10, dev card gives a dev card)', () => {
-    expect(BUILD_DESCRIPTIONS.warehouse).toContain('Increases hand size to 10');
-    expect(BUILD_DESCRIPTIONS.devCard).toContain('Gives you a development card');
-
-    window.history.pushState({}, '', '/?placement=fixed');
-    act(() => {
-      render(<TabletopApp />, container);
-    });
-    window.history.pushState({}, '', '/');
-
-    // Bottom dock build options
-    const warehouseBtn = container.querySelector('[data-testid="build-warehouse"]') as HTMLButtonElement;
-    expect(warehouseBtn).not.toBeNull();
-    const warehouseTitle = warehouseBtn.getAttribute('title') ?? '';
-    expect(warehouseTitle.toLowerCase()).toContain('2 energy');
-    expect(warehouseTitle.toLowerCase()).toContain('increases hand size to 10');
-
-    const devCardBtn = container.querySelector('[data-testid="build-devCard"]') as HTMLButtonElement;
-    expect(devCardBtn).not.toBeNull();
-    const devCardTitle = devCardBtn.getAttribute('title') ?? '';
-    expect(devCardTitle.toLowerCase()).toContain('costs');
-    expect(devCardTitle.toLowerCase()).toContain('gives you a development card');
-
-    // Open the player board drawer to inspect PlayerMat elements
-    const toggleMatBtn = container.querySelector('[data-testid="toggle-player-mat-btn"]') as HTMLButtonElement;
-    expect(toggleMatBtn).not.toBeNull();
-    act(() => {
-      toggleMatBtn.click();
-    });
-
-    // Player mat warehouse tile
-    const warehouseTile = container.querySelector('[data-testid="warehouse-tile"]');
-    expect(warehouseTile).not.toBeNull();
-    const warehouseTileTitle = warehouseTile?.getAttribute('title') ?? '';
-    expect(warehouseTileTitle.toLowerCase()).toContain('increases hand size to 10');
-
-    // Standalone PlayerMat with showOrganiser for quick recipe buttons
-    const state = createInitialGameState({ setupMode: 'first', playerCount: 4, seed: 42 });
-    act(() => {
-      render(
-        <PlayerMat
-          player={state.players.orange}
-          isActiveTurn={true}
-          isActionPhase={true}
-          isPreEventWindow={false}
-          turnStats={state.turnStats}
-          devCardsBoughtThisTurn={[]}
-          devCardPlayedThisTurn={false}
-          activeBuildMode={null}
-          showOrganiser={true}
-        />,
-        container
-      );
-    });
-
-    const quickBuyDev = container.querySelector('[data-testid="quick-buy-dev"]');
-    expect(quickBuyDev).not.toBeNull();
-    const quickBuyDevTitle = quickBuyDev?.getAttribute('title') ?? '';
-    expect(quickBuyDevTitle.toLowerCase()).toContain('gives you a development card');
-  });
-
   it('allows passing production increase event from either the top banner or the dock yellow action button', () => {
     window.history.pushState({}, '', '/?scenario=productionincrease&bots=0');
     act(() => {
@@ -529,38 +466,36 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
     expect(container.querySelector('[data-testid="pass-production-increase-btn"]')).toBeNull();
   });
 
-  it('renders natural hazard on building with proper SVG transform coordinates immediately', () => {
+  it('puts a freshly placed natural hazard in place at once and animates only the token', () => {
     const state = createInitialGameState({ setupMode: 'first', playerCount: 4, seed: 42 });
-    state.board.intersections[10]!.hasHazard = true;
     act(() => {
       render(<IslandBoardSvg state={state} />, container);
     });
-    const hazardGroup = container.querySelector('[data-testid="node-hazard-10"]');
+    state.board.intersections[10]!.hasHazard = true;
+    act(() => {
+      render(<IslandBoardSvg state={{ ...state }} />, container);
+    });
+    const hazardGroup = container.querySelector('[data-testid="node-hazard-10"]')!;
     expect(hazardGroup).not.toBeNull();
-    const transform = hazardGroup?.getAttribute('transform');
-    expect(transform).toMatch(/^translate\(-?\d+(\.\d+)?, -?\d+(\.\d+)?\)$/);
-    expect(transform).not.toBe('translate(0, 0)');
+    // The positioned group must not carry the drop animation (its transform would be overridden)
+    expect(hazardGroup.classList.contains('piece-drop')).toBe(false);
+    expect(hazardGroup.firstElementChild?.classList.contains('piece-drop')).toBe(true);
+    expect(hazardGroup.getAttribute('transform')).toMatch(/^translate\(-?\d+(\.\d+)?, -?\d+(\.\d+)?\)$/);
   });
 
-  it('highlights producing hexes on dice roll even when inspector is present with flashing amber highlight', () => {
+  it('draws the roll highlight on the hexes it is given, even the inspector hex', () => {
     const state = createInitialGameState({ setupMode: 'first', playerCount: 4, seed: 42 });
     const hexWithInspector = state.board.hexes.find((h) => h.hasInspector)!;
+    const other = state.board.hexes.find((h) => !h.hasInspector)!;
     act(() => {
-      render(
-        <IslandBoardSvg
-          state={state}
-          producingHexIds={new Set([hexWithInspector.id])}
-        />,
-        container
-      );
+      render(<IslandBoardSvg state={state} producingHexIds={new Set([hexWithInspector.id])} />, container);
     });
     const producingEl = container.querySelector(`[data-testid="hex-producing-${hexWithInspector.id}"]`);
     expect(producingEl).not.toBeNull();
-    // Check that highlight styling matching inspector move is applied
-    const highlightPolygon = producingEl?.querySelector('polygon[stroke="#ffc83a"]');
-    expect(highlightPolygon).not.toBeNull();
+    expect(producingEl!.classList.contains('hex-producing')).toBe(true);
+    expect(container.querySelectorAll('[data-testid^="hex-producing-"]').length).toBe(1);
+    expect(container.querySelector(`[data-testid="hex-producing-${other.id}"]`)).toBeNull();
   });
-
   it('renders cancel button on STEAL_TARGET pending decision to allow undoing inspector move', () => {
     const state = createInitialGameState({ setupMode: 'first', playerCount: 4, seed: 42 });
     const onUndo = vi.fn();
@@ -619,9 +554,9 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
     });
 
     // Check in-hand indicators
-    expect(container.querySelector('[data-testid="in-hand-lumber"]')?.textContent).toContain('3 in hand');
-    expect(container.querySelector('[data-testid="in-hand-steel"]')?.textContent).toContain('2 in hand');
-    expect(container.querySelector('[data-testid="in-hand-science"]')?.textContent).toContain('1 in hand');
+    expect(container.querySelector('[data-testid="in-hand-lumber"]')?.textContent).toBe('×3');
+    expect(container.querySelector('[data-testid="in-hand-steel"]')?.textContent).toBe('×2');
+    expect(container.querySelector('[data-testid="in-hand-science"]')?.textContent).toBe('×1');
 
     // Check peek button
     const peekBtn = container.querySelector('[data-testid="peek-board-btn"]') as HTMLButtonElement;
@@ -632,7 +567,7 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
     expect(onPeek).toHaveBeenCalledTimes(1);
   });
 
-  it('allows peeking at board during ClimateConferenceReward and unhiding via blue dock action button', () => {
+  it('allows peeking at board during ClimateConferenceReward and unhiding via the dock action button', () => {
     window.history.pushState({}, '', '/?scenario=cardchoice&bots=0');
     act(() => {
       render(<TabletopApp />, container);
@@ -652,12 +587,12 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
     // Modal is hidden
     expect(container.querySelector('[data-testid="pending-decision-modal"]')).toBeNull();
 
-    // Banner and bottom dock button "Unhide card selection" are visible with blue styling
+    // Banner and bottom dock button "Unhide card selection" are visible as the resume variant
     expect(container.querySelector('[data-testid="peeking-card-choice-banner"]')).not.toBeNull();
     const unhideBtn = container.querySelector('[data-testid="unhide-card-choice-btn"]') as HTMLButtonElement;
     expect(unhideBtn).not.toBeNull();
     expect(unhideBtn.textContent).toBe('Unhide card selection');
-    expect(unhideBtn.classList.contains('is-blue')).toBe(true);
+    expect(unhideBtn.classList.contains('is-resume')).toBe(true);
 
     // Click Unhide button
     act(() => {
@@ -667,161 +602,6 @@ describe('Tabletop UI & Showcase Player Mat (Milestones 3, 4 & 5 UI)', () => {
     // Modal is restored
     expect(container.querySelector('[data-testid="pending-decision-modal"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="peeking-card-choice-banner"]')).toBeNull();
-  });
-
-  describe('Pass-the-device curtain "Hide hands" activity log & message redaction', () => {
-    it('redacts steals, event takes, fossil plant bonuses, trades, and energy purchases for other players when privacyCurtain is active', () => {
-      // 1. Steals
-      const stealLog = 'Orange stole 1 lumber card from Blue.';
-      // Open table (privacyCurtain: false)
-      expect(humanizeLog(stealLog, { privacyCurtain: false, viewerName: 'Blue' })).toBe(
-        'Orange stole 1 lumber card from Blue.'
-      );
-      // Hide hands: thief sees what they stole
-      expect(humanizeLog(stealLog, { privacyCurtain: true, viewerName: 'Orange' })).toBe(
-        'Orange stole 1 lumber card from Blue.'
-      );
-      // Hide hands: victim / other players do not see what was stolen
-      expect(humanizeLog(stealLog, { privacyCurtain: true, viewerName: 'Blue' })).toBe(
-        'Orange stole 1 card from Blue.'
-      );
-      expect(humanizeLog(stealLog, { privacyCurtain: true, viewerName: 'Purple' })).toBe(
-        'Orange stole 1 card from Blue.'
-      );
-
-      // 2. Events: Climate Conference & Sustainable Production
-      const ccLog = 'Climate Conference: Lowest local footprint (Orange) took 1 steel card from the supply.';
-      expect(humanizeLog(ccLog, { privacyCurtain: false, viewerName: 'Blue' })).toBe(
-        'Climate Conference: Lowest local footprint (Orange) took 1 steel card from the supply.'
-      );
-      expect(humanizeLog(ccLog, { privacyCurtain: true, viewerName: 'Orange' })).toBe(
-        'Climate Conference: Lowest local footprint (Orange) took 1 steel card from the supply.'
-      );
-      expect(humanizeLog(ccLog, { privacyCurtain: true, viewerName: 'Blue' })).toBe(
-        'Climate Conference: Lowest local footprint (Orange) took 1 card from the supply.'
-      );
-
-      const spLog = 'Sustainable Production: Most renewable plants (Purple) took 1 science card from the supply.';
-      expect(humanizeLog(spLog, { privacyCurtain: true, viewerName: 'Purple' })).toBe(
-        'Sustainable Production: Most renewable plants (Purple) took 1 science card from the supply.'
-      );
-      expect(humanizeLog(spLog, { privacyCurtain: true, viewerName: 'Orange' })).toBe(
-        'Sustainable Production: Most renewable plants (Purple) took 1 card from the supply.'
-      );
-
-      // 3. Event: Production Increase fossil plant resource bonus
-      const piLog =
-        'Production Increase: Highest local footprint (Orange) built a free fossil fuel plant at node 12 facing hex 4 and took 1 lumber.';
-      expect(humanizeLog(piLog, { privacyCurtain: true, viewerName: 'Orange' })).toBe(
-        'Production Increase: Highest local footprint (Orange) built a free fossil fuel plant and took 1 lumber.'
-      );
-      expect(humanizeLog(piLog, { privacyCurtain: true, viewerName: 'Blue' })).toBe(
-        'Production Increase: Highest local footprint (Orange) built a free fossil fuel plant and took 1 card.'
-      );
-
-      // 4. Supply trade
-      const supplyTradeLog = 'Orange traded with supply to receive 1 brick.';
-      expect(humanizeLog(supplyTradeLog, { privacyCurtain: true, viewerName: 'Orange' })).toBe(
-        'Orange traded with supply to receive 1 brick.'
-      );
-      expect(humanizeLog(supplyTradeLog, { privacyCurtain: true, viewerName: 'Blue' })).toBe(
-        'Orange traded with supply to receive 1 card.'
-      );
-
-      // 5. Harbor trade
-      const harborTradeLog = 'Orange traded at harbor 0 to receive 1 natural_fiber.';
-      expect(humanizeLog(harborTradeLog, { privacyCurtain: true, viewerName: 'Orange' })).toBe(
-        'Orange traded at harbor to receive 1 fiber.'
-      );
-      expect(humanizeLog(harborTradeLog, { privacyCurtain: true, viewerName: 'Blue' })).toBe(
-        'Orange traded at harbor to receive 1 card.'
-      );
-
-      // 6. Energy buy card
-      const energyBuyLog = 'Orange spent 2 energy to take 1 science from supply.';
-      expect(humanizeLog(energyBuyLog, { privacyCurtain: true, viewerName: 'Orange' })).toBe(
-        'Orange spent 2 energy to take 1 science from supply.'
-      );
-      expect(humanizeLog(energyBuyLog, { privacyCurtain: true, viewerName: 'Blue' })).toBe(
-        'Orange spent 2 energy to take 1 card from supply.'
-      );
-
-      // 7. Research Grant dev card
-      const rgLog = 'Orange played Research Grant: took 2 cards (lumber, brick) from supply.';
-      expect(humanizeLog(rgLog, { privacyCurtain: true, viewerName: 'Orange' })).toBe(
-        'Orange played Research Grant: took 2 cards (lumber, brick) from supply.'
-      );
-      expect(humanizeLog(rgLog, { privacyCurtain: true, viewerName: 'Blue' })).toBe(
-        'Orange played Research Grant: took 2 cards from supply.'
-      );
-
-      // 8. Discards remain visible ("obviously discards are different because everyone can see that")
-      const penaltyLog = 'Climate Conference: Highest local footprint (Blue) discarded 1 lumber card.';
-      expect(humanizeLog(penaltyLog, { privacyCurtain: true, viewerName: 'Orange' })).toBe(
-        'Climate Conference: Highest local footprint (Blue) discarded 1 lumber card.'
-      );
-      const roll7Log = 'Blue discarded 4 cards on roll of 7.';
-      expect(humanizeLog(roll7Log, { privacyCurtain: true, viewerName: 'Orange' })).toBe(
-        'Blue discarded 4 cards on roll of 7.'
-      );
-    });
-
-    it('renders redacted activity log in PlayersRail when privacyCurtain is active', () => {
-      const state = createInitialGameState({ setupMode: 'first', playerCount: 4, seed: 42 });
-      state.log.push({
-        timestamp: 1,
-        message: 'Purple stole 1 lumber card from Orange.',
-      });
-      state.log.push({
-        timestamp: 2,
-        message: 'Climate Conference: Lowest local footprint (Purple) took 1 steel card from the supply.',
-      });
-      state.log.push({
-        timestamp: 3,
-        message: 'Orange traded with supply to receive 1 brick.',
-      });
-      state.log.push({
-        timestamp: 4,
-        message: 'Climate Conference: Highest local footprint (Purple) discarded 1 food card.',
-      });
-
-      const defaultSeats = {
-        orange: { playerId: 'orange' as const, name: 'Orange', controller: 'human' as const, botStrategy: 'Balanced' as const, botDifficulty: 'normal' as const },
-        purple: { playerId: 'purple' as const, name: 'Purple', controller: 'human' as const, botStrategy: 'Balanced' as const, botDifficulty: 'normal' as const },
-        pink: { playerId: 'pink' as const, name: 'Pink', controller: 'bot' as const, botStrategy: 'Balanced' as const, botDifficulty: 'normal' as const },
-        blue: { playerId: 'blue' as const, name: 'Blue', controller: 'bot' as const, botStrategy: 'Balanced' as const, botDifficulty: 'normal' as const },
-      };
-
-      // Render with privacyCurtain: true, viewer: Orange
-      act(() => {
-        render(
-          <PlayersRail
-            state={state}
-            seats={defaultSeats}
-            inspectedPlayerId="orange"
-            viewerPlayerId="orange"
-            privacyCurtain={true}
-            onInspect={() => {}}
-          />,
-          container
-        );
-      });
-
-      const feedText = container.querySelector('[data-testid="game-log"]')?.textContent ?? '';
-      // Purple's steal is masked to Orange
-      expect(feedText).toContain('Purple stole 1 card from Orange.');
-      expect(feedText).not.toContain('Purple stole 1 lumber card from Orange.');
-
-      // Purple's event card pick is masked to Orange
-      expect(feedText).toContain('took 1 card from the supply.');
-      expect(feedText).not.toContain('took 1 steel card from the supply.');
-
-      // Orange's own supply trade is visible to Orange
-      expect(feedText).toContain('Orange traded with supply to receive 1 brick.');
-
-      // Discards are completely visible
-      expect(feedText).toContain('discarded 1 food card.');
-    });
   });
 });
 

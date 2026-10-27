@@ -19,6 +19,7 @@ import {
   BOARD_CONSTANTS,
   ResourceType,
 } from './config';
+import { pushPrivateLog } from './log';
 import { executeStealCard, getHandSizeForSeven } from './production';
 import { TERRAIN_RESOURCE_MAP } from './setup';
 import { updateLongestRoadAward } from './longest-road';
@@ -679,10 +680,12 @@ export function applyPlayDevCard(
       }
     }
 
-    state.log.push({
-      timestamp: state.log.length,
-      message: `${player.name} played Research Grant: took 2 cards (${p.cards.join(', ')}) from supply.`,
-    });
+    pushPrivateLog(
+      state,
+      [player.id],
+      `${player.name} played Research Grant: took 2 cards (${p.cards.join(', ')}) from supply.`,
+      `${player.name} played Research Grant: took 2 cards from supply.`
+    );
 
     state.devCardPlayedThisTurn = true;
     state.turnStats.devCardsPlayedThisTurn++;

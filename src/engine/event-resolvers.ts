@@ -15,6 +15,7 @@
  */
 
 import { clampGF, computePlayerLF, computeTrueTotalLF } from './footprint';
+import { pushPrivateLog } from './log';
 import { Mulberry32PRNG } from './prng';
 import { TERRAIN_RESOURCE_MAP } from './setup';
 import {
@@ -524,19 +525,23 @@ export function applyEventDecision(
         if (state.supply.science > 0) {
           player.science++;
           state.supply.science--;
-          state.log.push({
-            timestamp: state.log.length,
-            message: `${cardChoiceActor(decision.event, player.name)} took 1 science card from the supply.`,
-          });
+          pushPrivateLog(
+            state,
+            [player.id],
+            `${cardChoiceActor(decision.event, player.name)} took 1 science card from the supply.`,
+            `${cardChoiceActor(decision.event, player.name)} took 1 card from the supply.`
+          );
         }
       } else if (cardType) {
         if (state.supply.resources[cardType] > 0) {
           player.resources[cardType]++;
           state.supply.resources[cardType]--;
-          state.log.push({
-            timestamp: state.log.length,
-            message: `${cardChoiceActor(decision.event, player.name)} took 1 ${cardType} card from the supply.`,
-          });
+          pushPrivateLog(
+            state,
+            [player.id],
+            `${cardChoiceActor(decision.event, player.name)} took 1 ${cardType} card from the supply.`,
+            `${cardChoiceActor(decision.event, player.name)} took 1 card from the supply.`
+          );
         }
       }
     } else if (decision.event === 'ClimateConferencePenalty') {
@@ -619,10 +624,8 @@ export function applyEventDecision(
         state.supply.resources[res]--;
       }
 
-      state.log.push({
-        timestamp: state.log.length,
-        message: `Production Increase: Highest local footprint (${player.name}) built a free fossil fuel plant at node ${nodeId} facing hex ${hexId} and took 1 ${res}.`,
-      });
+      const built = `Production Increase: Highest local footprint (${player.name}) built a free fossil fuel plant at node ${nodeId} facing hex ${hexId}`;
+      pushPrivateLog(state, [player.id], `${built} and took 1 ${res}.`, `${built} and took 1 card.`);
     }
   }
 }

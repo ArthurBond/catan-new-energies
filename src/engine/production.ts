@@ -10,7 +10,8 @@
  * 4. PRD-04: Roll of 7 Environmental Inspector movement to a hazard-free hex and deterministic card steal.
  */
 
-import { RESOURCE_TYPES, ResourceType } from './config';
+import { BOARD_CONSTANTS, RESOURCE_TYPES, ResourceType } from './config';
+import { pushPrivateLog } from './log';
 import { Mulberry32PRNG } from './prng';
 import { TERRAIN_RESOURCE_MAP } from './setup';
 import {
@@ -279,7 +280,7 @@ export function queueDiscardsOnSeven(state: GameState): void {
   for (const pid of clockwisePlayers) {
     const player = state.players[pid]!;
     const handSize = getHandSizeForSeven(player);
-    const limit = player.hasWarehouse ? 10 : 7;
+    const limit = player.hasWarehouse ? BOARD_CONSTANTS.handLimitWarehouse : BOARD_CONSTANTS.handLimitStandard;
 
     if (handSize > limit) {
       const cardsToDiscard = Math.floor(handSize / 2);
@@ -360,11 +361,13 @@ export function executeStealCard(
     thief.resources[stolenCard]++;
   }
 
-  const cardLabel = stolenCard === 'natural_fiber' ? 'fiber' : stolenCard;
-  state.log.push({
-    timestamp: state.log.length,
-    message: `${thief.name} stole 1 ${cardLabel} card from ${victim.name}.`,
-  });
+  // Thief and victim both know what was taken; everyone else only sees that a card moved.
+  pushPrivateLog(
+    state,
+    [thiefId, victimId],
+    `${thief.name} stole 1 ${stolenCard} card from ${victim.name}.`,
+    `${thief.name} stole 1 card from ${victim.name}.`
+  );
 
   return stolenCard;
 }

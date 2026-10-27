@@ -4,7 +4,7 @@
  */
 
 import 'preact/compat';
-import { GameState, PlayerId } from '../engine/types';
+import { GameEventLog, GameState, PlayerId } from '../engine/types';
 import { handCount, humanizeLog, logActor, splitLogNames } from './gameView';
 import { Icon } from './Icons';
 import type { SeatConfig } from './Modals';
@@ -41,8 +41,8 @@ export interface PlayersRailProps {
   onInspect: (pid: PlayerId) => void;
   /** Online: ready-made caption per seat ("You", "Friend · offline"), replacing the offline wording. */
   roleLabels?: Partial<Record<PlayerId, string>>;
-  privacyCurtain?: boolean;
-  viewerPlayerId?: PlayerId | null;
+  /** The text of a log line for whoever is at the device (hidden hands: private lines read public). */
+  logText?: (entry: GameEventLog) => string;
 }
 
 export function PlayersRail({
@@ -51,14 +51,11 @@ export function PlayersRail({
   inspectedPlayerId,
   onInspect,
   roleLabels,
-  privacyCurtain,
-  viewerPlayerId,
+  logText,
 }: PlayersRailProps) {
   const humanCount = state.playerOrder.filter((pid) => seats[pid]?.controller === 'human').length;
   const recent = state.log.slice(-40).reverse();
   const names = state.playerOrder.map((pid) => ({ pid, name: state.players[pid]!.name }));
-  const activeViewerId = viewerPlayerId ?? inspectedPlayerId;
-  const viewerName = activeViewerId ? state.players[activeViewerId]?.name : null;
 
   return (
     <aside className="tt-rail" data-testid="left-table-margin" aria-label="Players">
@@ -145,9 +142,10 @@ export function PlayersRail({
         </div>
         <div className="tt-feed-list" aria-live="polite">
           {recent.map((entry, idx) => {
-            const text = humanizeLog(entry.message, { privacyCurtain, viewerName });
+            const message = logText ? logText(entry) : entry.message;
+            const text = humanizeLog(message);
             if (!text) return null;
-            const who = logActor(entry.message, names);
+            const who = logActor(message, names);
             return (
               <div key={`${entry.timestamp}-${idx}`} className="tt-feed-item">
                 <i style={{ background: who ? PLAYER_THEMES[who.pid].fill : 'var(--card-edge-deep)' }} />

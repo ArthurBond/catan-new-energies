@@ -14,6 +14,7 @@
 
 import { ResourceType } from './config';
 import { clampGF, computePlayerLF, computeTrueTotalLF } from './footprint';
+import { pushPrivateLog } from './log';
 import { isHandBreakdownHidden } from './production';
 import {
   GameState,
@@ -147,10 +148,12 @@ export function applySpendEnergy(
       state.supply.resources[card] -= 1;
     }
 
-    state.log.push({
-      timestamp: state.log.length,
-      message: `${player.name} spent 2 energy to take 1 ${card} from supply.`,
-    });
+    pushPrivateLog(
+      state,
+      [player.id],
+      `${player.name} spent 2 energy to take 1 ${card} from supply.`,
+      `${player.name} spent 2 energy to take 1 card from supply.`
+    );
   } else if (usage === 'CLEAN_HAZARD') {
     player.energy -= 1;
     state.supply.energy += 1;
@@ -306,10 +309,12 @@ export function applyTradeSupply(
     state.supply.resources[receive] -= 1;
   }
 
-  state.log.push({
-    timestamp: state.log.length,
-    message: `${player.name} traded with supply to receive 1 ${receive}.`,
-  });
+  pushPrivateLog(
+    state,
+    [player.id],
+    `${player.name} traded with supply to receive 1 ${receive}.`,
+    `${player.name} traded with supply to receive 1 card.`
+  );
 }
 
 // ============================================================================
@@ -421,10 +426,12 @@ export function applyTradeHarbor(
     state.supply.resources[receive] -= 1;
   }
 
-  state.log.push({
-    timestamp: state.log.length,
-    message: `${player.name} traded at harbor ${harborId} to receive 1 ${receive}.`,
-  });
+  pushPrivateLog(
+    state,
+    [player.id],
+    `${player.name} traded at harbor ${harborId} to receive 1 ${receive}.`,
+    `${player.name} traded at harbor ${harborId} to receive 1 card.`
+  );
 }
 
 // ============================================================================

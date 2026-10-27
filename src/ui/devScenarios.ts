@@ -6,7 +6,9 @@
  * is visible at once for screenshots and visual checks. Not reachable from the lobby.
  *
  * Variants: `showcase` (action phase), `discard` (roll of 7 discard prompt),
- * `cardchoice` (Climate Conference reward prompt), `victory` (game over summary),
+ * `cardchoice` (Climate Conference reward prompt), `cardchoicetie` (the same for two tied players in turn),
+ * `eventdiscard` (Climate Conference penalty), `productionincrease` (free fossil plant prompt),
+ * `moveinspector` (a 7 was rolled and the inspector has to move), `victory` (game over summary),
  * `draws2` / `draws3` (global footprint low / high, so the HUD shows 2 / 3 draws per turn),
  * `cityfit` (roads on every side of every building, to check how pieces meet roads),
  * `plantfit` (a power plant in every notch of every building, to check plant layering).
@@ -86,10 +88,10 @@ export function applyShowcaseScenario(input: GameState): GameState {
   return state;
 }
 
-export type DevScenario = 'showcase' | 'discard' | 'eventdiscard' | 'productionincrease' | 'cardchoice' | 'victory' | 'draws2' | 'draws3' | 'cityfit' | 'plantfit' | 'airpollution';
+export type DevScenario = 'showcase' | 'discard' | 'eventdiscard' | 'productionincrease' | 'moveinspector' | 'cardchoice' | 'cardchoicetie' | 'victory' | 'draws2' | 'draws3' | 'cityfit' | 'plantfit' | 'airpollution';
 
 export function applyDevScenario(input: GameState, scenario: string): GameState {
-  if (!['showcase', 'discard', 'eventdiscard', 'productionincrease', 'cardchoice', 'victory', 'draws2', 'draws3', 'cityfit', 'plantfit', 'airpollution'].includes(scenario)) return input;
+  if (!['showcase', 'discard', 'eventdiscard', 'productionincrease', 'moveinspector', 'cardchoice', 'cardchoicetie', 'victory', 'draws2', 'draws3', 'cityfit', 'plantfit', 'airpollution'].includes(scenario)) return input;
   const state = applyShowcaseScenario(input);
   if (scenario === 'discard') {
     state.phase = 'ProductionPhase';
@@ -119,6 +121,22 @@ export function applyDevScenario(input: GameState, scenario: string): GameState 
         isOptional: true,
       },
     ];
+  } else if (scenario === 'moveinspector') {
+    // A 7 was rolled and orange must move the inspector (then maybe pick someone to steal from)
+    state.phase = 'ProductionPhase';
+    state.lastDiceRoll = [3, 4];
+    state.pendingDecisions = [{ id: 'dev-move-inspector', type: 'MOVE_INSPECTOR', playerId: 'orange' }];
+  } else if (scenario === 'cardchoicetie') {
+    // Two players tied on the lowest footprint: each gets their own reward prompt, one after the other
+    state.phase = 'EventPhase';
+    state.pendingDecisions = (['orange', 'blue'] as const).map((playerId) => ({
+      id: `dev-card-choice-${playerId}`,
+      type: 'EVENT_CARD_CHOICE' as const,
+      playerId,
+      event: 'ClimateConferenceReward' as const,
+      cardCount: 1,
+      isOptional: false,
+    }));
   } else if (scenario === 'cardchoice') {
     state.phase = 'EventPhase';
     state.pendingDecisions = [

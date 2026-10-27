@@ -18,7 +18,7 @@ import {
   type ServerMessage,
 } from '@/network/server-protocol';
 import { createFileStore } from './persistence';
-import { GameRoom } from './room';
+import { GameRoom, type GameRoomOptions } from './room';
 
 export interface StartServerOptions {
   /** 0 picks a free port (tests). */
@@ -31,6 +31,7 @@ export interface StartServerOptions {
   /** Fixed bot delay; default follows the lobby's bot speed. */
   botDelayMs?: number;
   log?: (message: string) => void;
+  onAction?: GameRoomOptions['onAction'];
 }
 
 export interface NetworkAddress {
@@ -188,6 +189,7 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
     persist: (snapshot) => store.save(snapshot),
     botDelayMs: options.botDelayMs,
     log,
+    onAction: options.onAction,
   });
   if (saved?.started) log(`Resumed the saved game (move ${saved.version}).`);
 

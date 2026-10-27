@@ -9,7 +9,7 @@
 
 import type { StartingPlacement } from '../engine/setup';
 import type { EventDiscType, GameAction, PlayerId } from '../engine/types';
-import type { RedactedGameState } from './redact';
+import type { RedactedGameAction, RedactedGameState } from './redact';
 
 /** Bumped when a message shape changes incompatibly. */
 export const SERVER_PROTOCOL_VERSION = 1;
@@ -113,7 +113,7 @@ export interface StateMessage {
   /** Increments by one per applied action; resets to 0 when a new game starts. */
   version: number;
   /** The action that produced this state (null for a fresh game or a resync). */
-  lastAction: GameAction | null;
+  lastAction: RedactedGameAction | null;
   /**
    * The event disc that `lastAction` took out of the bag (now public), if any. The redacted state
    * has no `eventBag`, so the client cannot diff the bag itself.

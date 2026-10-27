@@ -12,13 +12,15 @@
  *   masks opponent resource/science breakdown when `hideOpponentResources` is enabled.
  * - Identities of development cards bought this turn (`devCardsBoughtThisTurn`) unless the
  *   viewer owns them (other viewers see the placeholder 'hidden').
+ * - Log lines that name a private card (`GameEventLog.private`): with hidden hands, each seat gets
+ *   the text it may read (`logMessageFor`) and the `private` field is always stripped.
  * - A `null` viewer (spectator / unseated socket) sees every hand redacted.
  * - Once the game is over nothing about the players is hidden any more (see `isGameOver`): every
  *   hand, dev card and face-down green disc is revealed to every viewer, because the final
  *   standings count unrevealed Victory Point cards. The dev deck, event bag and PRNG stay hidden.
  */
 
-import { GameState, PlayerId, PlayerState } from '../engine/types';
+import { GameAction, GameEventLog, GameState, PlayerId, PlayerState } from '../engine/types';
 
 export interface RedactOptions {
   hideOpponentResources?: boolean;
@@ -36,7 +38,8 @@ export interface RedactedPlayerState extends Omit<PlayerState, 'devCards' | 'hid
 }
 
 export interface RedactedGameState
-  extends Omit<GameState, 'players' | 'supply' | 'prng' | 'eventBag'> {
+  extends Omit<GameState, 'players' | 'supply' | 'prng' | 'eventBag' | 'log'> {
+  log: Omit<GameEventLog, 'private'>[];
   players: Record<PlayerId, RedactedPlayerState>;
   supply: Omit<GameState['supply'], 'devDeck'> & {
     devDeckCount: number;
@@ -65,6 +68,60 @@ export function isGameOver(state: Pick<GameState, 'phase' | 'winner'>): boolean 
 
 /** Placeholder that replaces dev card ids the viewer is not allowed to see. */
 export const HIDDEN_DEV_CARD_ID = 'hidden';
+
+/**
+ * The text of a log line for one viewer (null: nobody at the device, or a spectator).
+ * Lines without a `private` field read the same for everyone.
+ */
+export function logMessageFor(entry: GameEventLog, viewerId: PlayerId | null): string {
+  if (!entry.private) return entry.message;
+  return viewerId !== null && entry.private.playerIds.includes(viewerId)
+    ? entry.message
+    : entry.private.publicMessage;
+}
+
+/** A move as another seat may see it: a supply or harbor trade can leave out the card received. */
+export type RedactedGameAction =
+  | Exclude<GameAction, { type: 'TRADE_SUPPLY' | 'TRADE_HARBOR' }>
+  | Omit<Extract<GameAction, { type: 'TRADE_SUPPLY' }>, 'receive'>
+  | Omit<Extract<GameAction, { type: 'TRADE_HARBOR' }>, 'receive'>;
+
+const hasCardType = (v: unknown): boolean => typeof v === 'object' && v !== null && 'cardType' in v;
+
+/**
+ * The move that produced a state, as one viewer may see it. With hidden hands another player's
+ * private pick (the card taken in a trade, bought with energy, from a Research Grant or from an
+ * event) is left out, as it is in the log (`logMessageFor`). Clients only use the move to say what
+ * happened.
+ */
+export function redactActionFor(
+  action: GameAction | null,
+  viewerId: PlayerId | null,
+  options?: RedactOptions
+): RedactedGameAction | null {
+  if (!action || !options?.hideOpponentResources || action.playerId === viewerId) return action;
+  switch (action.type) {
+    case 'TRADE_SUPPLY':
+    case 'TRADE_HARBOR': {
+      const { receive: _receive, ...rest } = action;
+      return rest;
+    }
+    case 'SPEND_ENERGY': {
+      if (!action.params?.cardType) return action;
+      const { cardType: _cardType, ...params } = action.params;
+      return { ...action, params };
+    }
+    case 'PLAY_DEV_CARD':
+      return hasCardType(action.params) && (action.params as { cardType: unknown }).cardType === 'researchGrant'
+        ? { ...action, params: { cardType: 'researchGrant' } }
+        : action;
+    case 'RESOLVE_PENDING_DECISION':
+      // Event card choices answer with { cardType }; trade replies and the rest name no hidden card
+      return hasCardType(action.response) ? { ...action, response: {} } : action;
+    default:
+      return action;
+  }
+}
 
 export function redactForPlayer(
   state: GameState,
@@ -138,8 +195,17 @@ export function redactForPlayer(
   const maskBought = (ids: string[]) =>
     ids.map((id) => (revealAll || ownCards.has(id) ? id : HIDDEN_DEV_CARD_ID));
 
+  // The secret card never leaves the server: private lines are cut down to the viewer's text, or
+  // to the full text when hands are open (hands not hidden, or the game is over).
+  const hideLog = Boolean(options?.hideOpponentResources) && !revealAll;
+  const log = restCloned.log.map(({ private: priv, ...entry }) => ({
+    ...entry,
+    message: hideLog ? logMessageFor({ ...entry, private: priv }, viewerId) : entry.message,
+  }));
+
   const redacted: RedactedGameState = {
     ...restCloned,
+    log,
     devCardsBoughtThisTurn: maskBought(restCloned.devCardsBoughtThisTurn),
     turnStats: {
       ...restCloned.turnStats,

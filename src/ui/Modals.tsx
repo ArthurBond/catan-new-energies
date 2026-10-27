@@ -27,6 +27,7 @@ import {
 } from '../engine/types';
 import type { StartingPlacement } from '../engine/setup';
 import { evaluateEmptyBagVictory } from '../engine/victory';
+import { isDiscardDecision } from './DiscardPanel';
 import {
   handCount,
   normaliseTradePrefs,
@@ -41,7 +42,6 @@ import {
   PLAYER_THEMES,
   TERRAIN_THEMES,
 } from './theme';
-import { isDiscardDecision } from './DiscardPanel';
 import { TradeCard, tradeLabel, type TradeKind } from './TradeCard';
 import {
   AskForCardsPanel,
@@ -1283,6 +1283,55 @@ export function StealChooserModal({
 // 5. PENDING DECISION FLOATING BANNER / MODAL
 // ============================================================================
 
+type EventChoiceEvent = Extract<PendingDecision, { type: 'EVENT_CARD_CHOICE' }>['event'];
+/** The card-choice events answered in this modal (the penalty is a discard, answered in the DiscardPanel) */
+type PickEvent = Exclude<EventChoiceEvent, 'ClimateConferencePenalty'>;
+
+function eventChoiceCopy(event: PickEvent, name: string): { title: string; body: string } {
+  switch (event) {
+    case 'ClimateConferenceReward':
+      return {
+        title: `Climate Conference: ${name} is rewarded`,
+        body: 'Lowest local footprint at the table. Take one free card from the supply.',
+      };
+    case 'GovernmentFunding':
+      return {
+        title: `Government Funding for ${name}`,
+        body: 'Lowest local footprint at the table. Take a free development card.',
+      };
+    case 'SustainableProduction':
+      return {
+        title: `Sustainable Production: ${name} benefits`,
+        body: 'Most renewable power plants at the table. Take one free card from the supply.',
+      };
+  }
+}
+
+/** The dock's "unhide" button says what waits behind the hidden prompt */
+export function eventChoiceUnhideSub(event: EventChoiceEvent): string {
+  return event === 'GovernmentFunding'
+    ? 'Return to take your free development card'
+    : 'Return to pick your free card';
+}
+
+function PeekBoardButton({ testId, onPeek }: { testId: string; onPeek: () => void }) {
+  return (
+    <button
+      type="button"
+      className="tt-icon-btn md-peek-btn"
+      data-testid={testId}
+      onClick={onPeek}
+      title="Temporarily hide this prompt to inspect the board and your hand"
+    >
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+      Peek at board
+    </button>
+  );
+}
+
 export function PendingDecisionBanner({
   state,
   decision,
@@ -1309,69 +1358,22 @@ export function PendingDecisionBanner({
     return null;
   }
 
-  // EVENT_CARD_CHOICE MODAL
+  // EVENT_CARD_CHOICE MODAL (the penalty variant is answered in the DiscardPanel, so it never gets here)
   if (decision.type === 'EVENT_CARD_CHOICE') {
-    const isPenalty = decision.event === 'ClimateConferencePenalty';
     const isGov = decision.event === 'GovernmentFunding';
-    const copy: Record<typeof decision.event, { title: string; body: string }> = {
-      ClimateConferenceReward: {
-        title: `Climate Conference: ${player.name} is rewarded`,
-        body: 'Lowest local footprint at the table. Take one free card from the supply.',
-      },
-      ClimateConferencePenalty: {
-        title: `Climate Conference: ${player.name} pays up`,
-        body: 'Highest local footprint at the table. Discard one card from your hand.',
-      },
-      GovernmentFunding: {
-        title: `Government Funding for ${player.name}`,
-        body: 'Lowest local footprint at the table. Take a free development card.',
-      },
-      SustainableProduction: {
-        title: `Sustainable Production: ${player.name} benefits`,
-        body: 'Most renewable power plants at the table. Take one free card from the supply.',
-      },
-    };
+    const copy = eventChoiceCopy(decision.event as PickEvent, player.name);
 
     return (
       <div style={MODAL_BACKDROP_STYLE} data-testid="pending-decision-modal">
         <div style={{ ...MODAL_CARD_STYLE, maxWidth: '520px' }} role="dialog" aria-modal="true" aria-labelledby="event-choice-title">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '4px' }}>
+          <div className="md-head">
             <div>
               <h3 className="md-title" id="event-choice-title">
-                {copy[decision.event].title}
+                {copy.title}
               </h3>
-              <p className="md-sub">{copy[decision.event].body}</p>
+              <p className="md-sub">{copy.body}</p>
             </div>
-            {onPeek && (
-              <button
-                type="button"
-                className="tt-icon-btn"
-                data-testid="peek-board-btn"
-                onClick={onPeek}
-                title="Temporarily hide this prompt to inspect the board and your hand"
-                style={{
-                  padding: '6px 12px',
-                  fontSize: '12.5px',
-                  fontWeight: 700,
-                  background: 'var(--ink-700)',
-                  color: 'var(--ink-100)',
-                  borderRadius: '8px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  cursor: 'pointer',
-                  border: 'none',
-                  flexShrink: 0,
-                  marginTop: '2px',
-                }}
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-                Peek at board
-              </button>
-            )}
+            {onPeek && <PeekBoardButton testId="peek-board-btn" onPeek={onPeek} />}
           </div>
 
           {isGov ? (
@@ -1413,13 +1415,7 @@ export function PendingDecisionBanner({
             <>
               <div className="md-cards">
                 {(['lumber', 'brick', 'natural_fiber', 'food', 'steel', 'science'] as const).map((k) => {
-                  const count = isPenalty
-                    ? k === 'science'
-                      ? player.science
-                      : player.resources[k]
-                    : k === 'science'
-                      ? state.supply.science
-                      : state.supply.resources[k];
+                  const inSupply = k === 'science' ? state.supply.science : state.supply.resources[k];
                   const inHand = k === 'science' ? player.science : player.resources[k];
                   const meta = CARD_METADATA[k];
 
@@ -1429,8 +1425,8 @@ export function PendingDecisionBanner({
                         type="button"
                         className="tt-res-card md-pick"
                         data-testid={`decision-card-${k}`}
-                        data-empty={count <= 0 ? 'true' : 'false'}
-                        disabled={count <= 0}
+                        data-empty={inSupply <= 0 ? 'true' : 'false'}
+                        disabled={inSupply <= 0}
                         onClick={() =>
                           onDispatch({
                             type: 'RESOLVE_PENDING_DECISION',
@@ -1439,7 +1435,7 @@ export function PendingDecisionBanner({
                             response: { cardType: k },
                           })
                         }
-                        aria-label={`${isPenalty ? 'Discard' : 'Take'} ${meta.label} (${count} ${isPenalty ? 'in hand' : 'in supply'}${!isPenalty ? `, ${inHand} in hand` : ''})`}
+                        aria-label={`Take ${meta.label} (${inSupply} in supply, ${inHand} in hand)`}
                         style={{
                           ['--res-fill' as string]: meta.cardFill,
                           ['--res-border' as string]: meta.border,
@@ -1451,60 +1447,20 @@ export function PendingDecisionBanner({
                           <ResourceIconSvg type={k} scale={1.05} />
                         </svg>
                         <span className="tt-res-label">{meta.shortLabel}</span>
-                        <span className="tt-res-count" title={isPenalty ? `${count} in hand` : `${count} left in supply`}>{count}</span>
-                        {!isPenalty && (
-                          <span
-                            className="md-in-hand"
-                            data-testid={`in-hand-${k}`}
-                            style={{
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              marginTop: '2px',
-                              color: 'var(--text-muted)',
-                              background: 'rgba(0, 0, 0, 0.08)',
-                              padding: '1px 5px',
-                              borderRadius: '6px',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {inHand} in hand
-                          </span>
-                        )}
+                        <span className="tt-res-count" title={`${inSupply} left in supply`}>
+                          {inSupply}
+                        </span>
                       </button>
+                      <span className="md-in-hand" data-testid={`in-hand-${k}`} title={`${inHand} in hand`} aria-hidden="true">
+                        ×{inHand}
+                      </span>
                     </div>
                   );
                 })}
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', gap: '8px' }}>
-                <p className="md-sub" style={{ margin: 0 }}>
-                  {isPenalty
-                    ? 'Numbers show the cards in your hand.'
-                    : 'Large numbers show what is left in the supply · Badges show your hand.'}
-                </p>
-                {onPeek && (
-                  <button
-                    type="button"
-                    className="tt-chip-btn"
-                    data-testid="peek-board-btn-bottom"
-                    onClick={onPeek}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      padding: '4px 10px',
-                      cursor: 'pointer',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                    Peek at board
-                  </button>
-                )}
+              <div className="md-foot">
+                <p className="md-sub">Big numbers show what is left in the supply. ×N under a card is your hand.</p>
+                {onPeek && <PeekBoardButton testId="peek-board-btn-bottom" onPeek={onPeek} />}
               </div>
               {decision.isOptional && (
                 <button
@@ -1569,19 +1525,9 @@ export function PendingDecisionBanner({
           {onUndo && (
             <button
               type="button"
-              className="tt-icon-btn"
+              className="tt-icon-btn md-cancel-btn"
               data-testid="cancel-steal-target-btn"
               onClick={onUndo}
-              style={{
-                marginTop: '12px',
-                width: '100%',
-                height: '38px',
-                justifyContent: 'center',
-                background: 'var(--ink-700)',
-                color: 'var(--ink-100)',
-                borderRadius: '8px',
-                fontWeight: 700,
-              }}
             >
               Cancel (change inspector hex)
             </button>
@@ -1782,7 +1728,8 @@ export function PrivacyCurtainModal({
 }) {
   const pTheme = PLAYER_THEMES[nextPlayerId];
   return (
-    <div style={{ ...MODAL_BACKDROP_STYLE, zIndex: 500 }} data-testid="privacy-curtain-modal">
+    // Above every other dialog: nothing of the next player's may show until they are ready
+    <div style={{ ...MODAL_BACKDROP_STYLE, zIndex: 300 }} data-testid="privacy-curtain-modal">
       <div style={{ ...MODAL_CARD_STYLE, maxWidth: '440px', textAlign: 'center' }}>
         <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'center' }}>
           <svg width="48" height="48" viewBox="-24 -24 48 48">

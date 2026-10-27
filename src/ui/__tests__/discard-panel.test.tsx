@@ -151,7 +151,7 @@ describe('Discard on a 7: docked panel', () => {
 
       // Prompt explains 1 tap discard
       expect(container.querySelector('.dp-title')?.textContent).toContain('Climate Conference: Orange discards 1 card');
-      expect(container.querySelector('.dp-sub')?.textContent).toContain('Tap the card you wish to discard');
+      expect(container.querySelector('.dp-action')?.textContent).toBe('Tap a card to discard');
 
       // Tapping an available card (e.g. food) immediately resolves with { cardType: 'food' }
       const foodBtn = container.querySelector('[data-testid="discard-card-food"]') as HTMLButtonElement;

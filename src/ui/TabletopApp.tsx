@@ -18,6 +18,8 @@ import { BotDifficulty, chooseBotAction, getActingPlayerId } from '../ai/bot';
 import { legalActions } from '../engine/actions';
 import { getEventDiscDrawCount } from '../engine/config';
 import { getDevCardType, isEdgeConnectedToPlayerNetwork } from '../engine/dev-cards';
+import { logMessageFor } from '../engine/redact';
+import type { RedactedGameAction } from '../network/redact';
 import { applyAction } from '../engine/reducer';
 import { createInitialGameState, StartingPlacement } from '../engine/setup';
 import {
@@ -27,6 +29,7 @@ import {
   EdgeId,
   EventDiscType,
   GameAction,
+  GameEventLog,
   GameState,
   HexId,
   NodeId,
@@ -53,6 +56,7 @@ import { Icon } from './Icons';
 import {
   DevCardPlayModal,
   EnergyBuyCardModal,
+  eventChoiceUnhideSub,
   LobbyConfig,
   LobbyModal,
   PendingDecisionBanner,
@@ -66,15 +70,15 @@ import { ActiveBuildMode, PlayerMat } from './PlayerMat';
 import { PlayerBadge, PlayersRail } from './PlayersRail';
 import { getProductionNumbers } from './productionNumbers';
 import { SetupCoach, SetupRollOff } from './SetupCoach';
+import { getRollHighlight } from './rollHighlight';
 import { TableRail } from './TableRail';
 import { describeTradeRequestMove } from './TradeRequest';
 import { DEV_CARD_METADATA, EVENT_TRACK_METADATA, PLAYER_THEMES } from './theme';
 import type { OnlineTable } from './online/onlineTypes';
-import { DEFAULT_TABLECLOTH_COLOR, TopBar } from './TopBar';
+import { loadTableclothColor, TABLECLOTH_COLOR_KEY, TopBar } from './TopBar';
 import { EventDiscSvg, EventIconSvg } from './WoodenPiecesSvg';
 
 const SAVED_GAME_KEY = 'catan_new_energies_saved_game_v2';
-const TABLECLOTH_COLOR_KEY = 'catan_new_energies_tablecloth_color_v2';
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 5;
 const TOAST_MS = 3400;
@@ -284,20 +288,17 @@ function drawnDisc(prev: GameState, next: GameState): EventDiscType | null {
 
 /** Plain-language headline for what just happened at the table. */
 function describeAction(
-  action: GameAction,
+  action: RedactedGameAction,
   prev: GameState,
   next: GameState,
   /** Online: the disc the server says was drawn (the redacted state has no bag to diff). */
   drawn?: EventDiscType | null,
-  viewerPlayerId?: PlayerId | null,
-  privacyCurtain?: boolean
+  /** The text of a log line for whoever is at the device (see `logText` in TabletopApp). */
+  logText?: (entry: GameEventLog) => string
 ): Toast {
   const name = next.players[action.playerId]?.name ?? action.playerId;
-  const viewerName = viewerPlayerId ? next.players[viewerPlayerId]?.name : null;
-  const detail = humanizeLog(next.log[next.log.length - 1]?.message ?? '', {
-    privacyCurtain,
-    viewerName,
-  });
+  const lastLog = next.log[next.log.length - 1];
+  const detail = humanizeLog(lastLog ? (logText ? logText(lastLog) : lastLog.message) : '');
   const base = { id: Date.now() + Math.random(), playerId: action.playerId, detail };
   switch (action.type) {
     case 'SETUP_ROLL_DICE': {
@@ -429,6 +430,8 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
   const [dismissedVictoryModal, setDismissedVictoryModal] = useState(false);
   const [selectedEventInfo, setSelectedEventInfo] = useState<EventDiscType | null>(null);
   const [privacyCurtainForPlayer, setPrivacyCurtainForPlayer] = useState<PlayerId | null>(null);
+  // Hotseat: the human last known to have the device (bot turns in between do not hand it on)
+  const [deviceHolderId, setDeviceHolderId] = useState<PlayerId | null>(null);
   const [autoplay, setAutoplay] = useState(true);
   const [isMatOpen, setIsMatOpen] = useState(false);
   const [hoveredNodeId, setHoveredNodeId] = useState<NodeId | null>(null);
@@ -445,19 +448,10 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
   );
   const [rollAnimKey, setRollAnimKey] = useState<number | null>(null);
   const [eventReveal, setEventReveal] = useState<EventReveal | null>(null);
-  const [isPeekingCardChoice, setIsPeekingCardChoice] = useState(false);
+  // The card-choice prompt the player has hidden to look at the board (tied to the decision, so the next one starts open)
+  const [peekingDecisionId, setPeekingDecisionId] = useState<string | null>(null);
 
-  const [tableclothColor, setTableclothColor] = useState<string>(() => {
-    try {
-      const stored = localStorage.getItem(TABLECLOTH_COLOR_KEY);
-      if (stored) return stored;
-      const v1 = localStorage.getItem('catan_new_energies_tablecloth_color_v1');
-      if (v1 && v1 !== '#181a1d') return v1;
-      return DEFAULT_TABLECLOTH_COLOR;
-    } catch {
-      return DEFAULT_TABLECLOTH_COLOR;
-    }
-  });
+  const [tableclothColor, setTableclothColor] = useState<string>(loadTableclothColor);
 
   const handleTableclothColorChange = (newColor: string) => {
     setTableclothColor(newColor);
@@ -529,7 +523,7 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
     setStealPrompt(null);
     setHoveredNodeId(null);
     setHoveredEdgeId(null);
-    setToast(describeAction(lastAction, prev, next, drawnEventDisc, myPlayerId, true));
+    setToast(describeAction(lastAction, prev, next, drawnEventDisc));
     if ((lastAction.type === 'ROLL_DICE' || lastAction.type === 'SETUP_ROLL_DICE') && next.lastDiceRoll) {
       setRollAnimKey(Date.now());
     }
@@ -556,7 +550,6 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
     });
   }, [onlineNotice?.id]);
 
-
   const actingPlayerId = getActingPlayerId(gameState) ?? gameState.activePlayerId;
   const actingSeatIsBot = lobbyConfig.seats[actingPlayerId]?.controller === 'bot';
   // Offline: a bot is moving. Online: it is anyone's move but mine, so nothing here can be clicked.
@@ -569,6 +562,18 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
     if (lobbyConfig.seats[actingPlayerId]?.controller === 'human') setInspectedPlayerId(null);
   }, [actingPlayerId, lobbyConfig.seats, online]);
 
+  const isHumanSeat = (pid: PlayerId | null | undefined): pid is PlayerId =>
+    !!pid && lobbyConfig.seats[pid]?.controller === 'human';
+
+  // Hotseat: the seat of the human at the device (the acting human, else whoever had it last,
+  // else the first human seat)
+  const deviceSeatId: PlayerId =
+    gameState.players[actingPlayerId] && isHumanSeat(actingPlayerId)
+      ? actingPlayerId
+      : deviceHolderId && gameState.players[deviceHolderId]
+        ? deviceHolderId
+        : (gameState.playerOrder.find(isHumanSeat) ?? gameState.activePlayerId);
+
   // Online the dock and player board always show my own seat (or the active player, when watching)
   const displayedMatPlayerId: PlayerId = online
     ? myPlayerId && gameState.players[myPlayerId]
@@ -576,12 +581,31 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
       : gameState.activePlayerId
     : inspectedPlayerId && gameState.players[inspectedPlayerId]
       ? inspectedPlayerId
-      : gameState.players[actingPlayerId] && lobbyConfig.seats[actingPlayerId]?.controller === 'human'
-        ? actingPlayerId
-        : (gameState.playerOrder.find((pid) => lobbyConfig.seats[pid]?.controller === 'human') ??
-          gameState.activePlayerId);
+      : deviceSeatId;
+
+  // Hotseat with hidden hands: private log lines read as the human at the device may read them,
+  // not as the inspected seat (nobody while the pass-the-device curtain is up). Online the server
+  // has already cut the log down for this socket.
+  // Once the game is over every hand and line is shown, as online.
+  const hiddenHandsHotseat =
+    !online && lobbyConfig.privacyCurtain && gameState.phase !== 'GameEnd' && gameState.winner === null;
+  const deviceViewerId: PlayerId | null =
+    privacyCurtainForPlayer !== null || lobbyConfig.seats[deviceSeatId]?.controller !== 'human'
+      ? null
+      : deviceSeatId;
+  const logText = hiddenHandsHotseat
+    ? (entry: GameEventLog) => logMessageFor(entry, deviceViewerId)
+    : undefined;
 
   const displayedPlayer = gameState.players[displayedMatPlayerId]!;
+
+  // Hotseat privacy curtain whenever a different human is next to act than the one holding the
+  // device, also when bots played in between or an undo goes back across a hand-over
+  const passDeviceIfNeeded = (nextActing: PlayerId | null, holder: PlayerId | null) => {
+    if (!lobbyConfig.privacyCurtain || !holder || !isHumanSeat(nextActing) || nextActing === holder) return;
+    setPrivacyCurtainForPlayer(nextActing);
+    setToast(null);
+  };
 
   // Dispatch game action with history, persistence, multi-tab broadcast and table feedback
   const dispatchAction = (action: GameAction) => {
@@ -596,7 +620,6 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
       return;
     }
     try {
-      const prevActing = getActingPlayerId(gameState);
       const next = applyAction(gameState, action);
       const nextActing = getActingPlayerId(next);
 
@@ -607,8 +630,7 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
       setStealPrompt(null);
       setHoveredNodeId(null);
       setHoveredEdgeId(null);
-      const isCurtain = Boolean(lobbyConfig.privacyCurtain || online);
-      setToast(describeAction(action, gameState, next, undefined, displayedMatPlayerId, isCurtain));
+      setToast(describeAction(action, gameState, next, undefined, logText));
       if ((action.type === 'ROLL_DICE' || action.type === 'SETUP_ROLL_DICE') && next.lastDiceRoll) {
         setRollAnimKey(Date.now());
       }
@@ -636,17 +658,9 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
         });
       }
 
-      // Hotseat privacy curtain when the device passes between two human seats
-      if (
-        lobbyConfig.privacyCurtain &&
-        nextActing &&
-        prevActing !== nextActing &&
-        lobbyConfig.seats[nextActing]?.controller === 'human' &&
-        lobbyConfig.seats[prevActing ?? 'orange']?.controller === 'human'
-      ) {
-        setPrivacyCurtainForPlayer(nextActing);
-        setToast(null);
-      }
+      const holder = isHumanSeat(action.playerId) ? action.playerId : deviceHolderId;
+      setDeviceHolderId(holder);
+      passDeviceIfNeeded(nextActing, holder);
     } catch (err) {
       console.warn('Action rejected:', err);
       setToast({
@@ -666,7 +680,9 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
     saveGame(fresh, cfg);
     setHistory([]);
     setActiveBuildMode(null);
+    setPeekingDecisionId(null);
     setInspectedPlayerId(null);
+    setDeviceHolderId(null);
     setDismissedVictoryModal(false);
     setShowLobby(false);
     setToast(null);
@@ -681,6 +697,8 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
     setHistory((h) => h.slice(0, -1));
     setGameState(prev);
     setActiveBuildMode(null);
+    setPeekingDecisionId(null);
+    passDeviceIfNeeded(getActingPlayerId(prev), deviceHolderId);
   };
 
   // The bot's next move, worked out only while autoplay is off so its name can be put on the Next button
@@ -743,28 +761,42 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
 
   const headDecision = gameState.pendingDecisions[0] ?? null;
 
-  useEffect(() => {
-    if (!headDecision || headDecision.type !== 'EVENT_CARD_CHOICE') {
-      setIsPeekingCardChoice(false);
-    }
-  }, [headDecision?.id]);
+  const isGameOver = gameState.phase === 'GameEnd' || gameState.winner !== null;
 
-  // Escape cancels current placement mode, dev targeting, pending steal target decision, or peeking card choice
+  // Only a card-choice prompt can be hidden, and only by the human who has to answer it
+  const peekingDecision =
+    headDecision?.type === 'EVENT_CARD_CHOICE' &&
+    headDecision.id === peekingDecisionId &&
+    !waitingOnOthers &&
+    !isGameOver
+      ? headDecision
+      : null;
+
+  // Cancelling a steal puts the inspector back; only the human at the device may do that (never for a bot's move, never online)
+  const canCancelSteal =
+    !online &&
+    !waitingOnOthers &&
+    headDecision?.type === 'STEAL_TARGET' &&
+    headDecision.playerId === actingPlayerId &&
+    history.length > 0;
+
+  // Escape leaves the peek, a placement mode (or a card being played on the board), or a steal dialog
   useEffect(() => {
+    if (!peekingDecision && !activeBuildMode && !devTargeting && !canCancelSteal) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      if (isPeekingCardChoice) {
-        setIsPeekingCardChoice(false);
+      if (peekingDecision) {
+        setPeekingDecisionId(null);
       } else if (activeBuildMode || devTargeting) {
         setActiveBuildMode(null);
         setDevTargeting(null);
-      } else if (headDecision?.type === 'STEAL_TARGET' && history.length > 0) {
+      } else {
         handleUndo();
       }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [activeBuildMode, devTargeting, headDecision, history.length, isPeekingCardChoice]);
+  }, [peekingDecision, activeBuildMode, devTargeting, canCancelSteal, history, deviceHolderId, lobbyConfig]);
 
   const { highlightedHexIds, highlightedNodeIds, highlightedEdgeIds, highlightedCutoutSlots } =
     useMemo(() => {
@@ -1066,19 +1098,12 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
   const canRollDice = !waitingOnOthers && gameState.phase === 'ProductionPhase' && noPending;
   const canEndTurn = !waitingOnOthers && gameState.phase === 'ActionPhase' && noPending;
   const canRollSetupDice = !waitingOnOthers && gameState.phase === 'SetupRoll';
-  const isGameOver = gameState.phase === 'GameEnd' || gameState.winner !== null;
 
-  // Hexes that produced on this turn's roll
-  const producingHexIds = useMemo(() => {
-    const prod = new Set<HexId>();
-    if (!gameState.lastDiceRoll || gameState.phase !== 'ActionPhase') return prod;
-    const sum = gameState.lastDiceRoll[0] + gameState.lastDiceRoll[1];
-    if (sum === 7) return prod;
-    for (const h of gameState.board.hexes) {
-      if (h.numberDisc === sum && !h.hasHazard) prod.add(h.id);
-    }
-    return prod;
-  }, [gameState.lastDiceRoll, gameState.phase, gameState.board.hexes]);
+  // Hexes lit up by this turn's roll, and how many of them paid out
+  const rollHighlight = useMemo(
+    () => getRollHighlight(gameState),
+    [gameState.lastDiceRoll, gameState.phase, gameState.board.hexes, gameState.log]
+  );
 
   // A discard on a 7 or from an event penalty is answered in a panel docked where the dock sits
   // (no backdrop, so the island stays in view), with the hexes the player produces from lit up on the board
@@ -1092,7 +1117,9 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
 
   const shouldRedactDisplayedMat = online
     ? displayedMatPlayerId !== myPlayerId
-    : privacyCurtainForPlayer !== null || lobbyConfig.seats[displayedMatPlayerId]?.controller === 'bot';
+    : privacyCurtainForPlayer !== null ||
+      lobbyConfig.seats[displayedMatPlayerId]?.controller === 'bot' ||
+      (hiddenHandsHotseat && displayedMatPlayerId !== deviceViewerId);
 
   const actingName = gameState.players[actingPlayerId]?.name ?? actingPlayerId;
 
@@ -1125,14 +1152,14 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
         sub: 'Bots move on their own',
       };
     }
-    if (isPeekingCardChoice) {
+    if (peekingDecision) {
       return {
         label: 'Unhide card selection',
         testId: 'unhide-card-choice-btn',
         disabled: false,
-        variant: 'blue',
-        onClick: () => setIsPeekingCardChoice(false),
-        sub: 'Return to pick your free resource',
+        variant: 'resume',
+        onClick: () => setPeekingDecisionId(null),
+        sub: eventChoiceUnhideSub(peekingDecision.event),
       };
     }
     if (headDecision && headDecision.playerId === actingPlayerId) {
@@ -1272,8 +1299,7 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
           state={gameState}
           seats={lobbyConfig.seats}
           inspectedPlayerId={displayedMatPlayerId}
-          viewerPlayerId={displayedMatPlayerId}
-          privacyCurtain={lobbyConfig.privacyCurtain || Boolean(online)}
+          logText={logText}
           // Online the board on show is always mine
           onInspect={(pid) => !online && setInspectedPlayerId(pid)}
           roleLabels={online?.roleLabels}
@@ -1415,7 +1441,7 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
               highlightedNodeIds={highlightedNodeIds}
               highlightedEdgeIds={highlightedEdgeIds}
               highlightedCutoutSlots={highlightedCutoutSlots}
-              producingHexIds={producingHexIds}
+              producingHexIds={rollHighlight.rolledHexIds}
               yourHexes={
                 discardDecision && discardHelp
                   ? { playerId: discardDecision.playerId, hexIds: discardHelp.hexIds }
@@ -1510,7 +1536,8 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
             })
           }
           rollAnimKey={rollAnimKey}
-          producingCount={producingHexIds.size}
+          producedCount={rollHighlight.producedCount}
+          blockedCount={rollHighlight.blockedCount}
           onSelectEventTrackInfo={(track) => setSelectedEventInfo(track)}
         />
       </div>
@@ -1592,54 +1619,24 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
         }
       />
 
-      {headDecision && !waitingOnOthers && !isPeekingCardChoice && (
+      {headDecision && !waitingOnOthers && !peekingDecision && (
         <PendingDecisionBanner
           state={gameState}
           decision={headDecision}
           onDispatch={dispatchAction}
-          onUndo={history.length > 0 ? handleUndo : undefined}
-          onPeek={headDecision.type === 'EVENT_CARD_CHOICE' ? () => setIsPeekingCardChoice(true) : undefined}
+          onUndo={canCancelSteal ? handleUndo : undefined}
+          onPeek={headDecision.type === 'EVENT_CARD_CHOICE' ? () => setPeekingDecisionId(headDecision.id) : undefined}
         />
       )}
 
-      {isPeekingCardChoice && (
-        <div
-          data-testid="peeking-card-choice-banner"
-          style={{
-            position: 'fixed',
-            top: '56px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 100,
-            background: 'var(--ink-900)',
-            color: 'var(--ink-100)',
-            padding: '8px 16px',
-            borderRadius: '20px',
-            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            fontSize: '13px',
-            fontWeight: 700,
-            border: '1px solid var(--ink-700)',
-          }}
-        >
+      {peekingDecision && (
+        <div className="tt-peek-banner" data-testid="peeking-card-choice-banner">
           <span>Peeking at board & hand</span>
           <button
             type="button"
-            className="tt-chip-btn"
+            className="tt-icon-btn"
             data-testid="banner-unhide-card-choice-btn"
-            onClick={() => setIsPeekingCardChoice(false)}
-            style={{
-              background: 'var(--ink-700)',
-              color: '#ffffff',
-              padding: '4px 10px',
-              borderRadius: '12px',
-              border: 'none',
-              cursor: 'pointer',
-              fontWeight: 800,
-              fontSize: '12px',
-            }}
+            onClick={() => setPeekingDecisionId(null)}
           >
             Unhide card selection
           </button>
@@ -1698,7 +1695,10 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
         <PrivacyCurtainModal
           nextPlayerId={privacyCurtainForPlayer}
           nextPlayerName={gameState.players[privacyCurtainForPlayer]?.name ?? privacyCurtainForPlayer}
-          onReady={() => setPrivacyCurtainForPlayer(null)}
+          onReady={() => {
+            setDeviceHolderId(privacyCurtainForPlayer);
+            setPrivacyCurtainForPlayer(null);
+          }}
         />
       )}
 

@@ -13,7 +13,7 @@
 
 import { applyAction } from '../engine/reducer';
 import { GameAction, GameState, PlayerId } from '../engine/types';
-import { redactForPlayer, RedactedGameState, RedactOptions } from './redact';
+import { redactActionFor, RedactedGameAction, redactForPlayer, RedactedGameState, RedactOptions } from './redact';
 
 // ============================================================================
 // Transport Message Protocol & Interface
@@ -34,7 +34,7 @@ export type TransportMessage =
       targetPlayerId?: PlayerId;
       state: RedactedGameState;
       version: number;
-      lastAction?: GameAction;
+      lastAction?: RedactedGameAction;
     }
   | {
       type: 'JOIN_ROOM';
@@ -601,7 +601,7 @@ export class MultiplayerHostSession {
         targetPlayerId: pid,
         state: redacted,
         version: this.version,
-        lastAction,
+        lastAction: redactActionFor(lastAction ?? null, pid, this.redactOptions) ?? undefined,
       });
     }
   }
@@ -674,7 +674,7 @@ export class MultiplayerClientSession {
   private version = 0;
   private unsubscribeTransport: (() => void) | null = null;
   private readonly stateListeners = new Set<
-    (state: RedactedGameState, version: number, lastAction?: GameAction) => void
+    (state: RedactedGameState, version: number, lastAction?: RedactedGameAction) => void
   >();
   private readonly assignmentListeners = new Set<
     (playerId: PlayerId, seatToken: string, state: RedactedGameState) => void
@@ -809,7 +809,7 @@ export class MultiplayerClientSession {
   }
 
   public onStateUpdate(
-    listener: (state: RedactedGameState, version: number, lastAction?: GameAction) => void
+    listener: (state: RedactedGameState, version: number, lastAction?: RedactedGameAction) => void
   ): () => void {
     this.stateListeners.add(listener);
     return () => {

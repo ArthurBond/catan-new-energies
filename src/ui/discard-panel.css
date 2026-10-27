@@ -269,6 +269,19 @@
   }
 }
 
+/* Stacked layout (split view, phone): the panel sits under the board, so Confirm stays on screen */
+@media (max-width: 900px) {
+  .dp-action {
+    position: sticky;
+    bottom: 8px;
+    z-index: 2;
+    margin: 0 -8px;
+    padding: 8px;
+    border-radius: var(--radius-m);
+    background: var(--ink-800);
+  }
+}
+
 @media (max-width: 600px) {
   .dp-cards {
     grid-template-columns: repeat(3, minmax(0, 1fr));
