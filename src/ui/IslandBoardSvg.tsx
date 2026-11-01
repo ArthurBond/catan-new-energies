@@ -1048,6 +1048,355 @@ function PastureArtworkSvg({ hexId }: { hexId: number }) {
   );
 }
 
+/** Desert: the salt pan in the middle, where the Inspector stands. */
+const SALT_PAN = { cx: 0, cy: 4, rx: 18.5, ry: 13.5 };
+
+function inSaltPan(x: number, y: number, pad = 0): boolean {
+  return ((x - SALT_PAN.cx) / (SALT_PAN.rx + pad)) ** 2 + ((y - SALT_PAN.cy) / (SALT_PAN.ry + pad)) ** 2 < 1;
+}
+
+/** Mud cracks on the salt pan: the corners of the crust plates, then the cracks between them. */
+const PAN_NODES: [number, number][] = [
+  [-15, 1], [-9, -1.6], [-3, -4.8], [4, -4], [10, -0.6], [15.5, 2.4],
+  [-13.6, 7.6], [-8.4, 5], [-2.4, 2.6], [4.6, 2.2], [10.4, 6.4],
+  [-9.4, 12.8], [-2.6, 9], [4.4, 9.6], [14.4, 9.4],
+  [-2, 16], [4.6, 15.4], [10, 13.6],
+  [-11, -6.6], [-3.6, -8.8], [5.4, -8.6], [12, -5.4],
+];
+const PAN_CRACKS: [number, number][] = [
+  [0, 1], [1, 2], [2, 3], [3, 4], [4, 5],
+  [0, 6], [1, 7], [2, 8], [3, 9], [4, 10], [5, 14],
+  [6, 7], [7, 8], [8, 9], [9, 10], [10, 14],
+  [6, 11], [8, 12], [9, 13], [11, 12], [12, 13], [13, 17], [17, 14],
+  [11, 15], [13, 16], [15, 16], [16, 17],
+  [1, 18], [2, 19], [3, 20], [4, 21], [18, 19], [20, 21],
+];
+// Each crack bends a little to one side, so the crust doesn't look like paving
+const PAN_CRACK_PATH = PAN_CRACKS.map(([a, b], i) => {
+  const [x1, y1] = PAN_NODES[a]!;
+  const [x2, y2] = PAN_NODES[b]!;
+  const len = Math.hypot(x2 - x1, y2 - y1);
+  const bend = (hash01(i, 61) - 0.5) * 0.35 * len;
+  const mx = (x1 + x2) / 2 - ((y2 - y1) / len) * bend;
+  const my = (y1 + y2) / 2 + ((x2 - x1) / len) * bend;
+  return `M ${x1} ${y1} Q ${mx.toFixed(2)} ${my.toFixed(2)}, ${x2} ${y2}`;
+}).join(' ');
+
+/** Dunes, back to front [x, y, scale, stretch]: the foot of each sits on y. */
+const DESERT_DUNES: [number, number, number, number][] = [
+  [2, -36, 0.9, 1.35],
+  [-27, -25, 0.8, 1.15],
+  [29, -23, 0.75, 1.2],
+  [-35, -1, 0.95, 1.1],
+  [35, 3, 0.9, 1.2],
+  [-12, 52, 1.3, 1.2],
+];
+
+/** Soft painted mottling on the sand [x, y, rx, ry, rotation, light?], leaning with the wind. */
+const DESERT_BLOTCHES: [number, number, number, number, number, boolean][] = Array.from({ length: 28 }, (_, i) => [
+  -44 + hash01(i, 41) * 88,
+  -46 + hash01(i, 42) * 92,
+  3.5 + hash01(i, 43) * 6,
+  1.6 + hash01(i, 44) * 2.4,
+  -35 + hash01(i, 45) * 20,
+  i % 2 === 0,
+]);
+
+/** Fine grit [x, y, r] on the open sand, off the salt pan. */
+const DESERT_SPECKS: [number, number, number][] = Array.from({ length: 90 }, (_, i): [number, number, number] => [
+  -44 + hash01(i, 51) * 88,
+  -50 + hash01(i, 52) * 100,
+  0.35 + hash01(i, 53) * 0.45,
+]).filter(([x, y]) => inTileHex(x, y) && !inSaltPan(x, y, 1.5));
+
+/** Wind ripples on the open sand [x, y, length], on a jittered grid, off the salt pan. */
+const DESERT_RIPPLES: [number, number, number][] = (() => {
+  const ripples: [number, number, number][] = [];
+  let i = 0;
+  for (let gy = -46; gy <= 48; gy += 6.4) {
+    const row = Math.round((gy + 46) / 6.4);
+    for (let gx = -42; gx <= 42; gx += 11) {
+      i++;
+      const x = gx + (row % 2) * 5.5 + (hash01(i, 31) - 0.5) * 4;
+      const y = gy + (hash01(i, 32) - 0.5) * 3;
+      if (!inTileHex(x, y, 4) || inSaltPan(x, y, 2.5)) continue;
+      ripples.push([x, y, 6 + hash01(i, 33) * 5]);
+    }
+  }
+  return ripples;
+})();
+
+/** Ripples across a dune's windward slope, running with the crest (dune coordinates). */
+const DUNE_RIPPLES = [
+  'M 0.4 -8.6 C 3 -6, 4.4 -3, 4.8 0.9',
+  'M -4.8 -6.6 C -2.4 -4.4, -1 -2, -0.8 1.3',
+  'M -10 -4.2 C -8 -2.6, -6.8 -0.8, -6.6 1.5',
+  'M -15.2 -1.2 C -13.8 -0.4, -13 0.4, -12.8 1.4',
+];
+
+/**
+ * Sand dune seen from the south with the wind from the upper-left: a long sunlit windward slope with
+ * ripples, a sharp crest, a steep slip face in shade on the lee side and sand blowing off the top.
+ * Its foot sits on y; `stretch` widens it without making it taller. `lit` and `shade` are gradient ids.
+ */
+function Dune({ x, y, s = 1, stretch = 1, lit, shade }: { x: number; y: number; s?: number; stretch?: number; lit: string; shade: string }) {
+  return (
+    <g transform={`translate(${x}, ${y}) scale(${(s * stretch).toFixed(3)}, ${s})`}>
+      <ellipse cx={7} cy={0.9} rx={17} ry={2} fill="rgba(122,62,14,0.26)" />
+      <path d="M -22 0.6 C -14 -1.4, -5 -8.8, 4 -10 C 9 -9.4, 15 -4.4, 22 0.6 Q 0 2.4, -22 0.6 Z" fill={`url(#${lit})`} />
+      <path d="M 4 -10 C 9 -9.4, 15 -4.4, 22 0.6 Q 16 1.8, 9.6 1.7 C 9.2 -2.6, 7.6 -6.6, 4 -10 Z" fill={`url(#${shade})`} />
+      {DUNE_RIPPLES.map((d, i) => (
+        <g key={i} fill="none" strokeLinecap="round">
+          <path d={d} stroke="#c99353" strokeOpacity={0.5} strokeWidth={0.42} />
+          <path d={d} transform="translate(-0.5, -0.2)" stroke="#fff6dc" strokeOpacity={0.7} strokeWidth={0.36} />
+        </g>
+      ))}
+      <path d="M 4 -10 C 7.6 -6.6, 9.2 -2.6, 9.6 1.7" fill="none" stroke="#fff3d4" strokeWidth={0.75} strokeLinecap="round" />
+      <path d="M 4.4 -10.3 Q 8 -11.6, 12.6 -10.6 M 6.2 -8.4 Q 9.4 -9.2, 12.8 -8.2" fill="none" stroke="#fffaf0" strokeWidth={0.45} strokeLinecap="round" opacity={0.55} />
+    </g>
+  );
+}
+
+/** Camel walking to the right, with a saddle blanket over the hump. */
+function Camel({ x, y, s = 1, blanket }: { x: number; y: number; s?: number; blanket: string }) {
+  return (
+    <g transform={`translate(${x}, ${y}) scale(${s})`}>
+      <ellipse cx={1.4} cy={0.3} rx={4.4} ry={0.8} fill="rgba(110,58,14,0.35)" />
+      <path d="M -2 -2 L -2.6 0 M 1.6 -2 L 2.2 0" stroke="#8e5a2c" strokeWidth={0.55} strokeLinecap="round" />
+      <path d="M -3.4 -2.6 Q -3.6 -4.2, -2 -4.4 Q -0.8 -6.6, 0.8 -4.6 Q 2.6 -4.6, 3 -3.2 Q 3 -1.6, 1.8 -1.6 L -2.6 -1.6 Q -3.4 -1.8, -3.4 -2.6 Z" fill="#cf9150" stroke="#6b4220" strokeWidth={0.28} />
+      <path d="M 2.4 -3.2 Q 3.6 -3.4, 3.9 -5.2 Q 4 -6, 4.6 -6.1 L 5.6 -5.9 Q 5.9 -5.6, 5.4 -5.3 L 4.8 -5.2 Q 4.5 -3.4, 3 -2.2 Z" fill="#cf9150" stroke="#6b4220" strokeWidth={0.28} strokeLinejoin="round" />
+      <path d="M -2.6 -1.8 L -2.2 0 M 1.4 -1.8 L 1.8 0.1" stroke="#b07440" strokeWidth={0.6} strokeLinecap="round" />
+      <path d="M -2.4 -4.2 Q -1 -6, 0.6 -4.6" fill="none" stroke="#f0c38a" strokeWidth={0.5} strokeLinecap="round" />
+      <path d="M -1.6 -4.6 L 1.4 -4.4 L 1.2 -2.6 L -1.4 -2.7 Z" fill={blanket} stroke="#3a1a10" strokeWidth={0.2} />
+      <path d="M -1.5 -3.4 L 1.3 -3.3" stroke="#f2c94c" strokeWidth={0.3} />
+      <circle cx={4.9} cy={-5.8} r={0.14} fill="#2a1a0c" />
+    </g>
+  );
+}
+
+/** Saguaro cactus with two arms, lit on the left, its shadow cast to the lower-right. */
+function Saguaro({ x, y, s = 1 }: { x: number; y: number; s?: number }) {
+  const arms = ['M -1 -4.6 L -3.4 -4.6 Q -4.4 -4.6, -4.4 -5.6 L -4.4 -8.8', 'M 1 -6.4 L 3.2 -6.4 Q 4.2 -6.4, 4.2 -7.4 L 4.2 -10.2'];
+  return (
+    <g transform={`translate(${x}, ${y}) scale(${s})`}>
+      <ellipse cx={4.6} cy={0.8} rx={6.4} ry={1.3} transform="rotate(14 4.6 0.8)" fill="rgba(110,58,14,0.32)" />
+      {arms.map((d) => (
+        <g key={d} fill="none" strokeLinecap="round" strokeLinejoin="round">
+          <path d={d} stroke="#1f4219" strokeWidth={2.3} />
+          <path d={d} stroke="#4f8a49" strokeWidth={1.5} />
+          <path d={d} transform="translate(-0.35, 0)" stroke="#8cc46c" strokeWidth={0.45} opacity={0.8} />
+        </g>
+      ))}
+      <path d="M -1.6 0 L -1.6 -10.4 Q -1.6 -12.2, 0 -12.2 Q 1.6 -12.2, 1.6 -10.4 L 1.6 0 Z" fill="#4f8a49" stroke="#1f4219" strokeWidth={0.4} />
+      <path d="M 0.15 -0.4 L 0.15 -11.4 M 0.95 -0.4 L 0.95 -10.6" stroke="#2f5f34" strokeWidth={0.35} opacity={0.7} />
+      <path d="M -0.75 -0.4 L -0.75 -11" stroke="#8cc46c" strokeWidth={0.7} strokeLinecap="round" opacity={0.85} />
+      <circle cx={-0.3} cy={-12.1} r={0.6} fill="#fbf3dc" stroke="#d98aa6" strokeWidth={0.25} />
+    </g>
+  );
+}
+
+/** Squat ribbed barrel cactus with a flower on top. */
+function BarrelCactus({ x, y, s = 1, bloom }: { x: number; y: number; s?: number; bloom: string }) {
+  return (
+    <g transform={`translate(${x}, ${y}) scale(${s})`}>
+      <ellipse cx={1.4} cy={0.4} rx={3} ry={0.8} fill="rgba(110,58,14,0.3)" />
+      <ellipse cx={0} cy={-2.2} rx={2.1} ry={2.5} fill="#4f8a49" stroke="#1f4219" strokeWidth={0.35} />
+      <path d="M -1 -4.4 Q -1.6 -2.2, -1 -0.1 M 0 -4.7 L 0 0.3 M 1 -4.4 Q 1.6 -2.2, 1 -0.1" fill="none" stroke="#2f5f34" strokeWidth={0.3} opacity={0.8} />
+      <path d="M -1.5 -3.6 Q -1.9 -2.2, -1.4 -0.8" fill="none" stroke="#8cc46c" strokeWidth={0.5} strokeLinecap="round" />
+      <circle cx={0} cy={-4.6} r={0.75} fill={bloom} stroke="#8a4a20" strokeWidth={0.2} />
+      <circle cx={0} cy={-4.6} r={0.26} fill="#c0392b" />
+    </g>
+  );
+}
+
+/** Bleached cattle skull lying in the sand, its right side in shade. */
+function CowSkull({ x, y, s = 1 }: { x: number; y: number; s?: number }) {
+  const horns = ['M -1.3 -2.1 C -2.8 -2.7, -4.4 -2.4, -4.9 -0.7', 'M 1.3 -2.1 C 2.8 -2.7, 4.4 -2.4, 4.9 -0.7'];
+  return (
+    <g transform={`translate(${x}, ${y}) rotate(-12) scale(${s})`}>
+      <ellipse cx={0.8} cy={2.3} rx={3.8} ry={0.9} fill="rgba(110,58,14,0.32)" />
+      {horns.map((d, i) => (
+        <g key={d} fill="none" strokeLinecap="round">
+          <path d={d} stroke="#8f8065" strokeWidth={1.1} />
+          <path d={d} stroke={i === 0 ? '#f4ecd8' : '#dccfb2'} strokeWidth={0.75} />
+        </g>
+      ))}
+      <path d="M -1.9 -2.5 Q 0 -3.4, 1.9 -2.5 L 1.6 -0.4 Q 1.2 1.7, 0 2.2 Q -1.2 1.7, -1.6 -0.4 Z" fill="#f4eddb" stroke="#8f8065" strokeWidth={0.3} strokeLinejoin="round" />
+      <path d="M 0.1 -2.9 Q 1.8 -2.6, 1.6 -0.4 Q 1.2 1.7, 0.1 2.2 Z" fill="#d8ccae" opacity={0.65} />
+      <ellipse cx={-0.75} cy={-1.1} rx={0.48} ry={0.38} fill="#4b3a26" />
+      <ellipse cx={0.75} cy={-1.1} rx={0.48} ry={0.38} fill="#4b3a26" />
+      <path d="M 0 -0.4 L 0 0.9" stroke="#a8977a" strokeWidth={0.25} strokeLinecap="round" />
+      <circle cx={-0.32} cy={1.35} r={0.17} fill="#4b3a26" />
+      <circle cx={0.32} cy={1.35} r={0.17} fill="#4b3a26" />
+    </g>
+  );
+}
+
+/** Wind-worn sandstone rock with a darker bedding line. */
+function SandRock({ x, y, r = 1.6 }: { x: number; y: number; r?: number }) {
+  return (
+    <g>
+      <ellipse cx={x + r * 0.7} cy={y + r * 0.6} rx={r * 1.4} ry={r * 0.45} fill="rgba(110,58,14,0.32)" />
+      <ellipse cx={x} cy={y} rx={r * 1.15} ry={r * 0.8} fill="#c98a52" stroke="#86502a" strokeWidth={0.35} />
+      <ellipse cx={x - r * 0.3} cy={y - r * 0.32} rx={r * 0.6} ry={r * 0.32} fill="#f1c993" opacity={0.85} />
+      <path d={`M ${(x - r * 1.05).toFixed(2)} ${(y + r * 0.15).toFixed(2)} Q ${x.toFixed(2)} ${(y + r * 0.42).toFixed(2)}, ${(x + r * 1.05).toFixed(2)} ${(y + r * 0.05).toFixed(2)}`} fill="none" stroke="#a8693a" strokeWidth={0.3} opacity={0.7} />
+    </g>
+  );
+}
+
+/** Low, dry desert scrub. */
+function Scrub({ x, y, s = 1 }: { x: number; y: number; s?: number }) {
+  const tips: [number, number][] = [[-2.3, -1.9], [-1.3, -2.9], [0.1, -3.3], [1.4, -2.7], [2.4, -1.7], [-2.3, -2.7], [2.3, -2.6]];
+  return (
+    <g transform={`translate(${x}, ${y}) scale(${s})`}>
+      <ellipse cx={1.1} cy={0.3} rx={2.8} ry={0.6} fill="rgba(110,58,14,0.28)" />
+      <path d="M 0 0 L -2.3 -1.9 M 0 0 L -1.3 -2.9 M 0 0 L 0.1 -3.3 M 0 0 L 1.4 -2.7 M 0 0 L 2.4 -1.7 M -1.3 -1.3 L -2.3 -2.7 M 1.2 -1.2 L 2.3 -2.6" fill="none" stroke="#7a6136" strokeWidth={0.4} strokeLinecap="round" />
+      {tips.map(([tx, ty], i) => (
+        <circle key={i} cx={tx} cy={ty} r={0.5} fill={i % 2 ? '#a3a159' : '#868a46'} />
+      ))}
+    </g>
+  );
+}
+
+/** Bare, sun-bleached dead tree. */
+function DeadTree({ x, y, s = 1 }: { x: number; y: number; s?: number }) {
+  const branches = 'M 0.3 -4.2 L -2 -7.4 M 0.3 -4.2 L 0.8 -6.6 L 3 -8.8 M 0.8 -6.6 L 0.3 -9.4 M -0.9 -5.8 L -2.9 -6';
+  return (
+    <g transform={`translate(${x}, ${y}) scale(${s})`} fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <ellipse cx={3.6} cy={0.5} rx={5.6} ry={0.9} fill="rgba(110,58,14,0.28)" />
+      <path d="M 0 0 L 0.3 -4.2" stroke="#5e4630" strokeWidth={1.1} />
+      <path d={branches} stroke="#5e4630" strokeWidth={0.55} />
+      <path d="M -0.25 -0.2 L 0.05 -4.2" stroke="#d9c7a8" strokeWidth={0.35} opacity={0.8} />
+    </g>
+  );
+}
+
+/** Tumbleweed bowling along with the wind toward the lower-right, dust kicked up behind it. */
+function Tumbleweed({ x, y, r = 2.4 }: { x: number; y: number; r?: number }) {
+  return (
+    <g transform={`translate(${x}, ${y})`}>
+      {([[-5.4, -2.4, 1.3], [-8.4, -3.8, 1], [-11, -5, 0.7]] as [number, number, number][]).map(([dx, dy, dr], i) => (
+        <ellipse key={`dust-${i}`} cx={dx} cy={dy} rx={dr * 1.5} ry={dr} fill="#fff1cf" opacity={0.5 - i * 0.12} />
+      ))}
+      <ellipse cx={r * 0.5} cy={r + 0.4} rx={r * 1.1} ry={r * 0.3} fill="rgba(110,58,14,0.32)" />
+      <circle cx={0} cy={0} r={r * 0.9} fill="#b98a4e" opacity={0.22} />
+      {/* A loose tangle of twigs: loops of different sizes and tilts, off-centre */}
+      {([[0, 1, 0.5, 0.2, 0], [28, 0.92, 0.38, -0.3, 0.2], [62, 1.04, 0.44, 0.1, -0.25], [97, 0.86, 0.5, 0.25, 0.1], [131, 0.98, 0.34, -0.15, -0.1], [160, 0.8, 0.56, 0, 0.3]] as [number, number, number, number, number][]).map(([rot, kx, ky, ox, oy], i) => (
+        <ellipse key={`twig-${rot}`} cx={ox * r * 0.4} cy={oy * r * 0.4} rx={r * kx} ry={r * ky} transform={`rotate(${rot})`} fill="none" stroke={i % 2 ? '#7a5530' : '#a87b46'} strokeWidth={0.28} />
+      ))}
+      <path d={`M ${-r * 0.8} ${-r * 0.3} Q ${-r * 0.3} ${-r * 1}, ${r * 0.5} ${-r * 0.7}`} fill="none" stroke="#ecc995" strokeWidth={0.32} strokeLinecap="round" />
+      <path d={`M ${r * 0.7} ${-r * 0.6} l ${r * 0.45} ${-r * 0.25} M ${-r * 0.95} ${r * 0.2} l ${-r * 0.4} ${r * 0.1}`} stroke="#7a5530" strokeWidth={0.25} strokeLinecap="round" />
+    </g>
+  );
+}
+
+/**
+ * Desert (no yield) tile: wind-shaped dunes of warm sand with sunlit windward slopes and shaded slip
+ * faces, rippled open ground, and a cracked salt pan in the middle where the Inspector stands. A camel
+ * caravan crosses behind the pan; a saguaro, barrel cacti, a bleached skull, a tumbleweed, dry scrub,
+ * a dead tree and sandstone rocks are scattered round it.
+ */
+function DesertArtworkSvg({ hexId }: { hexId: number }) {
+  const id = (name: string) => `desert-${name}-${hexId}`;
+  const p = SALT_PAN;
+  const track = 'M -15.5 -22.4 C -23 -21.4, -31 -18.2, -46 -16';
+  return (
+    <g>
+      <defs>
+        <radialGradient id={id('ground')} gradientUnits="userSpaceOnUse" cx={-14} cy={-18} r={92}>
+          <stop offset="0" stopColor="#fbe6b4" />
+          <stop offset="0.55" stopColor="#efca86" />
+          <stop offset="1" stopColor="#cf9a57" />
+        </radialGradient>
+        {/* Windward slope: brightest at the crest, warmer down at the foot */}
+        <linearGradient id={id('dune')} x1="0.35" y1="0" x2="0.5" y2="1">
+          <stop offset="0" stopColor="#fff6dc" />
+          <stop offset="0.5" stopColor="#f6dba2" />
+          <stop offset="1" stopColor="#e0b06a" />
+        </linearGradient>
+        <linearGradient id={id('slip')} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#dca263" />
+          <stop offset="1" stopColor="#bd8245" />
+        </linearGradient>
+        <radialGradient id={id('pan')} gradientUnits="userSpaceOnUse" cx={p.cx + 3} cy={p.cy + 3} r={p.rx}>
+          <stop offset="0" stopColor="#fbf1dc" />
+          <stop offset="1" stopColor="#ecd8b0" />
+        </radialGradient>
+        <radialGradient id={id('light')} gradientUnits="userSpaceOnUse" cx={-22} cy={-26} r={92}>
+          <stop offset="0" stopColor="#fff8e2" stopOpacity={0.2} />
+          <stop offset="0.55" stopColor="#fff8e2" stopOpacity={0} />
+          <stop offset="1" stopColor="#7a3f0a" stopOpacity={0.24} />
+        </radialGradient>
+      </defs>
+
+      {/* Warm sand, sunnier toward the upper-left */}
+      <rect x={-60} y={-60} width={120} height={120} fill={`url(#${id('ground')})`} />
+
+      {/* Soft painted mottling */}
+      {DESERT_BLOTCHES.map(([bx, by, brx, bry, rot, light], i) => (
+        <ellipse key={`blot-${i}`} cx={bx} cy={by} rx={brx} ry={bry} transform={`rotate(${rot.toFixed(0)} ${bx.toFixed(1)} ${by.toFixed(1)})`} fill={light ? '#fff0cc' : '#c08a4a'} opacity={0.14} />
+      ))}
+
+      {/* Wind ripples on the open sand: shaded lee edge, sunlit windward edge */}
+      {DESERT_RIPPLES.map(([rx, ry, len], i) => {
+        const d = `M ${(rx - len / 2).toFixed(1)} ${(ry + len * 0.2).toFixed(1)} Q ${rx.toFixed(1)} ${(ry - 1.1).toFixed(1)}, ${(rx + len / 2).toFixed(1)} ${(ry - len * 0.2).toFixed(1)}`;
+        return (
+          <g key={`ripple-${i}`} fill="none" strokeLinecap="round">
+            <path d={d} stroke="#c58c4c" strokeOpacity={0.4} strokeWidth={0.5} />
+            <path d={d} transform="translate(-0.4, -0.5)" stroke="#fff4d8" strokeOpacity={0.55} strokeWidth={0.4} />
+          </g>
+        );
+      })}
+
+      {/* Grit */}
+      {DESERT_SPECKS.map(([sx, sy, sr], i) => (
+        <circle key={`sp-${i}`} cx={sx} cy={sy} r={sr} fill={i % 2 ? '#a8713a' : '#fff3d2'} opacity={0.45} />
+      ))}
+
+      {/* The caravan's tracks, back to the edge of the tile */}
+      <path d={track} fill="none" stroke="#a8713a" strokeOpacity={0.55} strokeWidth={0.75} strokeDasharray="0.45 1.25" strokeLinecap="round" />
+      <path d={track} transform="translate(0.4, 1)" fill="none" stroke="#a8713a" strokeOpacity={0.4} strokeWidth={0.65} strokeDasharray="0.45 1.25" strokeLinecap="round" />
+
+      {/* Salt pan: a shallow hollow of cracked white crust, its upper-left rim in shade */}
+      <ellipse cx={p.cx} cy={p.cy} rx={p.rx + 1.6} ry={p.ry + 1.3} fill="#d9ad6c" opacity={0.3} />
+      <ellipse cx={p.cx} cy={p.cy} rx={p.rx} ry={p.ry} fill={`url(#${id('pan')})`} />
+      <path d={upperArc(p.cx, p.cy + 0.8, p.rx - 0.9, p.ry - 0.9, 165, 300)} fill="none" stroke="#b98a4e" strokeOpacity={0.35} strokeWidth={1.6} strokeLinecap="round" />
+      <path d={upperArc(p.cx, p.cy - 0.6, p.rx - 0.6, p.ry - 0.6, -15, 120)} fill="none" stroke="#ffffff" strokeOpacity={0.5} strokeWidth={0.9} strokeLinecap="round" />
+      <path d={PAN_CRACK_PATH} fill="none" stroke="#b48a55" strokeOpacity={0.5} strokeWidth={0.38} strokeLinecap="round" strokeLinejoin="round" />
+      <path d={PAN_CRACK_PATH} transform="translate(0.25, 0.35)" fill="none" stroke="#ffffff" strokeOpacity={0.3} strokeWidth={0.25} strokeLinecap="round" strokeLinejoin="round" />
+
+      {/* Dunes, back to front */}
+      {DESERT_DUNES.map(([dx, dy, ds, stretch], i) => (
+        <Dune key={`dune-${i}`} x={dx} y={dy} s={ds} stretch={stretch} lit={id('dune')} shade={id('slip')} />
+      ))}
+
+      {/* Sun from the upper-left, darker toward the far edges */}
+      <rect x={-60} y={-60} width={120} height={120} fill={`url(#${id('light')})`} />
+
+      {/* Camel caravan crossing behind the salt pan, led by a guide */}
+      <Camel x={-11} y={-22.6} s={1.1} blanket="#2f6ea8" />
+      <Camel x={-2.5} y={-22} s={1.15} blanket="#b8332a" />
+      <path d="M 3.6 -28.4 Q 4.8 -26.4, 4.7 -24.8" fill="none" stroke="#5b3a22" strokeWidth={0.25} strokeLinecap="round" />
+      <Worker x={5.5} y={-21.6} shirt="#f4f1e6" pose="crook" hat="straw" s={1.05} />
+
+      {/* Scattered round the pan, back to front */}
+      <DeadTree x={38} y={-16} />
+      <SandRock x={-15} y={-14} r={1.2} />
+      <Scrub x={-7} y={-13.5} />
+      <Tumbleweed x={20} y={-10} />
+      <Scrub x={-38} y={9} s={1.1} />
+      <SandRock x={38} y={14} r={1.6} />
+      <SandRock x={-36} y={19} r={2} />
+      <BarrelCactus x={23} y={22} bloom="#f2c94c" />
+      <BarrelCactus x={27.5} y={24.5} s={0.75} bloom="#f08fb0" />
+      <BarrelCactus x={19.6} y={25} s={0.6} bloom="#f2c94c" />
+      <Saguaro x={-22} y={25} />
+      <CowSkull x={11} y={32} s={1.25} />
+      <Scrub x={27} y={33} s={0.9} />
+    </g>
+  );
+}
+
 /**
  * Renders original clean vector topographic/architectural terrain artwork inside a pointy-top hex centered at (0,0)
  */
@@ -1084,26 +1433,7 @@ function TerrainArtworkSvg({ terrain, hexId }: { terrain: TerrainType; hexId: nu
 
         {terrain === 'mountains' && <MountainsArtworkSvg hexId={hexId} />}
 
-        {terrain === 'desert' && (
-          <g>
-            {/* Sweeping wind-rippled sand dunes */}
-            <path
-              d="M -55 -15 Q -15 -35, 25 -10 T 55 -15 L 55 55 L -55 55 Z"
-              fill={theme.secondaryFill}
-            />
-            <path
-              d="M -55 12 Q -10 -8, 30 18 T 55 12 L 55 55 L -55 55 Z"
-              fill={theme.accentFill}
-            />
-            <path
-              d="M -32 -18 Q 0 -30, 32 -14 M -28 16 Q 5 4, 34 20"
-              fill="none"
-              stroke="#b09d78"
-              strokeWidth={1.5}
-              strokeLinecap="round"
-            />
-          </g>
-        )}
+        {terrain === 'desert' && <DesertArtworkSvg hexId={hexId} />}
 
         {/* Printed-board grain */}
         <polygon

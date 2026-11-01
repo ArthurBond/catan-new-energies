@@ -127,10 +127,10 @@ export const TERRAIN_THEMES: Record<TerrainType, TerrainTheme> = {
     terrain: 'desert',
     label: 'Desert',
     resourceLabel: 'No Yield',
-    primaryFill: '#dcd0b4',
-    secondaryFill: '#ebe2cc',
-    accentFill: '#c5b492',
-    borderFill: '#f5efe0',
+    primaryFill: '#e6c487',
+    secondaryFill: '#f4dcaa',
+    accentFill: '#c9965a',
+    borderFill: '#f8e8c6',
   },
 };
 
