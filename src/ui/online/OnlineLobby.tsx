@@ -257,7 +257,8 @@ export function InviteCodeForm({ session }: { session: OnlineSession }) {
           }}
         />
         <span id={helpId} className="lb-muted">
-          It is in the link your host sent, after “join=”. Capitals and the dash do not matter.
+          It is the part after “join=” in the link your host sent. The host also sees it under “Invite friends”, and
+          anyone already in the game has it in their address bar. Capitals and the dash do not matter.
         </span>
       </div>
       <p id={errorId} className="ol-notice" role="alert" data-testid="online-invite-error" hidden={!error}>

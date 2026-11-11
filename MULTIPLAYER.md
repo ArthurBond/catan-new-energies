@@ -99,6 +99,9 @@ If someone opens the address without the last part (`?join=...`), the page asks 
 code**. It is shown in the host lobby and in the server window, for example `ABCD-EFGH`. Capitals
 and the dash do not matter.
 
+Anyone who is in the game has the complete invite link in their browser's address bar. Copying
+that address to another phone or computer opens the game there too.
+
 ---
 
 ## Private Tailscale network
