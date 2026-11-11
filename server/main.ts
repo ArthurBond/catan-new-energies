@@ -96,6 +96,7 @@ async function main(): Promise<void> {
     share: options.share,
     invite,
     shareInfo,
+    logConnections: options.verbose,
   });
   port = server.port;
 

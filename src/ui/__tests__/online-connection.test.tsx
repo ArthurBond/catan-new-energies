@@ -479,14 +479,14 @@ describe('the host’s invite panel', () => {
     const share: ShareInfo = {
       mode: 'tailnet',
       links: [
-        { url: 'http://pc.tail1.ts.net:3210', kind: 'tailnet', label: 'For friends on your Tailscale network' },
+        { url: 'http://100.64.0.7:3210', kind: 'tailnet', label: 'For friends on your Tailscale network' },
         { url: 'http://192.168.1.5:3210', kind: 'lan', label: 'Same Wi-Fi only' },
       ],
       inviteCode: null,
       status: null,
     };
     act(() => render(<InvitePanel share={share} lanUrls={[]} />, container));
-    expect(text('online-join-link')).toBe('http://pc.tail1.ts.net:3210');
+    expect(text('online-join-link')).toBe('http://100.64.0.7:3210');
     expect(container.textContent).toContain('Tailscale');
     expect(text('online-lan-urls')).toContain('http://192.168.1.5:3210 (same wi-fi only)');
     expect(text('online-invite-code')).toBeNull();

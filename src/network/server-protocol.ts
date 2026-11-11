@@ -184,6 +184,12 @@ export interface ShareMessage {
   share: ShareInfo;
 }
 
+/** Something everyone at the table should know, for example who started a new game. */
+export interface NoticeMessage {
+  type: 'notice';
+  message: string;
+}
+
 export interface RejectedMessage {
   type: 'rejected';
   requestId: string | null;
@@ -203,7 +209,8 @@ export type ServerMessage =
   | ErrorMessage
   | DeniedMessage
   | PongMessage
-  | ShareMessage;
+  | ShareMessage
+  | NoticeMessage;
 
 /** Default lobby: host plays orange, the other three seats are bots. */
 export function createDefaultOnlineLobbyConfig(seed = 1): OnlineLobbyConfig {

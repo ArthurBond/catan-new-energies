@@ -672,7 +672,7 @@ export function OnlineLobby({ session }: { session: OnlineSession }) {
       >
         {session.isHost ? <HostLobby session={session} /> : <FriendLobby session={session} />}
         {notice && (
-          <p className="ol-notice" role="alert" data-testid="online-notice">
+          <p className="ol-notice" role="alert" data-testid="online-notice" data-kind={session.notice?.kind}>
             {notice}
           </p>
         )}

@@ -187,7 +187,8 @@ export interface OnlineGameUpdate {
 
 export interface OnlineNotice {
   id: number;
-  kind: 'rejected' | 'error';
+  /** `info`: news for the table (not a problem), for example who started a new game. */
+  kind: 'rejected' | 'error' | 'info';
   message: string;
 }
 
@@ -311,6 +312,9 @@ export function useOnlineGame(info: ServerInfo): OnlineSession {
         return;
       case 'error':
         pushNotice('error', msg.message);
+        return;
+      case 'notice':
+        pushNotice('info', msg.message);
         return;
     }
   };

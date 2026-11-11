@@ -68,6 +68,11 @@ export interface StartServerOptions {
    * than a person plays; `Infinity` switches the limit off (the soak tests play at machine speed).
    */
   maxMessagesPerSecond?: number;
+  /**
+   * Write every incoming connection and request to the log, with the address it came from.
+   * For finding out why a friend cannot get in: did their browser reach this computer at all?
+   */
+  logConnections?: boolean;
 }
 
 export interface NetworkAddress {
@@ -429,6 +434,7 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
   const maxClientsPerAddress = options.maxClientsPerAddress ?? 16;
   const helloTimeoutMs = options.helloTimeoutMs ?? 30_000;
   const maxMessagesPerSecond = options.maxMessagesPerSecond ?? 20;
+  const logConnections = options.logConnections === true;
 
   const room = new GameRoom({
     hostKey,
@@ -470,6 +476,7 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
 
   const handleRequest = (req: http.IncomingMessage, res: http.ServerResponse) => {
     const url = parseRequestUrl(req);
+    if (logConnections) log(`${req.method} ${url ? url.pathname : req.url} from ${clientAddress(req)}`);
     if (!url) {
       sendText(res, 400, 'Bad request');
       return;
@@ -522,6 +529,26 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
     }
   });
 
+  if (logConnections) {
+    server.on('connection', (socket) => {
+      log(`Connection from ${addressKey(normalizeIp(socket.remoteAddress ?? 'unknown'))} (to ${normalizeIp(socket.localAddress ?? '?')}).`);
+    });
+  }
+  // What arrives is not HTTP: most often a browser that tried https:// on this http:// address.
+  // Answer as Node would by itself, and say so when asked to log connections.
+  server.on('clientError', (err: NodeJS.ErrnoException, socket) => {
+    if (logConnections) {
+      const from = addressKey(normalizeIp((socket as net.Socket).remoteAddress ?? 'unknown'));
+      log(
+        err.code === 'ECONNRESET'
+          ? `A spare connection from ${from} closed unused (browsers open extra ones; nothing is wrong).`
+          : `A connection from ${from} did not send a web request (${err.code ?? err.message}). A browser trying https:// on this address looks like this.`
+      );
+    }
+    if (err.code === 'ECONNRESET' || !socket.writable) socket.destroy();
+    else socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
+  });
+
   const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
   const alive = new WeakMap<WebSocket, boolean>();
   /** Every open socket: where it came from and when, for the limits below. */
@@ -558,6 +585,7 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
     }
     const remote = clientAddress(req);
     const local = isLocalRequest(req);
+    if (logConnections) log(`Game connection (WebSocket) from ${remote}.`);
     if (!local) {
       let fromSameAddress = 0;
       for (const meta of sockets.values()) if (meta.remote === remote) fromSameAddress += 1;

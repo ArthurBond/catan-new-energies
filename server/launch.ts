@@ -32,6 +32,8 @@ export interface LaunchOptions {
   alsoLan: boolean;
   /** Skip asking the public link for the game after it comes up. */
   skipLinkCheck: boolean;
+  /** Log every incoming connection and request (to find out why a friend cannot get in). */
+  verbose: boolean;
   savesDir: string | null;
   botDelayMs: number | undefined;
   help: boolean;
@@ -50,6 +52,8 @@ export const USAGE = `
     --new-invite                 make a new invite code; old invite links stop working
     --also-lan                   online and tailnet: also let people on your Wi-Fi connect directly
     --no-open                    do not open the host page in the browser
+    --verbose                    list every connection that reaches this computer (for finding
+                                 out why a friend cannot get in)
     --help                       show this text
 
   The same settings as environment variables: SHARE, PORT, FUNNEL_PORT, REQUIRE_INVITE=1,
@@ -81,7 +85,7 @@ export function parseLaunchOptions(argv: readonly string[], env: NodeJS.ProcessE
       i += 1;
     } else flags.set(name, true);
   }
-  const known = ['share', 'port', 'https-port', 'invite', 'new-invite', 'also-lan', 'no-open', 'help', 'online', 'tailnet', 'lan', 'skip-link-check'];
+  const known = ['share', 'port', 'https-port', 'invite', 'new-invite', 'also-lan', 'no-open', 'help', 'online', 'tailnet', 'lan', 'skip-link-check', 'verbose'];
   for (const name of flags.keys()) {
     if (!known.includes(name)) return { error: `Unknown option --${name}. Run with --help to see the options.` };
   }
@@ -124,6 +128,7 @@ export function parseLaunchOptions(argv: readonly string[], env: NodeJS.ProcessE
     inviteCode,
     alsoLan: flags.has('also-lan') || env.ALSO_LAN === '1',
     skipLinkCheck: flags.has('skip-link-check') || env.SKIP_LINK_CHECK === '1',
+    verbose: flags.has('verbose') || env.VERBOSE === '1',
     savesDir: env.SAVES_DIR ?? null,
     botDelayMs: botDelay !== undefined && Number.isFinite(botDelay) && botDelay >= 0 ? botDelay : undefined,
     help: flags.has('help'),
@@ -185,8 +190,10 @@ export function buildShareInfo(s: ShareSituation): ShareInfo {
   const links: ShareLink[] = [];
   if (s.mode === 'online' && s.publicUrl) links.push(link(s.publicUrl, 'online', 'Works from any network'));
   if (s.mode === 'tailnet' && s.tailscale) {
-    if (s.tailscale.dnsName) links.push(link(`http://${s.tailscale.dnsName}:${s.port}`, 'tailnet', 'For friends on your Tailscale network'));
-    if (s.tailscale.ipv4) links.push(link(`http://${s.tailscale.ipv4}:${s.port}`, 'tailnet', 'The same, by number'));
+    // The number first: it works on every device that has Tailscale connected. The name only
+    // works where the device also uses Tailscale's DNS, which phones on mobile data may not.
+    if (s.tailscale.ipv4) links.push(link(`http://${s.tailscale.ipv4}:${s.port}`, 'tailnet', 'For friends on your Tailscale network'));
+    if (s.tailscale.dnsName) links.push(link(`http://${s.tailscale.dnsName}:${s.port}`, 'tailnet', 'The same by name, where the device uses Tailscale DNS'));
   }
   const tailscaleIp = s.tailscale?.ipv4 ?? null;
   for (const a of s.addresses) {
@@ -249,8 +256,9 @@ export function buildBanner(args: {
   } else if (share.mode === 'tailnet') {
     const tailnet = share.links.filter((l) => l.kind === 'tailnet');
     lines.push(RULE, '  INVITE LINK for friends who run Tailscale (encrypted, not public):', '');
-    for (const l of tailnet) lines.push(`      ${l.url}`);
+    for (const [i, l] of tailnet.entries()) lines.push(`      ${l.url}${i === 1 ? '   (the same, by name)' : ''}`);
     if (tailnet.length === 0) lines.push('      (no Tailscale address found)');
+    if (tailnet.length > 1) lines.push('', '  Send the first one. The name only opens on devices that use Tailscale\'s DNS.');
     lines.push(
       '',
       '  Friends need Tailscale on their device, and this computer shared with them',

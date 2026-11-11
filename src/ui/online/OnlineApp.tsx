@@ -23,6 +23,7 @@ import type { OnlineTable } from './onlineTypes';
 import { useOnlineGame } from './useOnlineGame';
 
 const NEW_GAME_CONFIRM = 'Start a new game? This game ends for everyone and all players go back to the lobby.';
+const NEW_GAME_CONFIRM_FRIEND = `${NEW_GAME_CONFIRM} The host then starts the next one.`;
 
 export function OnlineApp({ info }: { info: ServerInfo }) {
   const session = useOnlineGame(info);
@@ -47,7 +48,7 @@ export function OnlineApp({ info }: { info: ServerInfo }) {
       notice: session.notice,
       sendAction: session.sendAction,
       onNewGame: () => {
-        if (window.confirm(NEW_GAME_CONFIRM)) session.send({ type: 'newGame' });
+        if (window.confirm(session.isHost ? NEW_GAME_CONFIRM : NEW_GAME_CONFIRM_FRIEND)) session.send({ type: 'newGame' });
       },
       badge: <ConnectionBadge status={session.status} />,
     };
@@ -133,7 +134,7 @@ export function OnlineApp({ info }: { info: ServerInfo }) {
             </label>
             <SeatPicker session={session} midGame />
             {noticeText && (
-              <p className="ol-notice" role="alert" data-testid="online-notice">
+              <p className="ol-notice" role="alert" data-testid="online-notice" data-kind={session.notice?.kind}>
                 {noticeText}
               </p>
             )}

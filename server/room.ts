@@ -7,7 +7,9 @@
  * Guarantees:
  * - Every socket only ever receives its own seat's `redactForPlayer` view (or the spectator view).
  * - Actions are accepted only for the sender's own seat and only if `applyAction` accepts them.
- * - Only a socket that presented the host key can configure, start or restart the game.
+ * - Only a socket that presented the host key can configure or start a game. Anyone with a seat
+ *   can end the game for a new one (everyone goes back to the lobby and is told who asked);
+ *   people who are only watching cannot.
  * - With an invite gate, a socket gets nothing (no lobby, no state) until its hello carries the
  *   invite code or the host key.
  * - A friend's seat can only be taken over by someone else after its player has been offline
@@ -550,16 +552,23 @@ export class GameRoom {
   }
 
   private onNewGame(rec: ClientRecord): void {
-    if (!rec.isHost) return this.reject(rec, null, 'Only the host can start a new game.');
+    // The host always may. So may anyone playing: a table of friends decides together, and a
+    // friend must not be stuck in a game nobody can end. Someone only watching may not.
+    if (!rec.isHost && !rec.playerId) return this.reject(rec, null, 'Take a seat to start a new game.');
+    if (!this.started) return;
     this.clearBotTimer();
     this.started = false;
     this.game = null;
     this.version = 0;
     this.lastAction = null;
     this.config = { ...this.config, seed: this.newSeed() };
-    this.log('Back to the lobby for a new game.');
+    this.log(`${rec.name} started a new game: everyone is back in the lobby.`);
     this.persist();
     this.broadcastLobby();
+    // Nobody should wonder why the table vanished.
+    for (const r of this.greetedClients()) {
+      if (r !== rec) this.send(r, { type: 'notice', message: `${rec.name} started a new game. The host picks the seats and starts it.` });
+    }
   }
 
   private onAction(rec: ClientRecord, action: unknown, requestIdRaw: unknown): void {

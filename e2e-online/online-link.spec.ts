@@ -308,6 +308,26 @@ test('a friend who changes device takes their own seat over, once the old device
     await expect(app(laptop)).toHaveAttribute('data-my-seat', 'purple');
     await expect(laptop.getByTestId('corner-station-purple')).toContainText('Finn');
     await expect(host.getByTestId('corner-station-purple')).not.toContainText('offline');
+
+    // A friend can call a new game, on a phone-sized screen too: the button is there, it says
+    // what it is, it asks first, and everyone lands in the lobby knowing who pressed it.
+    await laptop.setViewportSize({ width: 390, height: 844 });
+    const newGame = laptop.getByTestId('online-new-game-btn');
+    await expect(newGame).toBeVisible();
+    await expect(newGame).toContainText('New game');
+    await expect(newGame.getByText('New game')).toBeVisible();
+    await newGame.click();
+    await expect(laptop.getByTestId('online-friend-lobby')).toBeVisible();
+    await expect(laptop.getByTestId('online-waiting')).toBeVisible();
+    await expect(host.getByTestId('online-host-lobby')).toBeVisible();
+    await expect(host.getByTestId('online-notice')).toContainText('Finn started a new game');
+    await expect(host.getByTestId('online-notice')).toHaveAttribute('data-kind', 'info');
+    // The seats are kept, so the host can start the next game straight away.
+    await expect(host.getByTestId('online-seat-purple')).toContainText('Finn');
+    await expect(host.getByTestId('online-start-btn')).toBeEnabled();
+    await host.getByTestId('online-start-btn').click();
+    await expect(laptop.getByTestId('tabletop-board')).toBeVisible();
+    await expect(app(laptop)).toHaveAttribute('data-my-seat', 'purple');
   } finally {
     await laptopCtx.close();
   }

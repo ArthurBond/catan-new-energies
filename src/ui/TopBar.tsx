@@ -85,8 +85,9 @@ export interface TopBarProps {
   onTableclothColorChange: (color: string) => void;
   onOpenLobby: () => void;
   /**
-   * Online play: no undo, a connection badge, and "New game" only for the host (it asks first
-   * and sends everyone back to the lobby). Leave undefined for offline play.
+   * Online play: no undo, a connection badge, and "New game" for everyone with a seat (it asks
+   * first and sends everyone back to the lobby; null for someone only watching). Leave undefined
+   * for offline play.
    */
   online?: { badge: ComponentChildren; onNewGame: (() => void) | null };
 }
@@ -338,10 +339,14 @@ export function TopBar({
             type="button"
             className="tt-icon-btn is-primary"
             data-testid={online ? 'online-new-game-btn' : 'open-lobby-btn'}
+            title="Start a new game"
+            aria-label="New game"
             onClick={online?.onNewGame ?? onOpenLobby}
           >
             <Icon name="newGame" />
-            <span className="tt-btn-label">New game</span>
+            {/* The icon alone does not say "New game", so the words stay on small screens: always
+                online, and offline down to phone width, where the bar has more buttons to fit. */}
+            <span className={`tt-btn-label ${online ? 'is-kept' : 'is-kept-wide'}`}>New game</span>
           </button>
         )}
       </div>

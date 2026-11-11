@@ -80,6 +80,10 @@ encrypted by [Tailscale](https://tailscale.com), which is free for personal use.
 3. Choose who sits where (Host, Friend or Bot), wait for your friends to take their seats, and
    press **Start game**.
 
+   To play again, anyone at the table presses **New game** in the top bar (or on the final
+   standings). It asks first, then everyone goes back to the lobby with their seats kept, and the
+   host starts the next game. People who are only watching do not have the button.
+
 4. **Keep the server window open** and the computer awake while you play. Press `Ctrl+C` in the
    server window to stop. The game is saved after every move.
 
@@ -118,8 +122,13 @@ computer through Tailscale's encrypted network (WireGuard). Every player needs T
    ```text
    INVITE LINK for friends who run Tailscale (encrypted, not public):
 
-       http://your-computer.your-tailnet.ts.net:3210/?join=ABCD-EFGH
+       http://100.101.102.103:3210/?join=ABCD-EFGH
+       http://your-computer.your-tailnet.ts.net:3210/?join=ABCD-EFGH   (the same, by name)
    ```
+
+   Send the first one, with the numbers. It opens on every device that has Tailscale connected.
+   The link with the name only opens where the device also uses Tailscale's DNS; on a phone on
+   mobile data it may say the site cannot be reached.
 
 The link begins with `http://` because Tailscale itself does the encrypting. It carries the invite
 code as well.
@@ -207,7 +216,9 @@ Two things to know:
 | The badge says *Offline, retrying* for a long time | The host's server is stopped or the host computer is asleep. Wake it, or start the server again. |
 | `Port 3210 is already in use` | The server is already running in another window. Close that one, or start with `-- --port 3211`. |
 | A friend opened the game on a second device and cannot play | Use **Take over** on their own seat (see above), 30 seconds after closing the first device. |
-| Private network: the link does not open | Check that Tailscale is connected on the friend's device and that they accepted the invite. On a Mac, choose **Allow** when asked about incoming connections for "node". |
+| Private network: a phone says the site cannot be reached | Use the link with the numbers (`http://100...`), not the one with the name. Check that Tailscale is connected on the phone. |
+| Private network: the link does not open at all | Check that Tailscale is connected on the friend's device and that they accepted the invite. On a Mac, choose **Allow** when asked about incoming connections for "node". |
+| A friend cannot get in and you cannot tell why | Start with `-- --verbose`. The server window then lists every connection that reaches the computer and where it came from. If nothing appears when the friend tries, their device is not reaching this computer at all. |
 
 To keep a Mac awake while hosting, start the server like this:
 
@@ -228,6 +239,7 @@ Put options after `--`, for example `npm run host:online -- --new-invite`.
 | `--new-invite` | Make a new invite code. Links sent earlier stop working. |
 | `--also-lan` | Online link and private network: also let people on your own Wi-Fi connect directly. |
 | `--no-open` | Do not open the host page in the browser. |
+| `--verbose` | List every connection that reaches the computer, with the address it came from. |
 | `--help` | Show the options. |
 
 The same settings exist as environment variables: `SHARE`, `PORT`, `FUNNEL_PORT`,

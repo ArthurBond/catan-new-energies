@@ -443,6 +443,39 @@ describe('limits on connections', () => {
     expect(refusals[1]).toContain('203.0.113.81');
   });
 
+  it('with connection logging on, shows what reached the computer and from where', async () => {
+    const lines: string[] = [];
+    const url = await start({ log: (m) => lines.push(m), logConnections: true });
+    const port = server!.port;
+    await fetch(`http://127.0.0.1:${port}/api/server-info`, { headers: from('203.0.113.90') });
+    const v = await visit(url, from('203.0.113.90'));
+    v.send({ type: 'hello', name: 'Finn', inviteCode: CODE });
+    await v.waitFor('welcome');
+    // A browser that tries https:// on the http:// address sends TLS, not a web request.
+    const answer = await rawRequest(port, '\x16\x03\x01\x02\x00\x01\x00\x01\xfc\x03\x03 not http at all\r\n\r\n');
+    expect(answer).toMatch(/^HTTP\/1\.1 400 /);
+    await settle();
+    expect(lines.some((l) => /^Connection from 127\.0\.0\.1 \(to 127\.0\.0\.1\)/.test(l))).toBe(true);
+    expect(lines).toContain('GET /api/server-info from 203.0.113.90');
+    expect(lines).toContain('Game connection (WebSocket) from 203.0.113.90.');
+    expect(lines.some((l) => l.includes('did not send a web request') && l.includes('https://'))).toBe(true);
+    // A connection that is opened and dropped unused is normal browser behaviour, and is said to be.
+    await rawRequest(port, '', { reset: true });
+    await settle();
+    expect(lines.filter((l) => l.includes('https://'))).toHaveLength(1);
+    // And the server carries on.
+    expect((await fetch(`http://127.0.0.1:${port}/api/server-info`)).ok).toBe(true);
+  });
+
+  it('answers something that is not a web request without logging when not asked to', async () => {
+    const lines: string[] = [];
+    await start({ log: (m) => lines.push(m) });
+    const answer = await rawRequest(server!.port, '\x16\x03\x01 tls hello\r\n\r\n');
+    expect(answer).toMatch(/^HTTP\/1\.1 400 /);
+    await fetch(`http://127.0.0.1:${server!.port}/api/server-info`);
+    expect(lines.filter((l) => l.includes('Connection from') || l.includes('GET '))).toEqual([]);
+  });
+
   it('listens on several addresses side by side, and only on those', async () => {
     const ipv6Loopback = await new Promise<boolean>((resolve) => {
       const probe = net.createServer();

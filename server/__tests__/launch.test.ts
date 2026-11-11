@@ -62,6 +62,9 @@ describe('what the host asked for', () => {
     // The command line wins over the environment.
     expect(ok(['--share', 'lan', '--port', '5000'], { SHARE: 'online', PORT: '3299' })).toMatchObject({ share: 'lan', port: 5000 });
     expect(ok(['--help']).help).toBe(true);
+    expect(ok([]).verbose).toBe(false);
+    expect(ok(['--verbose']).verbose).toBe(true);
+    expect(ok([], { VERBOSE: '1' }).verbose).toBe(true);
   });
 
   it('explains mistakes in plain words', () => {
@@ -137,7 +140,7 @@ describe('links for the host to pass on', () => {
     ]);
   });
 
-  it('tailnet: the Tailscale name first, then the number, then the home network', () => {
+  it('tailnet: the number first (it works on every device), then the name, then the home network', () => {
     const info = buildShareInfo({
       mode: 'tailnet',
       port: 3210,
@@ -148,8 +151,8 @@ describe('links for the host to pass on', () => {
       status: null,
     });
     expect(info.links.map((l) => [l.kind, l.url])).toEqual([
-      ['tailnet', 'http://pc.tail1.ts.net:3210'],
       ['tailnet', 'http://100.64.0.7:3210'],
+      ['tailnet', 'http://pc.tail1.ts.net:3210'],
       ['lan', 'http://192.168.1.20:3210'],
     ]);
     expect(info.inviteCode).toBeNull();
@@ -212,8 +215,10 @@ describe('the server window', () => {
       status: null,
     });
     const text = buildBanner({ ...base, share, addresses: [] });
-    expect(text).toContain('http://pc.tail1.ts.net:3210/?join=ABCD-EFGH');
+    expect(text).toContain('http://pc.tail1.ts.net:3210/?join=ABCD-EFGH   (the same, by name)');
     expect(text).toContain('http://100.64.0.7:3210/?join=ABCD-EFGH');
+    expect(text.indexOf('http://100.64.0.7:3210')).toBeLessThan(text.indexOf('http://pc.tail1.ts.net:3210'));
+    expect(text).toContain('Send the first one.');
     expect(text).toMatch(/Friends need Tailscale/);
     expect(text).toMatch(/Only Tailscale can reach the game/);
     expect(text).not.toContain('192.168.');

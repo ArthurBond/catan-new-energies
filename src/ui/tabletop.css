@@ -2436,7 +2436,7 @@ select.lb-input {
   }
   .tt-gf,
   .tt-brand-word,
-  .tt-btn-label {
+  .tt-btn-label:not(.is-kept):not(.is-kept-wide) {
     display: none;
   }
   .tt-topbar {
@@ -2684,6 +2684,19 @@ select.lb-input {
   background: rgba(201, 48, 44, 0.2);
   color: #ffd9d6;
   font-size: 13px;
+}
+
+/* On a phone the offline top bar has no room for the words next to the New game icon */
+@media (max-width: 480px) {
+  .tt-btn-label.is-kept-wide {
+    display: none;
+  }
+}
+
+/* News for the table (who started a new game), not a problem */
+.ol-notice[data-kind='info'] {
+  background: rgba(255, 200, 58, 0.12);
+  color: var(--ink-100);
 }
 
 /* Invite panel (host) and invite-code screen (friends), for games shared beyond the home Wi-Fi */
