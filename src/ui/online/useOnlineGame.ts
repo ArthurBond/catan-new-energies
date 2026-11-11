@@ -18,6 +18,7 @@ import { hydrateRedactedState } from '../../network/hydrate';
 import type { RedactedGameAction } from '../../network/redact';
 import {
   CLOSE_SEAT_TAKEN_OVER,
+  formatInviteCode,
   INVITE_QUERY_PARAM,
   normalizeInviteCode,
   SEAT_TOKEN_STORAGE_KEY,
@@ -151,27 +152,39 @@ export function takeHostKeyFromUrl(): string | null {
 }
 
 /**
- * The invite code: taken from `?join=` in the link the host sent, kept in localStorage so a
- * reload or a reconnect needs no typing, and removed from the address bar so a screenshot or a
- * shared screen does not hand it on.
+ * The invite code: taken from `?join=` in the link the host sent, and kept in localStorage so a
+ * reload or a reconnect needs no typing. Unlike the host key it stays in the address bar (see
+ * `showInviteCodeInAddressBar`).
  */
 export function takeInviteCodeFromUrl(): string | null {
   if (typeof window === 'undefined') return null;
-  const url = new URL(window.location.href);
-  const fromUrl = normalizeInviteCode(url.searchParams.get(INVITE_QUERY_PARAM));
-  if (url.searchParams.has(INVITE_QUERY_PARAM)) {
-    url.searchParams.delete(INVITE_QUERY_PARAM);
-    try {
-      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-    } catch {
-      // Ignore: the code still works, it just stays visible.
-    }
-  }
+  const fromUrl = normalizeInviteCode(new URL(window.location.href).searchParams.get(INVITE_QUERY_PARAM));
   if (fromUrl) {
     writeStorage(INVITE_CODE_STORAGE_KEY, fromUrl);
     return fromUrl;
   }
   return normalizeInviteCode(readStorage(INVITE_CODE_STORAGE_KEY)) || null;
+}
+
+/**
+ * Puts `?join=<code>` into the address bar (or takes it out, with null). A browser that is in the
+ * game always shows the complete invite link there, so copying the address to another device, or
+ * reading the code off the screen, just works. People do exactly that; a link that silently lost
+ * its code left the second device asking for a code nobody could see.
+ */
+export function showInviteCodeInAddressBar(code: string | null): void {
+  if (typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  const shown = url.searchParams.get(INVITE_QUERY_PARAM);
+  const wanted = code ? formatInviteCode(code) : null;
+  if (shown === wanted) return;
+  if (wanted) url.searchParams.set(INVITE_QUERY_PARAM, wanted);
+  else url.searchParams.delete(INVITE_QUERY_PARAM);
+  try {
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  } catch {
+    // Ignore: the address just stays as it was.
+  }
 }
 
 /** One `state` frame, hydrated for the UI. */
@@ -260,6 +273,8 @@ export function useOnlineGame(info: ServerInfo): OnlineSession {
         if (msg.reason === 'wrong') {
           inviteCodeRef.current = null;
           writeStorage(INVITE_CODE_STORAGE_KEY, null);
+          // ...and must not be sent again from the address on a reload.
+          showInviteCodeInAddressBar(null);
         }
         setDenied({ reason: msg.reason, message: msg.message, retryAfterSeconds: msg.retryAfterSeconds });
         setStatus('denied');
@@ -274,6 +289,8 @@ export function useOnlineGame(info: ServerInfo): OnlineSession {
         setStatus('connected');
         setIsHost(msg.isHost);
         if (!msg.isHost) setShare(null);
+        // In the game: the address bar is now a complete invite link for this table.
+        if (!msg.isHost && inviteCodeRef.current) showInviteCodeInAddressBar(inviteCodeRef.current);
         setPlayerId(msg.playerId);
         if (msg.seatToken) writeStorage(SEAT_TOKEN_STORAGE_KEY, msg.seatToken);
         else if (!msg.isHost) writeStorage(SEAT_TOKEN_STORAGE_KEY, null);

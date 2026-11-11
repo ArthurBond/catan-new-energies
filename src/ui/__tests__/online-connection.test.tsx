@@ -14,6 +14,7 @@ import {
   PONG_TIMEOUT_MS,
   PROBE_TIMEOUT_MS,
   readEmbeddedServerInfo,
+  showInviteCodeInAddressBar,
   takeInviteCodeFromUrl,
   useOnlineGame,
   type OnlineSession,
@@ -157,21 +158,32 @@ describe('the invite code in the link', () => {
     vi.unstubAllGlobals();
   });
 
-  it('is taken from the address, remembered, and removed from the address bar', () => {
+  it('is taken from the address and remembered, and the address is left as it is', () => {
     window.history.replaceState(null, '', '/?join=abcd-efgh&other=1#top');
     expect(takeInviteCodeFromUrl()).toBe('ABCDEFGH');
     expect(localStorage.getItem(INVITE_CODE_STORAGE_KEY)).toBe('ABCDEFGH');
-    expect(window.location.search).toBe('?other=1');
+    expect(window.location.search).toBe('?join=abcd-efgh&other=1');
     expect(window.location.hash).toBe('#top');
-    // A reload (no code in the address any more) still has it.
+    // Opened later without the code (a bookmark of the bare address): still remembered.
+    window.history.replaceState(null, '', '/');
     expect(takeInviteCodeFromUrl()).toBe('ABCDEFGH');
+  });
+
+  it('can be put into the address bar, so the address is a complete invite link, and taken out again', () => {
+    window.history.replaceState(null, '', '/?other=1#top');
+    showInviteCodeInAddressBar('abcdefgh');
+    expect(window.location.search).toBe('?other=1&join=ABCD-EFGH');
+    expect(window.location.hash).toBe('#top');
+    showInviteCodeInAddressBar('ABCD-EFGH');
+    expect(window.location.search).toBe('?other=1&join=ABCD-EFGH');
+    showInviteCodeInAddressBar(null);
+    expect(window.location.search).toBe('?other=1');
   });
 
   it('a new link replaces the remembered code; an empty one does not', () => {
     localStorage.setItem(INVITE_CODE_STORAGE_KEY, 'OLDCODE1');
     window.history.replaceState(null, '', '/?join=');
     expect(takeInviteCodeFromUrl()).toBe('OLDCODE1');
-    expect(window.location.search).toBe('');
     window.history.replaceState(null, '', '/?join=NEWC-ODE2');
     expect(takeInviteCodeFromUrl()).toBe('NEWCODE2');
     expect(localStorage.getItem(INVITE_CODE_STORAGE_KEY)).toBe('NEWCODE2');
@@ -235,6 +247,49 @@ describe('the connection to the host', () => {
     act(() => ws.receive(welcome));
     expect(session.status).toBe('connected');
     expect(session.denied).toBeNull();
+    // The address bar stays a complete invite link: it can be copied to another device.
+    expect(window.location.search).toBe('?join=ABCD-EFGH');
+  });
+
+  it('a device let in on a remembered code shows the full invite link in its address bar', () => {
+    localStorage.setItem(INVITE_CODE_STORAGE_KEY, 'ABCDEFGH');
+    mount();
+    const ws = latest();
+    act(() => ws.open());
+    expect(ws.ofType('hello')[0]).toMatchObject({ inviteCode: 'ABCDEFGH' });
+    // Not before the server has accepted it...
+    expect(window.location.search).toBe('');
+    act(() => ws.receive(welcome));
+    // ...and then the address someone copies from this screen works on the next device.
+    expect(window.location.search).toBe('?join=ABCD-EFGH');
+  });
+
+  it('a wrong code in the link is taken out of the address, so a reload does not send it again', () => {
+    window.history.replaceState(null, '', '/?join=WRONGONE');
+    mount();
+    const ws = latest();
+    act(() => {
+      ws.open();
+      ws.receive({ type: 'denied', reason: 'wrong', message: 'That invite code is not right.', retryAfterSeconds: null });
+    });
+    expect(session.status).toBe('denied');
+    expect(window.location.search).toBe('');
+    expect(localStorage.getItem(INVITE_CODE_STORAGE_KEY)).toBeNull();
+    // Typing the right one puts the working link in the address bar.
+    act(() => session.submitInviteCode('abcd-efgh'));
+    act(() => ws.receive(welcome));
+    expect(window.location.search).toBe('?join=ABCD-EFGH');
+  });
+
+  it('the host’s address never gets an invite code added', () => {
+    localStorage.setItem(INVITE_CODE_STORAGE_KEY, 'ABCDEFGH');
+    mount();
+    const ws = latest();
+    act(() => {
+      ws.open();
+      ws.receive({ ...welcome, isHost: true, playerId: 'orange' } as ServerMessage);
+    });
+    expect(window.location.search).toBe('');
   });
 
   it('shows the invite screen when the server wants a code, and does not hammer the server meanwhile', () => {

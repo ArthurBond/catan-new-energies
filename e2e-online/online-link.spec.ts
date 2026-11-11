@@ -131,11 +131,18 @@ test('a stranger with the address but not the code gets the invite screen and no
     expect(types.filter((t) => t === 'lobby' || t === 'state' || t === 'welcome' || t === 'share')).toEqual([]);
     expect(frames.join('')).not.toContain('Hana');
 
+    // The screen says where the code can be found.
+    await expect(stranger.getByTestId('online-invite-form')).toContainText('address bar');
+    // A wrong code is not left in the address to be sent again on a reload.
+    expect(stranger.url()).not.toContain('join=');
+
     // Typed by hand, any case, with or without the dash: now it opens.
     await input.fill(` ${ONLINE_INVITE_CODE.toLowerCase()} `);
     await input.press('Enter');
     await expect(stranger.getByTestId('online-friend-lobby')).toBeVisible();
     await expect(badge(stranger)).toHaveAttribute('data-status', 'connected');
+    // Once in, this device's address is a complete invite link too.
+    await expect.poll(() => stranger.url()).toBe(INVITE_LINK);
   } finally {
     await tunnel(strangerCtx, 'visitor?ip=203.0.113.7');
     await strangerCtx.close();
@@ -146,9 +153,8 @@ test('the friend opens the invite link, over HTTPS and an encrypted WebSocket, a
   await friend.goto(INVITE_LINK);
   await expect(friend.getByTestId('online-friend-lobby')).toBeVisible();
   await expect(badge(friend)).toHaveAttribute('data-status', 'connected');
-  // The code is remembered and gone from the address bar (screenshots, shared screens).
-  expect(friend.url()).not.toContain('join=');
-  expect(friend.url().startsWith(ONLINE_PUBLIC_URL)).toBe(true);
+  // The address bar stays a complete invite link, so it can be copied to another device.
+  expect(friend.url()).toBe(INVITE_LINK);
   expect(friendSockets).toHaveLength(1);
   expect(friendSockets[0]!.url).toBe(`${ONLINE_PUBLIC_URL.replace('https', 'wss')}/ws`);
   // The page knew it was online from the page itself: it never fell back to the offline game.
@@ -265,6 +271,21 @@ test('coming back to the tab checks the line at once instead of waiting', async 
   // Well inside the 18 seconds the quiet heartbeat alone would need.
   expect(Date.now() - stalledAt).toBeLessThan(9000);
   await expect(badge(friend)).toHaveAttribute('data-status', 'connected', { timeout: 10_000 });
+});
+
+test('the address copied from a device in the game opens the game on another device', async ({ browser }) => {
+  // What people do: read or copy the address off the first screen and open it on the second.
+  const copied = friend.url();
+  expect(copied).toBe(INVITE_LINK);
+  const secondCtx = await browser.newContext({ ignoreHTTPSErrors: true });
+  const second = await secondCtx.newPage();
+  try {
+    await second.goto(copied);
+    await expect(second.getByTestId('online-invite-gate')).toHaveCount(0);
+    await expect(second.getByTestId('online-midgame-join')).toBeVisible();
+  } finally {
+    await secondCtx.close();
+  }
 });
 
 test('reloading keeps the seat: the code and the seat are remembered', async () => {
