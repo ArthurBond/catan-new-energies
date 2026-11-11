@@ -315,7 +315,10 @@ export class GameRoom {
     if (!rec) return;
     this.clients.delete(clientId);
     const seat = rec.playerId;
-    if (seat && ![...this.clients.values()].some((r) => r.playerId === seat)) this.offlineSince[seat] = this.now();
+    if (seat && ![...this.clients.values()].some((r) => r.playerId === seat)) {
+      this.offlineSince[seat] = this.now();
+      if (!rec.isHost) this.log(`${rec.name} went offline (${seat} seat).`);
+    }
     if (rec.greeted) this.broadcastLobby();
   }
 
@@ -423,6 +426,7 @@ export class GameRoom {
         // A returning friend keeps the name they joined with unless they send a new one.
         if (sentName) this.renameSeat(pid, sentName);
         else rec.name = this.claims[pid]!.name;
+        this.log(`${rec.name} is back in the ${pid} seat (from ${rec.client.remote ?? 'this computer'}).`);
       }
     }
 
@@ -477,7 +481,11 @@ export class GameRoom {
         if (this.started) return this.reject(rec, null, 'You already have a seat in this game.');
         this.releaseSeat(rec.playerId);
       }
-      if (claimedByOther) this.log(`${rec.name} took over the ${playerId} seat from ${this.claims[playerId]!.name} (offline).`);
+      this.log(
+        claimedByOther
+          ? `${rec.name} took over the ${playerId} seat from ${this.claims[playerId]!.name}, who was offline (from ${rec.client.remote ?? 'this computer'}).`
+          : `${rec.name} took the ${playerId} seat (from ${rec.client.remote ?? 'this computer'}).`
+      );
       this.claims[playerId] = { token: this.newToken(), name: rec.name };
       this.bind(rec, playerId);
       this.renameSeat(playerId, rec.name);

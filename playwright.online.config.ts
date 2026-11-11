@@ -1,7 +1,13 @@
 import os from 'node:os';
 import path from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
-import { ONLINE_GAME_PORT, ONLINE_INVITE_CODE, ONLINE_PUBLIC_PORT, ONLINE_PUBLIC_URL } from './e2e-online/online-constants';
+import {
+  ONLINE_GAME_PORT,
+  ONLINE_INVITE_CODE,
+  ONLINE_LINK_LATENCY_MS,
+  ONLINE_PUBLIC_PORT,
+  ONLINE_PUBLIC_URL,
+} from './e2e-online/online-constants';
 
 /**
  * Two "laptops" (browser contexts) play on the built game server (`node dist-server/main.js`).
@@ -67,6 +73,8 @@ export default defineConfig({
       env: {
         PORT: String(ONLINE_GAME_PORT),
         FAKE_TS_PUBLIC_PORT: String(ONLINE_PUBLIC_PORT),
+        // Everything through the stand-in tunnel is as slow as a far-away mobile connection
+        FAKE_TS_LATENCY_MS: String(ONLINE_LINK_LATENCY_MS),
         INVITE_CODE: ONLINE_INVITE_CODE,
         BOT_DELAY_MS: '0',
         SAVES_DIR: ONLINE_SAVES_DIR,

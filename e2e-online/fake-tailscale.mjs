@@ -12,12 +12,14 @@
  *   /__fake/drop           every open game connection is cut (Wi-Fi changed)
  *   /__fake/stall          every open game connection goes silent without closing (dead line)
  *   /__fake/visitor?ip=..  later visitors appear to come from this address
+ *   /__fake/latency?ms=..  every message takes this long each way (a far-away or mobile link)
  *
  * Environment: FAKE_TS_PUBLIC_PORT, FAKE_TS_TLS_CERT, FAKE_TS_TLS_KEY (run the HTTPS forwarder),
  * FAKE_TS_STATE (BackendState, default Running), FAKE_TS_NO_CAPS=1 (HTTPS/Funnel not enabled),
  * FAKE_TS_APPROVAL_MS (ask for approval first, carry on after this long), FAKE_TS_FUNNEL_FAIL=1,
  * FAKE_TS_TAILNET_ONLY=1, FAKE_TS_DIE_ONCE_FILE + FAKE_TS_DIE_AFTER_MS (first run stops by itself),
- * FAKE_TS_SILENT=1 (announce nothing; `serve status --json` alone says that Funnel is on).
+ * FAKE_TS_SILENT=1 (announce nothing; `serve status --json` alone says that Funnel is on),
+ * FAKE_TS_LATENCY_MS (delay each way from the start).
  */
 import fs from 'node:fs';
 import http from 'node:http';
@@ -73,6 +75,8 @@ const targetPort = Number(new URL(target).port);
 const httpsFlag = args.find((a) => a.startsWith('--https='));
 const publicPort = Number(env.FAKE_TS_PUBLIC_PORT ?? httpsFlag?.split('=')[1] ?? 443);
 let visitorIp = '203.0.113.7';
+/** One-way delay added to everything that passes through, like a far-away or mobile link. */
+let latencyMs = Number(env.FAKE_TS_LATENCY_MS ?? 0);
 
 process.on('SIGINT', () => process.exit(0));
 process.on('SIGTERM', () => process.exit(0));
@@ -113,15 +117,15 @@ function handleControl(req, res) {
     }
     tunnels.clear();
   } else if (url.pathname === '/__fake/stall') {
-    for (const [client, upstream] of tunnels) {
-      client.unpipe(upstream);
-      upstream.unpipe(client);
-      client.pause();
-      upstream.pause();
+    for (const pair of tunnels) {
+      pair.stalled = true;
       done += 1;
     }
   } else if (url.pathname === '/__fake/visitor') {
     visitorIp = url.searchParams.get('ip') ?? visitorIp;
+  } else if (url.pathname === '/__fake/latency') {
+    latencyMs = Number(url.searchParams.get('ms') ?? 0);
+    done = latencyMs;
   }
   res.writeHead(200, { 'content-type': 'text/plain' });
   res.end(String(done));
@@ -133,18 +137,24 @@ if (env.FAKE_TS_TLS_CERT && env.FAKE_TS_TLS_KEY) {
     { cert: fs.readFileSync(env.FAKE_TS_TLS_CERT), key: fs.readFileSync(env.FAKE_TS_TLS_KEY) },
     (req, res) => {
       if (handleControl(req, res)) return;
-      const upstream = http.request(
-        { host: '127.0.0.1', port: targetPort, method: req.method, path: req.url, headers: forwardedHeaders(req) },
-        (answer) => {
-          res.writeHead(answer.statusCode ?? 502, answer.headers);
-          answer.pipe(res);
-        }
-      );
-      upstream.on('error', () => {
-        if (!res.headersSent) res.writeHead(502);
-        res.end();
-      });
-      req.pipe(upstream);
+      const headers = forwardedHeaders(req);
+      // The request travels there, the answer travels back.
+      setTimeout(() => {
+        const upstream = http.request(
+          { host: '127.0.0.1', port: targetPort, method: req.method, path: req.url, headers },
+          (answer) => {
+            setTimeout(() => {
+              res.writeHead(answer.statusCode ?? 502, answer.headers);
+              answer.pipe(res);
+            }, latencyMs);
+          }
+        );
+        upstream.on('error', () => {
+          if (!res.headersSent) res.writeHead(502);
+          res.end();
+        });
+        req.pipe(upstream);
+      }, latencyMs);
     }
   );
   server.on('upgrade', (req, client, head) => {
@@ -155,10 +165,22 @@ if (env.FAKE_TS_TLS_CERT && env.FAKE_TS_TLS_KEY) {
       }
       upstream.write(`${lines.join('\r\n')}\r\n\r\n`);
       if (head.length) upstream.write(head);
-      client.pipe(upstream);
-      upstream.pipe(client);
+      // Bytes are passed on in order, each after the link's delay. A stalled line swallows
+      // them without closing, which is what a dead mobile connection looks like.
+      const carry = (from, to) =>
+        from.on('data', (chunk) => {
+          if (pair.stalled) return;
+          const deliver = () => {
+            if (!pair.stalled && !to.destroyed) to.write(chunk);
+          };
+          if (latencyMs > 0) setTimeout(deliver, latencyMs);
+          else deliver();
+        });
+      carry(client, upstream);
+      carry(upstream, client);
     });
     const pair = [client, upstream];
+    pair.stalled = false;
     tunnels.add(pair);
     const end = () => {
       tunnels.delete(pair);

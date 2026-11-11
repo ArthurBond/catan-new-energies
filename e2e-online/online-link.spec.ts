@@ -5,6 +5,7 @@ import {
   ONLINE_HOST_URL,
   ONLINE_INVITE_CODE,
   ONLINE_INVITE_CODE_SHOWN,
+  ONLINE_LINK_LATENCY_MS,
   ONLINE_PUBLIC_URL,
 } from './online-constants';
 
@@ -12,6 +13,9 @@ import {
  * A game shared with `npm run host:online`: the host plays on their own computer, the friend
  * comes in through the public HTTPS link (here a stand-in for Tailscale Funnel on localhost, see
  * `fake-tailscale.mjs`), as they would from another network. One game, played in order.
+ *
+ * The stand-in delays everything by ONLINE_LINK_LATENCY_MS each way, so the friend's link is as
+ * slow as mobile data on the other side of the world. The host, on their own computer, is not.
  */
 
 const SAVES_DIR = process.env.CATAN_E2E_ONLINE_SAVES_DIR!;
@@ -182,6 +186,61 @@ test('a cut connection (new Wi-Fi) comes back by itself with the same seat', asy
   await friend.getByTestId('setup-roll-dialog-btn').click();
   await expect.poll(() => appliedMoves(current, 'purple'), { timeout: 10_000 }).toBeGreaterThan(0);
   expect(current.sent.some((f) => f.includes('"action"'))).toBe(true);
+});
+
+test('the friend really is on a slow link, and play keeps up', async () => {
+  // A ping through the tunnel takes at least the delay there and back.
+  const started = Date.now();
+  const res = await friendCtx.request.get(`${ONLINE_PUBLIC_URL}/api/server-info`);
+  expect(res.ok()).toBe(true);
+  expect(Date.now() - started).toBeGreaterThanOrEqual(ONLINE_LINK_LATENCY_MS * 2);
+
+  // Host and friend take turns until the opening placements are done; bots play at once.
+  const actIfMyMove = async (page: Page): Promise<void> => {
+    const roll = page.getByTestId('setup-roll-dialog-btn');
+    if (await roll.isVisible()) return roll.click();
+    for (const kind of ['node', 'edge'] as const) {
+      const target = page.locator(`[data-testid^="${kind}-target-"]`).first();
+      if (await target.count()) {
+        const id = (await target.getAttribute('data-testid'))!.replace(`${kind}-target-`, '');
+        return page.locator(`[data-${kind}="${id}"]`).click();
+      }
+    }
+  };
+  await expect
+    .poll(
+      async () => {
+        for (const page of [host, friend]) await actIfMyMove(page).catch(() => {});
+        return app(host).getAttribute('data-phase');
+      },
+      { timeout: 90_000, intervals: [150, 300, 500] }
+    )
+    .toBe('EventPhase');
+  // Both screens show the same finished opening: four towns and four cities.
+  for (const page of [host, friend]) {
+    await expect(page.locator('[data-testid="island-layer"] [data-piece="town"]')).toHaveCount(4);
+    await expect(page.locator('[data-testid="island-layer"] [data-piece="city"]')).toHaveCount(4);
+  }
+  await expect(app(friend)).toHaveAttribute('data-phase', 'EventPhase');
+  await expect(badge(friend)).toHaveAttribute('data-status', 'connected');
+});
+
+test('a phone that moves from Wi-Fi to mobile data (a new address) keeps its seat', async () => {
+  const before = friendSockets.length;
+  // The friend's address changes and the old connection dies with the old network.
+  await tunnel(friendCtx, 'visitor?ip=198.51.100.77');
+  expect(await tunnel(friendCtx, 'drop')).toBeGreaterThan(0);
+  try {
+    await expect.poll(() => friendSockets.length, { timeout: 10_000 }).toBeGreaterThan(before);
+    await expect(badge(friend)).toHaveAttribute('data-status', 'connected', { timeout: 10_000 });
+    await expect(app(friend)).toHaveAttribute('data-my-seat', 'purple');
+    await expect(friend.getByTestId('online-invite-gate')).toHaveCount(0);
+    await expect(host.getByTestId('corner-station-purple')).not.toContainText('offline');
+    // The board the friend sees after coming back is the one the host sees.
+    await expect(friend.locator('[data-testid="island-layer"] [data-piece="city"]')).toHaveCount(4);
+  } finally {
+    await tunnel(friendCtx, 'visitor?ip=203.0.113.7');
+  }
 });
 
 test('a connection that goes silent without closing is noticed and replaced', async () => {
