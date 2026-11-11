@@ -143,7 +143,7 @@ describe('GameRoom seats', () => {
 });
 
 describe('GameRoom host control', () => {
-  it('rejects configure, start and newGame from non-hosts', () => {
+  it('rejects configure and start from non-hosts, and newGame from someone only watching', () => {
     const { room, join } = makeRoom();
     join('h', { name: 'Hana', hostKey: HOST_KEY });
     const friend = join('f', { name: 'Finn' });
@@ -152,8 +152,43 @@ describe('GameRoom host control', () => {
     room.handleMessage('f', { type: 'start' });
     expect(friend.last('rejected')?.message).toMatch(/Only the host/);
     room.handleMessage('f', { type: 'newGame' });
-    expect(friend.last('rejected')?.message).toMatch(/Only the host/);
+    expect(friend.last('rejected')?.message).toBe('Take a seat to start a new game.');
     expect(room.isStarted).toBe(false);
+  });
+
+  it('lets anyone with a seat start a new game, and tells the others who did', () => {
+    const { room, join } = makeRoom();
+    const host = join('h', { name: 'Hana', hostKey: HOST_KEY });
+    room.handleMessage('h', { type: 'configure', config: twoHumansConfig() });
+    const friend = join('f', { name: 'Finn' });
+    room.handleMessage('f', { type: 'claimSeat', playerId: 'purple' });
+    const watcher = join('w', { name: 'Wim' });
+    room.handleMessage('h', { type: 'start' });
+    expect(room.isStarted).toBe(true);
+
+    // Someone only watching cannot end the game.
+    room.handleMessage('w', { type: 'newGame' });
+    expect(watcher.last('rejected')?.message).toBe('Take a seat to start a new game.');
+    expect(room.isStarted).toBe(true);
+
+    // A friend with a seat can: everyone is back in the lobby, seats kept.
+    room.handleMessage('f', { type: 'newGame' });
+    expect(room.isStarted).toBe(false);
+    for (const client of [host, friend, watcher]) expect(client.last('lobby')).toMatchObject({ started: false });
+    expect(host.last('lobby')!.seats.find((s) => s.playerId === 'purple')).toMatchObject({ claimed: true, name: 'Finn' });
+    // The others are told who asked; the one who asked is not told about themselves.
+    expect(host.last('notice')?.message).toBe('Finn started a new game. The host picks the seats and starts it.');
+    expect(watcher.last('notice')?.message).toMatch(/^Finn started a new game/);
+    expect(friend.last('notice')).toBeUndefined();
+
+    // Only the host starts the next one; a second "new game" in the lobby does nothing.
+    room.handleMessage('f', { type: 'start' });
+    expect(friend.last('rejected')?.message).toMatch(/Only the host can start/);
+    room.handleMessage('f', { type: 'newGame' });
+    expect(host.all('notice')).toHaveLength(1);
+    room.handleMessage('h', { type: 'start' });
+    expect(room.isStarted).toBe(true);
+    room.shutdown();
   });
 
   it('rejects invalid setups in plain language', () => {

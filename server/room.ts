@@ -7,7 +7,13 @@
  * Guarantees:
  * - Every socket only ever receives its own seat's `redactForPlayer` view (or the spectator view).
  * - Actions are accepted only for the sender's own seat and only if `applyAction` accepts them.
- * - Only a socket that presented the host key can configure, start or restart the game.
+ * - Only a socket that presented the host key can configure or start a game. Anyone with a seat
+ *   can end the game for a new one (everyone goes back to the lobby and is told who asked);
+ *   people who are only watching cannot.
+ * - With an invite gate, a socket gets nothing (no lobby, no state) until its hello carries the
+ *   invite code or the host key.
+ * - A friend's seat can only be taken over by someone else after its player has been offline
+ *   for a while (they changed device or cannot come back); never the host's seat.
  */
 
 import { randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
@@ -33,13 +39,17 @@ import {
   type OnlineSeatConfig,
   type SeatInfo,
   type ServerMessage,
+  type ShareInfo,
 } from '@/network/server-protocol';
+import { deniedText, type InviteGate } from './access';
 
 export interface RoomClient {
   readonly id: string;
   send(message: ServerMessage): void;
   /** Called when a newer connection takes over this client's seat. */
   close?(reason: string): void;
+  /** The visitor's network address; wrong invite codes are counted per address. */
+  readonly remote?: string;
 }
 
 export interface RoomTimers {
@@ -81,7 +91,19 @@ export interface GameRoomOptions {
   redactOptions?: RedactOptions;
   /** Called with every move the room applies, before it is broadcast (the soak test replays them). */
   onAction?: (action: GameAction, version: number) => void;
+  /** When set, everyone but the host must present the invite code in their hello. */
+  invite?: InviteGate | null;
+  /** The links and code the host passes on to friends; sent to host sockets only. */
+  shareInfo?: () => ShareInfo | null;
+  /** The clock (tests). */
+  now?: () => number;
 }
+
+/**
+ * How long a friend must have been offline before another visitor may take their seat. Long
+ * enough that a Wi-Fi blip or a page reload never costs anyone their seat.
+ */
+export const SEAT_TAKEOVER_AFTER_MS = 30_000;
 
 /** Players on separate laptops only see how many cards the others hold, not which. */
 export const DEFAULT_ROOM_REDACT_OPTIONS: RedactOptions = { hideOpponentResources: true };
@@ -218,6 +240,11 @@ export class GameRoom {
   private version = 0;
   private lastAction: GameAction | null = null;
   private claims: Partial<Record<PlayerId, SeatClaim>> = {};
+  /** When each claimed seat lost its last connection (absent while its player is connected). */
+  private offlineSince: Partial<Record<PlayerId, number>> = {};
+
+  /** When a refusal from each address was last written to the log (see `logRefusal`). */
+  private refusalLogged = new Map<string, number>();
 
   private botTimer: unknown = null;
   private closed = false;
@@ -236,6 +263,8 @@ export class GameRoom {
       this.version = this.started ? saved.version : 0;
       this.lastAction = this.started ? saved.lastAction : null;
       this.claims = { ...saved.seats };
+      // After a restart nobody is connected yet: the wait for a take-over starts now.
+      for (const pid of ALL_PLAYER_IDS) if (this.claims[pid]) this.offlineSince[pid] = this.now();
     } else {
       this.config = createDefaultOnlineLobbyConfig(this.newSeed());
     }
@@ -287,7 +316,22 @@ export class GameRoom {
     const rec = this.clients.get(clientId);
     if (!rec) return;
     this.clients.delete(clientId);
+    const seat = rec.playerId;
+    if (seat && ![...this.clients.values()].some((r) => r.playerId === seat)) {
+      this.offlineSince[seat] = this.now();
+      if (!rec.isHost) this.log(`${rec.name} went offline (${seat} seat).`);
+    }
     if (rec.greeted) this.broadcastLobby();
+  }
+
+  /** True once this socket's hello was accepted (it presented the invite code or host key). */
+  isGreeted(clientId: string): boolean {
+    return this.clients.get(clientId)?.greeted === true;
+  }
+
+  /** Tells the host's windows that the invite links changed (the online link came up or went). */
+  shareChanged(): void {
+    for (const r of this.greetedClients()) if (r.isHost) this.sendShare(r);
   }
 
   /** Resumes bots after a restart (call once the room is wired up). */
@@ -341,20 +385,38 @@ export class GameRoom {
       this.send(rec, { type: 'error', message: 'Already connected.' });
       return;
     }
+    const isHost = typeof msg.hostKey === 'string' && msg.hostKey.length > 0 && safeEqual(msg.hostKey, this.hostKey);
+
+    // The invite gate comes before everything else: a refused socket learns nothing about the table.
+    const gate = this.opts.invite;
+    if (gate && !isHost) {
+      const remote = rec.client.remote ?? rec.client.id;
+      const verdict = gate.check(msg.inviteCode, remote);
+      if (verdict !== 'ok') {
+        const retryAfter = verdict === 'locked' ? gate.retryAfterSeconds(remote) : 0;
+        if (verdict !== 'missing') this.logRefusal(remote, verdict);
+        this.send(rec, {
+          type: 'denied',
+          reason: verdict,
+          message: deniedText(verdict, retryAfter),
+          retryAfterSeconds: verdict === 'locked' ? retryAfter : null,
+        });
+        return;
+      }
+    }
+
     rec.greeted = true;
     const sentName = cleanName(msg.name, '');
     rec.name = sentName || 'Player';
     const namesBefore = this.game ? this.game.playerOrder.map((p) => this.game!.players[p]!.name).join('|') : '';
 
-    if (typeof msg.hostKey === 'string' && msg.hostKey.length > 0) {
-      if (safeEqual(msg.hostKey, this.hostKey)) {
-        rec.isHost = true;
-      } else {
-        this.send(rec, {
-          type: 'error',
-          message: 'That host link is not valid. You joined as a guest; use the link the server printed.',
-        });
-      }
+    if (isHost) {
+      rec.isHost = true;
+    } else if (typeof msg.hostKey === 'string' && msg.hostKey.length > 0) {
+      this.send(rec, {
+        type: 'error',
+        message: 'That host link is not valid. You joined as a guest; use the link the server printed.',
+      });
     }
 
     if (rec.isHost) {
@@ -366,10 +428,12 @@ export class GameRoom {
         // A returning friend keeps the name they joined with unless they send a new one.
         if (sentName) this.renameSeat(pid, sentName);
         else rec.name = this.claims[pid]!.name;
+        this.log(`${rec.name} is back in the ${pid} seat (from ${rec.client.remote ?? 'this computer'}).`);
       }
     }
 
     this.sendWelcome(rec);
+    if (rec.isHost) this.sendShare(rec);
     this.broadcastLobby();
     this.persist();
     if (this.started && this.game) {
@@ -401,11 +465,29 @@ export class GameRoom {
       this.bindHost(rec);
     } else {
       if (playerId === this.config.hostPlayerId) return this.reject(rec, null, 'That is the host’s seat.');
-      if (claimedByOther) return this.reject(rec, null, 'Someone already sits there.');
+      if (claimedByOther) {
+        // A seat whose player is away for a while can be taken over: the same person on another
+        // device (the seat is remembered per browser), or a stand-in for someone who had to go.
+        const wait = this.takeoverWaitSeconds(playerId);
+        if (wait === null) return this.reject(rec, null, 'Someone already sits there.');
+        if (wait > 0) {
+          const who = this.claims[playerId]!.name;
+          return this.reject(
+            rec,
+            null,
+            `${who} was here a moment ago. If they do not come back, try again in ${wait} second${wait === 1 ? '' : 's'}.`
+          );
+        }
+      }
       if (rec.playerId) {
         if (this.started) return this.reject(rec, null, 'You already have a seat in this game.');
         this.releaseSeat(rec.playerId);
       }
+      this.log(
+        claimedByOther
+          ? `${rec.name} took over the ${playerId} seat from ${this.claims[playerId]!.name}, who was offline (from ${rec.client.remote ?? 'this computer'}).`
+          : `${rec.name} took the ${playerId} seat (from ${rec.client.remote ?? 'this computer'}).`
+      );
       this.claims[playerId] = { token: this.newToken(), name: rec.name };
       this.bind(rec, playerId);
       this.renameSeat(playerId, rec.name);
@@ -470,16 +552,23 @@ export class GameRoom {
   }
 
   private onNewGame(rec: ClientRecord): void {
-    if (!rec.isHost) return this.reject(rec, null, 'Only the host can start a new game.');
+    // The host always may. So may anyone playing: a table of friends decides together, and a
+    // friend must not be stuck in a game nobody can end. Someone only watching may not.
+    if (!rec.isHost && !rec.playerId) return this.reject(rec, null, 'Take a seat to start a new game.');
+    if (!this.started) return;
     this.clearBotTimer();
     this.started = false;
     this.game = null;
     this.version = 0;
     this.lastAction = null;
     this.config = { ...this.config, seed: this.newSeed() };
-    this.log('Back to the lobby for a new game.');
+    this.log(`${rec.name} started a new game: everyone is back in the lobby.`);
     this.persist();
     this.broadcastLobby();
+    // Nobody should wonder why the table vanished.
+    for (const r of this.greetedClients()) {
+      if (r !== rec) this.send(r, { type: 'notice', message: `${rec.name} started a new game. The host picks the seats and starts it.` });
+    }
   }
 
   private onAction(rec: ClientRecord, action: unknown, requestIdRaw: unknown): void {
@@ -590,6 +679,16 @@ export class GameRoom {
     return null;
   }
 
+  /**
+   * Seconds until a claimed seat may be taken over: 0 when it may be taken now, null while its
+   * player is connected (never, for now).
+   */
+  private takeoverWaitSeconds(pid: PlayerId): number | null {
+    for (const r of this.clients.values()) if (r.playerId === pid) return null;
+    const since = this.offlineSince[pid] ?? this.now();
+    return Math.max(0, Math.ceil((since + SEAT_TAKEOVER_AFTER_MS - this.now()) / 1000));
+  }
+
   /** Binds the host socket to the host seat, creating the host's claim if needed. */
   private bindHost(rec: ClientRecord): void {
     const pid = this.config.hostPlayerId;
@@ -611,11 +710,13 @@ export class GameRoom {
       }
     }
     rec.playerId = pid;
+    delete this.offlineSince[pid];
   }
 
   /** Frees a seat: forgets its token and unseats whoever sat there. */
   private releaseSeat(pid: PlayerId): void {
     delete this.claims[pid];
+    delete this.offlineSince[pid];
     for (const r of this.clients.values()) {
       if (r.playerId === pid) {
         r.playerId = null;
@@ -687,6 +788,24 @@ export class GameRoom {
     });
   }
 
+  /**
+   * Notes a refused visitor in the server window, once per address every ten minutes: someone
+   * guessing codes must not be able to scroll the invite link out of the host's sight.
+   */
+  private logRefusal(remote: string, verdict: string): void {
+    const now = this.now();
+    const last = this.refusalLogged.get(remote);
+    if (last !== undefined && now - last < 10 * 60_000) return;
+    if (this.refusalLogged.size >= 500) this.refusalLogged.clear();
+    this.refusalLogged.set(remote, now);
+    this.log(`Refused a visitor from ${remote}: ${verdict} invite code. (More from this address is not listed for ten minutes.)`);
+  }
+
+  private sendShare(rec: ClientRecord): void {
+    const share = this.opts.shareInfo?.();
+    if (share) this.send(rec, { type: 'share', share });
+  }
+
   private broadcastLobby(): void {
     const message: ServerMessage = {
       type: 'lobby',
@@ -732,6 +851,10 @@ export class GameRoom {
 
   private newToken(): string {
     return this.opts.randomToken ? this.opts.randomToken() : randomBytes(18).toString('base64url');
+  }
+
+  private now(): number {
+    return this.opts.now ? this.opts.now() : Date.now();
   }
 
   private newSeed(): number {

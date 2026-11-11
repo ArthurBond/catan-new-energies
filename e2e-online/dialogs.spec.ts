@@ -276,9 +276,11 @@ test.describe('the end of a game', () => {
     // Once the game is over every card is out in the open, so the standings can be added up
     expect(wireStates.join(' ')).toContain('dev_victoryPoint_03');
 
-    // Only the host can start the next game
+    // Everyone at the table can start the next game, from the standings or the top bar
     await expect(A.getByTestId('victory-new-game-btn')).toBeVisible();
-    await expect(B.getByTestId('victory-new-game-btn')).toHaveCount(0);
+    await expect(B.getByTestId('victory-new-game-btn')).toBeVisible();
+    await expect(A.getByTestId('online-new-game-btn')).toContainText('New game');
+    await expect(B.getByTestId('online-new-game-btn')).toContainText('New game');
 
     // ...and it takes everyone back to the lobby with the seats kept
     A.once('dialog', (dialog) => void dialog.accept());

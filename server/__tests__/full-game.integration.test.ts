@@ -526,6 +526,8 @@ async function playWholeGame(
     botDelayMs: 0,
     log: () => {},
     onAction: (action, version) => applied.set(version, action),
+    // The test plays hundreds of moves a second; the flood limit is for people-speed play.
+    maxMessagesPerSecond: Infinity,
   });
   servers.push(server);
 

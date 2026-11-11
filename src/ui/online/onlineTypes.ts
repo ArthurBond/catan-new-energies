@@ -15,7 +15,7 @@ export interface OnlineTable {
   roleLabels: Partial<Record<PlayerId, string>>;
   notice: OnlineNotice | null;
   sendAction: (action: GameAction) => void;
-  /** Host only: end this game for everyone and go back to the lobby (asks first). */
+  /** Anyone with a seat: end this game for everyone and go back to the lobby (asks first). */
   onNewGame: () => void;
   /** The connection badge shown in the top bar. */
   badge: ComponentChildren;

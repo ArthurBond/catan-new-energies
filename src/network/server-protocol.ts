@@ -12,7 +12,7 @@ import type { EventDiscType, GameAction, PlayerId } from '../engine/types';
 import type { RedactedGameAction, RedactedGameState } from './redact';
 
 /** Bumped when a message shape changes incompatibly. */
-export const SERVER_PROTOCOL_VERSION = 1;
+export const SERVER_PROTOCOL_VERSION = 2;
 
 /** Value of `app` in `GET /api/server-info`; the client uses it to detect online mode. */
 export const SERVER_APP_ID = 'catan-new-energies';
@@ -21,6 +21,19 @@ export const SERVER_DEFAULT_PORT = 3210;
 
 /** Suggested browser `localStorage` key for the seat token (one server per origin). */
 export const SEAT_TOKEN_STORAGE_KEY = 'catan-ne-online-seat-token';
+
+/** Query parameter that carries the invite code in the link the host sends (`?join=ABCD-EFGH`). */
+export const INVITE_QUERY_PARAM = 'join';
+
+/** `<meta name>` the game server adds to the page it serves; its content is a JSON `ServerInfo`. */
+export const SERVER_INFO_META_NAME = 'catan-game-server';
+
+/** WebSocket close codes the server uses (4000-4999 are free for applications). */
+export const CLOSE_SEAT_TAKEN_OVER = 4000;
+/** The socket never said a valid hello (for example it sat on the invite prompt). */
+export const CLOSE_HELLO_TIMEOUT = 4002;
+/** The socket sent messages far faster than a person can play. */
+export const CLOSE_TOO_MANY_MESSAGES = 4003;
 
 export const ALL_PLAYER_IDS: readonly PlayerId[] = ['orange', 'purple', 'pink', 'blue'];
 
@@ -64,12 +77,38 @@ export interface SeatInfo {
   connected: boolean;
 }
 
+/** How the host shares the game: home network, private Tailscale network, or a public link. */
+export type ShareMode = 'lan' | 'tailnet' | 'online';
+
 export interface ServerInfo {
   app: typeof SERVER_APP_ID;
   protocolVersion: number;
   port: number;
+  /** Addresses on the host's own network. Only sent to a browser on the host's computer. */
   lanUrls: string[];
   started: boolean;
+  /** Friends need the invite code (in their link, or typed in) before they see the lobby. */
+  inviteRequired: boolean;
+  share: ShareMode;
+}
+
+export interface ShareLink {
+  /** Complete link a friend can open. It already carries the invite code when one is needed. */
+  url: string;
+  kind: ShareMode;
+  /** Plain-language description, for example "Works from any network". */
+  label: string;
+}
+
+/** What the host needs to invite friends. Only ever sent to a socket that holds the host key. */
+export interface ShareInfo {
+  mode: ShareMode;
+  /** Best link first. Empty while the online link is still being set up. */
+  links: ShareLink[];
+  /** Formatted invite code (`ABCD-EFGH`), or null when no code is needed. */
+  inviteCode: string | null;
+  /** One line about the current state, for example "Setting up the online link…". */
+  status: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -77,7 +116,9 @@ export interface ServerInfo {
 // ---------------------------------------------------------------------------
 
 export type ClientMessage =
-  | { type: 'hello'; name: string; seatToken?: string | null; hostKey?: string | null }
+  | { type: 'hello'; name: string; seatToken?: string | null; hostKey?: string | null; inviteCode?: string | null }
+  /** Keep-alive and dead-connection check; the server answers with `pong` and the same `t`. */
+  | { type: 'ping'; t?: number }
   | { type: 'claimSeat'; playerId: PlayerId; name?: string }
   | { type: 'leaveSeat' }
   | { type: 'configure'; config: OnlineLobbyConfig }
@@ -122,6 +163,33 @@ export interface StateMessage {
   yourPlayerId: PlayerId | null;
 }
 
+/** The hello was refused: the socket stays open so the browser can say hello again with a code. */
+export interface DeniedMessage {
+  type: 'denied';
+  /** `missing`: no code sent. `wrong`: not the code. `locked`: too many wrong codes, wait. */
+  reason: 'missing' | 'wrong' | 'locked';
+  message: string;
+  /** For `locked`: how long until codes are accepted again. */
+  retryAfterSeconds: number | null;
+}
+
+export interface PongMessage {
+  type: 'pong';
+  t: number | null;
+}
+
+/** Host only: the links and invite code to send to friends (re-sent when they change). */
+export interface ShareMessage {
+  type: 'share';
+  share: ShareInfo;
+}
+
+/** Something everyone at the table should know, for example who started a new game. */
+export interface NoticeMessage {
+  type: 'notice';
+  message: string;
+}
+
 export interface RejectedMessage {
   type: 'rejected';
   requestId: string | null;
@@ -138,7 +206,11 @@ export type ServerMessage =
   | LobbyMessage
   | StateMessage
   | RejectedMessage
-  | ErrorMessage;
+  | ErrorMessage
+  | DeniedMessage
+  | PongMessage
+  | ShareMessage
+  | NoticeMessage;
 
 /** Default lobby: host plays orange, the other three seats are bots. */
 export function createDefaultOnlineLobbyConfig(seed = 1): OnlineLobbyConfig {
@@ -179,6 +251,23 @@ export function botStepDelayMs(speed: OnlineBotSpeed, isSetup: boolean): number 
 /** Seats taking part in a game with this config, in turn order. */
 export function activeSeatIds(config: Pick<OnlineLobbyConfig, 'playerCount'>): PlayerId[] {
   return config.playerCount === 3 ? ['orange', 'purple', 'pink'] : [...ALL_PLAYER_IDS];
+}
+
+/** `ABCD-EFGH` or `abcd efgh` -> `ABCDEFGH`: what people type is compared without case or separators. */
+export function normalizeInviteCode(raw: unknown): string {
+  return typeof raw === 'string' ? raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 64) : '';
+}
+
+/** `ABCDEFGH` -> `ABCD-EFGH`, easier to read out over the phone. */
+export function formatInviteCode(code: string): string {
+  const clean = normalizeInviteCode(code);
+  return clean.length > 4 ? `${clean.slice(0, 4)}-${clean.slice(4)}` : clean;
+}
+
+/** The link a friend opens: the address plus the invite code, when one is needed. */
+export function inviteLink(baseUrl: string, inviteCode: string | null): string {
+  const base = baseUrl.replace(/\/+$/, '');
+  return inviteCode ? `${base}/?${INVITE_QUERY_PARAM}=${formatInviteCode(inviteCode)}` : base;
 }
 
 /** WebSocket URL for the page's own origin (`wss:` behind https tunnels). */

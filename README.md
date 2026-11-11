@@ -28,18 +28,30 @@ npm run typecheck
 npm run lint
 ```
 
-## Play with friends on your network
+## Play with friends, wherever they are
 
 The GitHub Pages site plays offline (bots and pass-and-play). For online play, one person hosts
-a small server on their own computer and friends join from their browsers:
+a small server on their own computer and everyone else joins from a browser:
 
 ```bash
-npm run host       # builds the game and starts the server on port 3210
+npm run host:online    # one invite link that works from any network (encrypted, via Tailscale)
 ```
 
-The server window lists the addresses friends can open (for example `http://192.168.1.105:3210`).
-On Windows, `scripts\windows\allow-firewall.ps1` (run as administrator) lets them through the
-firewall, and `scripts\windows\host-game.cmd` starts the server with a double-click.
+```bash
+npm run host:tailnet   # private: only friends who run Tailscale themselves
+```
+
+```bash
+npm run host           # friends on the same Wi-Fi
+```
+
+`npm run host:online` prints an invite link such as
+`https://your-computer.your-tailnet.ts.net/?join=ABCD-EFGH`. Friends open it on a phone or a
+computer, on any network, with nothing to install. The link carries an invite code, the traffic
+is encrypted from their browser to your computer, and a dropped connection comes back by itself.
+
+**Setup, step by step: [MULTIPLAYER.md](MULTIPLAYER.md)** (install Tailscale once, about ten
+minutes).
 
 ## Publishing updates
 

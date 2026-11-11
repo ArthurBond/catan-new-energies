@@ -1,15 +1,19 @@
 /**
  * Saves the table to `<savesDir>/current-game.json` after every change and keeps the host key in
- * `<savesDir>/host-key.txt`, so a server restart resumes the game, seat tokens and host link.
+ * `<savesDir>/host-key.txt` and the invite code in `<savesDir>/invite-code.txt`, so a server
+ * restart resumes the game, seat tokens, host link and the invite link friends already have.
  */
 
 import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { normalizeInviteCode } from '@/network/server-protocol';
+import { generateInviteCode, isUsableInviteCode } from './access';
 import type { SavedRoom } from './room';
 
 export const SAVE_FILE_NAME = 'current-game.json';
 export const HOST_KEY_FILE_NAME = 'host-key.txt';
+export const INVITE_CODE_FILE_NAME = 'invite-code.txt';
 
 export interface RoomStore {
   readonly savesDir: string;
@@ -17,11 +21,17 @@ export interface RoomStore {
   save(snapshot: SavedRoom): void;
   /** Reads the host key, creating and storing a new random one on first use. */
   hostKey(): string;
+  /**
+   * Reads the invite code, creating and storing a new random one on first use. `renew` replaces
+   * it, which makes every invite link sent so far stop working.
+   */
+  inviteCode(renew?: boolean): string;
 }
 
 export function createFileStore(savesDir: string, log: (m: string) => void = () => {}): RoomStore {
   const savePath = path.join(savesDir, SAVE_FILE_NAME);
   const keyPath = path.join(savesDir, HOST_KEY_FILE_NAME);
+  const invitePath = path.join(savesDir, INVITE_CODE_FILE_NAME);
   const ensureDir = () => fs.mkdirSync(savesDir, { recursive: true });
 
   return {
@@ -75,6 +85,21 @@ export function createFileStore(savesDir: string, log: (m: string) => void = () 
       const key = randomBytes(12).toString('base64url');
       fs.writeFileSync(keyPath, `${key}\n`, 'utf8');
       return key;
+    },
+
+    inviteCode(renew = false) {
+      if (!renew) {
+        try {
+          const code = normalizeInviteCode(fs.readFileSync(invitePath, 'utf8'));
+          if (isUsableInviteCode(code)) return code;
+        } catch {
+          /* create below */
+        }
+      }
+      ensureDir();
+      const code = generateInviteCode();
+      fs.writeFileSync(invitePath, `${code}\n`, 'utf8');
+      return code;
     },
   };
 }

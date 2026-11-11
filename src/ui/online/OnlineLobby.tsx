@@ -8,13 +8,15 @@
 
 import 'preact/compat';
 import { ComponentChildren } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useId, useState } from 'preact/hooks';
 import type { PlayerId } from '../../engine/types';
 import {
   activeSeatIds,
   type OnlineLobbyConfig,
   type OnlineSeatConfig,
   type SeatInfo,
+  type ShareInfo,
+  type ShareLink,
 } from '../../network/server-protocol';
 import { LobbyOption, STRATEGY_OPTIONS } from '../Modals';
 import { PlayerBadge } from '../PlayersRail';
@@ -27,6 +29,7 @@ const STATUS_LABEL: Record<ConnectionStatus, string> = {
   reconnecting: 'Reconnecting…',
   offline: 'Offline — retrying',
   replaced: 'Opened elsewhere',
+  denied: 'Invite code needed',
 };
 
 export function ConnectionBadge({ status }: { status: ConnectionStatus }) {
@@ -68,7 +71,8 @@ function presence(info: SeatInfo | undefined): string {
   return info.connected ? 'Connected' : 'Offline';
 }
 
-function useNoticeText(session: OnlineSession): string | null {
+/** The server's latest refusal or warning, shown for a few seconds. */
+export function useNoticeText(session: OnlineSession): string | null {
   const [text, setText] = useState<string | null>(null);
   useEffect(() => {
     if (!session.notice) return;
@@ -109,8 +113,25 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-function JoinLink({ lanUrls }: { lanUrls: string[] }) {
+/** What the host reads above the link, per way of sharing. */
+const SHARE_INTRO: Record<ShareInfo['mode'], string> = {
+  online: 'Send this link to your friends. It works from any network, and the connection is encrypted.',
+  tailnet: 'Send this link to friends who use Tailscale. The connection is encrypted and not public.',
+  lan: 'Friends on your Wi-Fi open this link, type their name and pick a seat.',
+};
+
+/**
+ * The links the server says friends can use. Until the server has sent them (or with an older
+ * server) the panel falls back to this page's own address, as before.
+ */
+export function shareLinksFor(share: ShareInfo | null, lanUrls: string[]): ShareLink[] {
+  // On a computer with no network at all the page's own address is still better than nothing.
+  if (share && (share.links.length > 0 || share.mode !== 'lan')) return share.links;
   const { primary, others } = joinUrlFor(lanUrls);
+  return [primary, ...others].map((url) => ({ url, kind: 'lan' as const, label: 'Same Wi-Fi only' }));
+}
+
+function CopyButton({ text, testId, label = 'Copy link' }: { text: string; testId: string; label?: string }) {
   const [copied, setCopied] = useState<'yes' | 'no' | null>(null);
   useEffect(() => {
     if (!copied) return;
@@ -118,31 +139,134 @@ function JoinLink({ lanUrls }: { lanUrls: string[] }) {
     return () => clearTimeout(timer);
   }, [copied]);
   return (
-    <div className="lb-section ol-invite" data-testid="online-invite">
+    <button
+      type="button"
+      className="tt-icon-btn"
+      data-testid={testId}
+      onClick={async () => setCopied((await copyText(text)) ? 'yes' : 'no')}
+    >
+      <span aria-live="polite">{copied === 'yes' ? 'Copied' : copied === 'no' ? 'Copy failed' : label}</span>
+    </button>
+  );
+}
+
+export function InvitePanel({ share, lanUrls }: { share: ShareInfo | null; lanUrls: string[] }) {
+  const mode = share?.mode ?? 'lan';
+  const links = shareLinksFor(share, lanUrls);
+  const primary = links[0];
+  const others = links.slice(1);
+  return (
+    <div className="lb-section ol-invite" data-testid="online-invite" data-share-mode={mode}>
       <h3>Invite friends</h3>
-      <p className="lb-muted">Friends on your Wi-Fi open this link, type their name and pick a seat.</p>
-      <div className="ol-link-row">
-        <code className="ol-link" data-testid="online-join-link">
-          {primary}
-        </code>
-        <button
-          type="button"
-          className="tt-icon-btn"
-          data-testid="copy-join-link"
-          onClick={async () => setCopied((await copyText(primary)) ? 'yes' : 'no')}
-        >
-          {copied === 'yes' ? 'Copied' : copied === 'no' ? 'Copy failed' : 'Copy link'}
-        </button>
-      </div>
-      {others.length > 0 && (
-        <p className="lb-muted" data-testid="online-lan-urls">
-          Other addresses of this PC: {others.join(' · ')}
+      {primary ? (
+        <>
+          <p className="lb-muted">{SHARE_INTRO[mode]}</p>
+          <div className="ol-link-row">
+            <code className="ol-link" data-testid="online-join-link">
+              {primary.url}
+            </code>
+            <CopyButton text={primary.url} testId="copy-join-link" />
+          </div>
+        </>
+      ) : (
+        <p className="ol-share-status" role="status" data-testid="online-share-status">
+          <span className="ol-dot" aria-hidden="true" />
+          {share?.status ?? 'No Wi-Fi or network address found.'}
         </p>
       )}
-      {lanUrls.length === 0 && (
-        <p className="lb-muted">No Wi-Fi or network address found. Friends elsewhere can join over Tailscale or a tunnel.</p>
+      {primary && share?.status && (
+        <p className="lb-muted" role="status" data-testid="online-share-status">
+          {share.status}
+        </p>
+      )}
+      {share?.inviteCode && (
+        <p className="lb-muted" data-testid="online-invite-code">
+          Invite code <strong className="ol-code">{share.inviteCode}</strong> (already in the link; anyone who opens the
+          address without it is asked for it).
+        </p>
+      )}
+      {others.length > 0 && (
+        <p className="lb-muted" data-testid="online-lan-urls">
+          {mode === 'lan' ? 'Other addresses of this PC: ' : 'Also works: '}
+          {others.map((l, i) => (
+            <span key={l.url}>
+              {i > 0 && ' · '}
+              {l.url}
+              {mode !== 'lan' && ` (${l.label.toLowerCase()})`}
+            </span>
+          ))}
+        </p>
+      )}
+      {mode === 'lan' && (
+        <p className="lb-muted" data-testid="online-share-hint">
+          Friends on another network? Stop the server and start it with <code>npm run host:online</code>.
+        </p>
       )}
     </div>
+  );
+}
+
+/** Shown instead of the lobby while the server wants the invite code. */
+export function InviteCodeForm({ session }: { session: OnlineSession }) {
+  const [code, setCode] = useState('');
+  const [touched, setTouched] = useState(false);
+  const inputId = useId();
+  const helpId = useId();
+  const errorId = useId();
+  const denied = session.denied;
+  // "This game needs a code" is the reason for the screen, not a mistake to flag in red.
+  const error = touched && !code.trim() ? 'Type the invite code first.' : denied && denied.reason !== 'missing' ? denied.message : null;
+  return (
+    <form
+      className="ol-invite-form"
+      data-testid="online-invite-form"
+      noValidate
+      onSubmit={(e) => {
+        e.preventDefault();
+        setTouched(true);
+        if (!code.trim()) return;
+        session.submitInviteCode(code);
+        setCode('');
+        setTouched(false);
+      }}
+    >
+      <div className="lb-field ol-code-field">
+        <label htmlFor={inputId}>Invite code</label>
+        <input
+          id={inputId}
+          name="invite-code"
+          type="text"
+          className="lb-input ol-code-input"
+          data-testid="online-invite-input"
+          placeholder="ABCD-EFGH"
+          maxLength={40}
+          required
+          autoFocus
+          autoComplete="off"
+          autoCapitalize="characters"
+          spellcheck={false}
+          enterkeyhint="go"
+          // Set as an attribute: as a property, browsers that know it read the string "off" as true.
+          ref={(el) => el?.setAttribute('autocorrect', 'off')}
+          aria-describedby={error ? `${helpId} ${errorId}` : helpId}
+          aria-invalid={error ? 'true' : undefined}
+          value={code}
+          onInput={(e) => {
+            setCode((e.target as HTMLInputElement).value);
+            setTouched(false);
+          }}
+        />
+        <span id={helpId} className="lb-muted">
+          It is in the link your host sent, after “join=”. Capitals and the dash do not matter.
+        </span>
+      </div>
+      <p id={errorId} className="ol-notice" role="alert" data-testid="online-invite-error" hidden={!error}>
+        {error}
+      </p>
+      <button type="submit" className="tt-cta is-ready" data-testid="online-invite-submit">
+        Join the game
+      </button>
+    </form>
   );
 }
 
@@ -307,7 +431,7 @@ function HostLobby({ session }: { session: OnlineSession }) {
         <ConnectionBadge status={session.status} />
       </div>
 
-      <JoinLink lanUrls={session.info.lanUrls} />
+      <InvitePanel share={session.share} lanUrls={session.info.lanUrls} />
 
       <div className="lb-section">
         <div className="lb-section-head ol-seats-head">
@@ -425,6 +549,8 @@ export function SeatPicker({ session, midGame = false }: { session: OnlineSessio
         const seat = config.seats[pid];
         const open = info?.role === 'friend' && !info.claimed;
         const mine = pid === me;
+        // A friend who is offline may have changed device, or may not come back
+        const away = info?.role === 'friend' && info.claimed && !info.connected && !mine;
         return (
           <div
             key={pid}
@@ -463,6 +589,25 @@ export function SeatPicker({ session, midGame = false }: { session: OnlineSessio
                   onClick={() => session.send({ type: 'claimSeat', playerId: pid, name })}
                 >
                   {me ? 'Move here' : 'Take this seat'}
+                </button>
+              )}
+              {away && !(midGame && me) && (
+                <button
+                  type="button"
+                  className="tt-icon-btn"
+                  data-testid={`online-takeover-${pid}`}
+                  disabled={!name || session.status !== 'connected'}
+                  title={
+                    name
+                      ? `${info.name} is offline. Take over this seat if this is you on another device, or if they cannot come back.`
+                      : 'Type your name first'
+                  }
+                  onClick={() => {
+                    const question = `Take over ${info.name}’s seat? Do this if ${info.name} is you on another device, or cannot come back.`;
+                    if (window.confirm(question)) session.send({ type: 'claimSeat', playerId: pid, name });
+                  }}
+                >
+                  Take over
                 </button>
               )}
             </span>
@@ -527,7 +672,7 @@ export function OnlineLobby({ session }: { session: OnlineSession }) {
       >
         {session.isHost ? <HostLobby session={session} /> : <FriendLobby session={session} />}
         {notice && (
-          <p className="ol-notice" role="alert" data-testid="online-notice">
+          <p className="ol-notice" role="alert" data-testid="online-notice" data-kind={session.notice?.kind}>
             {notice}
           </p>
         )}

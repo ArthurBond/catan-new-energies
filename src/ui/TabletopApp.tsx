@@ -546,7 +546,7 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
       playerId: myPlayerId ?? gameState.activePlayerId,
       title: onlineNotice.kind === 'rejected' ? 'That move is not allowed' : 'Heads up',
       detail: onlineNotice.message,
-      isError: true,
+      isError: onlineNotice.kind !== 'info',
     });
   }, [onlineNotice?.id]);
 
@@ -1291,7 +1291,8 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
         tableclothColor={tableclothColor}
         onTableclothColorChange={handleTableclothColorChange}
         onOpenLobby={() => setShowLobby(true)}
-        online={online ? { badge: online.badge, onNewGame: online.isHost ? online.onNewGame : null } : undefined}
+        // Online: everyone with a seat can call a new game; someone only watching cannot
+        online={online ? { badge: online.badge, onNewGame: online.isHost || myPlayerId ? online.onNewGame : null } : undefined}
       />
 
       <div className="tt-table">
@@ -1708,7 +1709,7 @@ export function TabletopApp({ online }: { online?: OnlineTable }) {
           onInspectBoard={() => setDismissedVictoryModal(true)}
           onOpenLobby={
             online
-              ? online.isHost
+              ? online.isHost || myPlayerId
                 ? online.onNewGame
                 : undefined
               : () => {
