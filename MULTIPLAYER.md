@@ -8,16 +8,29 @@ There are three ways to host. Pick by where your friends are.
 
 | Way to host | Who can join | What friends need | Start it with |
 | --- | --- | --- | --- |
-| **Online link** (recommended) | Anyone you send the link to, on any network | A browser | `npm run host:online` |
+| **Online link** | Anyone you send the link to, on any network | A browser | `npm run host:online` |
 | **Private Tailscale network** | People who run Tailscale and whom you gave access | The Tailscale app | `npm run host:tailnet` |
 | **Home Wi-Fi** | People on the same Wi-Fi as the host | A browser | `npm run host` |
 
 All three are the same game and the same lobby. The online link and the private network are
 encrypted by [Tailscale](https://tailscale.com), which is free for personal use.
 
+### What has been tried for real (11 November 2026)
+
+- **Private Tailscale network: tried, and it works.** An iPhone on mobile data, on a different
+  network from the host, joined a game hosted on a Mac, took a seat and played.
+- **Online link: not yet tried for real.** It passes the automated tests, which put a stand-in
+  for Tailscale Funnel in front of the game, but `npm run host:online` has never been run against
+  the real Tailscale Funnel. The first evening you use it is the test: try it with one friend
+  before a full table, and keep the private network as the fallback.
+- **Home Wi-Fi:** the way the game was played before this guide; covered by the automated tests.
+
 ---
 
 ## Online link: the quick way
+
+Not yet tried against the real Tailscale Funnel (see above). The steps below are how it is built
+to work.
 
 ### Set up once (host only, about ten minutes)
 
