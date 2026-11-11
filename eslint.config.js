@@ -10,7 +10,15 @@ export default tseslint.config(
   {
     // Node scripts (asset generators) run outside the browser
     files: ['scripts/**/*.mjs', 'e2e-online/**/*.mjs'],
-    languageOptions: { globals: { console: 'readonly', process: 'readonly' } },
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        URL: 'readonly',
+        setTimeout: 'readonly',
+        setInterval: 'readonly',
+      },
+    },
   },
   {
     rules: {

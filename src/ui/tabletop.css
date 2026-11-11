@@ -2686,6 +2686,88 @@ select.lb-input {
   font-size: 13px;
 }
 
+/* Invite panel (host) and invite-code screen (friends), for games shared beyond the home Wi-Fi */
+.ol-invite code:not(.ol-link) {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--ink-950);
+  color: var(--ink-100);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 12px;
+}
+
+.ol-code {
+  color: var(--volt);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 13.5px;
+  letter-spacing: 0.06em;
+  user-select: all;
+}
+
+.ol-share-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-100);
+  font-size: 14px;
+}
+
+.ol-share-status .ol-dot {
+  flex: none;
+  background: var(--volt);
+  animation: ol-pulse 1s ease-in-out infinite;
+}
+
+.ol-invite-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ol-code-field label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-100);
+}
+
+/* 16px text keeps iPhones from zooming in on focus; 48px is a comfortable tap target */
+.ol-code-input {
+  height: 48px;
+  padding: 0 14px;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 18px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ol-code-input::placeholder {
+  color: rgba(163, 183, 202, 0.45);
+  letter-spacing: 0.12em;
+}
+
+.ol-code-input:focus-visible {
+  outline: 3px solid var(--volt);
+  outline-offset: 2px;
+}
+
+.ol-code-input[aria-invalid='true'] {
+  border-color: #ff8a80;
+}
+
+.ol-invite-form .tt-cta {
+  min-height: 48px;
+}
+
+.ol-badge[data-status='denied'] .ol-dot {
+  background: var(--volt);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ol-share-status .ol-dot {
+    animation: none;
+  }
+}
+
 @media (max-width: 640px) {
   .ol-seat {
     grid-template-columns: 26px 1fr auto;

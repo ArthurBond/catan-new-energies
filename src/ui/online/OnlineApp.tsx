@@ -10,7 +10,15 @@ import { useMemo, useState } from 'preact/hooks';
 import type { PlayerId } from '../../engine/types';
 import type { ServerInfo } from '../../network/server-protocol';
 import { TabletopApp } from '../TabletopApp';
-import { ConnectionBadge, OnlineLobby, OnlinePage, SeatPicker, seatRoleLabel } from './OnlineLobby';
+import {
+  ConnectionBadge,
+  InviteCodeForm,
+  OnlineLobby,
+  OnlinePage,
+  SeatPicker,
+  seatRoleLabel,
+  useNoticeText,
+} from './OnlineLobby';
 import type { OnlineTable } from './onlineTypes';
 import { useOnlineGame } from './useOnlineGame';
 
@@ -20,6 +28,8 @@ export function OnlineApp({ info }: { info: ServerInfo }) {
   const session = useOnlineGame(info);
   const [watching, setWatching] = useState(false);
   const { lobby, game } = session;
+  // The table's own toast sits under the "take a seat" card, so that card shows refusals itself
+  const noticeText = useNoticeText(session);
 
   const table = useMemo<OnlineTable | null>(() => {
     if (!lobby || !game) return null;
@@ -56,6 +66,23 @@ export function OnlineApp({ info }: { info: ServerInfo }) {
           <button type="button" className="tt-cta is-ready" data-testid="online-use-this-window" onClick={session.reconnect}>
             Use this window
           </button>
+        </div>
+      </OnlinePage>
+    );
+  }
+
+  // The server shows nothing (no lobby, no table) until this browser presents the invite code.
+  if (session.status === 'denied') {
+    return (
+      <OnlinePage>
+        <div className="lb-sheet ol-sheet ol-small" data-testid="online-invite-gate" role="dialog" aria-labelledby="ol-invite-title">
+          <div className="lb-head">
+            <div>
+              <h2 id="ol-invite-title">Enter the invite code</h2>
+              <p>This game is private. Ask the host for the invite link, or type the code they gave you.</p>
+            </div>
+          </div>
+          <InviteCodeForm session={session} />
         </div>
       </OnlinePage>
     );
@@ -105,6 +132,11 @@ export function OnlineApp({ info }: { info: ServerInfo }) {
               />
             </label>
             <SeatPicker session={session} midGame />
+            {noticeText && (
+              <p className="ol-notice" role="alert" data-testid="online-notice">
+                {noticeText}
+              </p>
+            )}
             <button type="button" className="tt-icon-btn" data-testid="online-watch-btn" onClick={() => setWatching(true)}>
               Just watch
             </button>
