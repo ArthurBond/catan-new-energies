@@ -37,14 +37,20 @@ const snapshot = (tree, parent, message) => {
   return git(['commit-tree', tree, ...(parent ? ['-p', parent] : []), '-m', message]);
 };
 
-// Build the site for https://<user>.github.io/<repo>/
-execSync('npm run build', { stdio: 'inherit', env: { ...process.env, PAGES_BASE: `/${repo}/` } });
-writeFileSync('dist/.nojekyll', ''); // serve the files as they are
+// Build the site for https://<user>.github.io/<repo>/ into its own folder. dist/ is what a
+// running game server (npm run host) hands to players: a site build there would give everyone
+// who joins or reloads a blank page until the next ordinary build.
+const SITE_DIR = 'dist-pages';
+execSync(`npx vite build --outDir ${SITE_DIR} --emptyOutDir`, {
+  stdio: 'inherit',
+  env: { ...process.env, PAGES_BASE: `/${repo}/` },
+});
+writeFileSync(join(SITE_DIR, '.nojekyll'), ''); // serve the files as they are
 
-// Turn dist/ into a tree with a throwaway index, leaving the real index and working tree alone
+// Turn the site folder into a tree with a throwaway index, leaving the real index and working tree alone
 const scratch = mkdtempSync(join(tmpdir(), 'publish-pages-'));
 const indexEnv = { ...process.env, GIT_INDEX_FILE: join(scratch, 'index') };
-git(['--work-tree=dist', 'add', '--all', '.'], indexEnv);
+git([`--work-tree=${SITE_DIR}`, 'add', '--all', '.'], indexEnv);
 const siteTree = git(['write-tree'], indexEnv);
 rmSync(scratch, { recursive: true, force: true });
 
