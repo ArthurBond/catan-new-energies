@@ -53,6 +53,10 @@ is encrypted from their browser to your computer, and a dropped connection comes
 **Setup, step by step: [MULTIPLAYER.md](MULTIPLAYER.md)** (install Tailscale once, about ten
 minutes).
 
+Tried for real so far: the private Tailscale mode, with a phone on mobile data joining a game
+hosted on a Mac. The online link has passed its automated tests but has not yet been run against
+the real Tailscale Funnel.
+
 ## Publishing updates
 
 To publish your latest committed work:
